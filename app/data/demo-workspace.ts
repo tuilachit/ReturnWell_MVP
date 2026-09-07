@@ -1,0 +1,56 @@
+import type { Practitioner, Referral } from "../types";
+
+export const demoReferrals: Referral[] = [
+  {
+    id: "00000000-0000-4000-8000-000000000101",
+    reference: "DEMO-REF-101",
+    patientReference: "DEMO-PAT-01",
+    patientPostcode: "2000",
+    profession: "physiotherapist",
+    clinicalSummary: "Example mobility assessment request.",
+    fundingPath: "Medicare",
+    appointmentFormat: "either",
+    languageOrAccess: "",
+    selectionMode: "doctor",
+    selectedPractitionerId: "00000000-0000-4000-8000-000000000201",
+    providerName: "Demo Movement Practice",
+    status: "accepted",
+    createdAt: "2026-09-01T00:00:00.000Z",
+    updatedAt: "2026-09-02T00:00:00.000Z",
+  },
+];
+
+export const demoPractitioners: Practitioner[] = [
+  {
+    id: "00000000-0000-4000-8000-000000000201",
+    displayName: "Taylor Example",
+    practiceName: "Demo Movement Practice",
+    profession: "physiotherapist",
+    lifecycleStatus: "active",
+    ahpraVerificationStatus: "verified",
+    providerConfirmationStatus: "confirmed",
+    acceptingNewReferrals: true,
+    telehealth: true,
+    funding: ["Medicare", "Self funded"],
+    languages: ["English"],
+    services: ["Mobility", "Persistent pain"],
+    location: { suburb: "Sydney", postcode: "2000" },
+    distanceKm: 1.8,
+  },
+  {
+    id: "00000000-0000-4000-8000-000000000202",
+    displayName: "Jordan Example",
+    practiceName: "Demo Psychology Practice",
+    profession: "psychologist",
+    lifecycleStatus: "active",
+    ahpraVerificationStatus: "verified",
+    providerConfirmationStatus: "confirmed",
+    acceptingNewReferrals: true,
+    telehealth: true,
+    funding: ["Medicare", "Self funded"],
+    languages: ["English", "Mandarin"],
+    services: ["Anxiety", "Adjustment support"],
+    location: { suburb: "Sydney", postcode: "2000" },
+    distanceKm: 2.6,
+  },
+];
