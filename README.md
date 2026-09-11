@@ -31,7 +31,7 @@ the repository root. Earlier source-only candidate research tools are preserved
 under `research/`; they are not part of the running app. Secrets, real practitioner
 datasets and generated candidate exports are deliberately excluded from Git.
 
-Use Node.js 22 or later.
+Use Node.js 24 LTS (the Vercel runtime). Local development also supports Node.js 22.13 or later.
 
 ```sh
 npm install
@@ -45,9 +45,45 @@ Set these safe browser variables in `.env.local`:
 NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
 NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=sb_publishable_your_key
 NEXT_PUBLIC_EMAIL_DELIVERY_ENABLED=false
+NEXT_PUBLIC_APP_URL=http://localhost:3000
 ```
 
 Open `http://localhost:3000`. Without an invited and practice-assigned account, choose **Preview empty workspace**. Demo records appear only after **Load demo workspace** is selected.
+
+## Vercel deployment
+
+The deployment target is the **ReturnWell** Pro organization (its internal slug is
+still `fitment`), project `return-well-mvp`, linked to this repository's `main`
+branch. The production domain is `https://return-well-mvp.vercel.app`.
+
+`vercel.json` runs `npm run build:vercel`. This uses `vite.vercel.config.ts` and the
+Nitro Vercel adapter to produce `.vercel/output` with a Node.js 24 function in
+Sydney (`syd1`). The existing local Cloudflare/Sites preview configuration is
+unchanged. Nitro and vinext are beta dependencies; verify both the build and the
+deployed browser flow after upgrades.
+
+Deploy from a clean Git checkout, never the research working directory. The
+build preflight rejects known private candidate files, and `.vercelignore`
+excludes research, credentials and generated candidate exports from CLI uploads.
+Do not run `data:generate` for deployment. Build on Vercel so native dependencies
+match its Linux runtime; do not upload macOS-built function output.
+
+Configure the four browser variables above in Vercel, with `NEXT_PUBLIC_APP_URL`
+set to the production domain and email delivery kept `false`. Supabase Auth's
+site URL and exact redirect allow-list must include the production sign-in
+destination. Edge Functions need `APP_URL` and an `ALLOWED_ORIGINS` list containing
+the production origin. Keep public sign-ups disabled and provision accounts
+separately; deploying the website does not activate practitioner onboarding or
+email delivery.
+
+For an explicitly authorized manual production deployment from a clean checkout:
+
+```sh
+vercel deploy --prod --yes --scope fitment --project return-well-mvp
+```
+
+Do not disable deployment protection to test a deployment. Use `vercel curl` for
+protected URLs, and confirm the production page loads before reporting success.
 
 ## Account provisioning
 
