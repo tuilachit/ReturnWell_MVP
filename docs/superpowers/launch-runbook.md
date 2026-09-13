@@ -64,6 +64,19 @@ All subsequent doctor invitations grant only `referrer`. Revoke a practice membe
 
 ## Scheduling the email worker
 
+The deployed application now includes a protected Vercel Cron route at
+`/api/cron/dispatch-email-jobs`, scheduled once per minute in `vercel.json`.
+For the current Vercel deployment, set `CRON_SECRET` and the same
+`EMAIL_WORKER_SECRET` in Vercel, and set `EMAIL_WORKER_SECRET` in Supabase.
+The route forwards a bounded request to the deployed Edge Function and returns
+only aggregate counts. It is production-only; preview deployments do not run
+Vercel Cron jobs. Do not enable this schedule until the sender, webhook and
+pilot allowlist checks below are complete.
+
+If Supabase Cron is preferred instead, use the SQL below as an alternative and
+do not run both schedulers at once. It requires `pg_cron`, `pg_net` and Vault
+to be enabled in the project.
+
 After an approved deployment, enable Supabase Cron and pg_net. Store two secrets in Vault: `returnwell_functions_url` (the deployed `/functions/v1` base URL) and `returnwell_email_worker_secret` (matching the Edge secret). The scheduled SQL reads them at runtime, rather than embedding credentials in the schedule text. Inspect for an existing named job before creating one; update it rather than duplicating schedules.
 
 ```sql

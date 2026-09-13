@@ -3,5 +3,11 @@
   "framework": null,
   "installCommand": "npm ci",
   "buildCommand": "npm run build:vercel",
-  "regions": ["syd1"]
+  "regions": ["syd1"],
+  "crons": [
+    {
+      "path": "/api/cron/dispatch-email-jobs",
+      "schedule": "* * * * *"
+    }
+  ]
 }

@@ -119,6 +119,14 @@ Do not enable email delivery until all of the following are ready:
 4. Send only to approved test recipients and verify delivery, duplicate suppression, bounce handling and the no-clinical-data rule.
 5. Set `NEXT_PUBLIC_EMAIL_DELIVERY_ENABLED=true` only after the server-side checks pass.
 
+The production queue is dispatched by the Vercel Cron route
+`/api/cron/dispatch-email-jobs` once per minute. Configure the same randomly
+generated `EMAIL_WORKER_SECRET` in both Vercel and the Supabase Edge Function
+secrets, and set a separate random `CRON_SECRET` in Vercel. The route accepts
+only Vercel's bearer secret and forwards a bounded `{ "limit": 20 }` request to
+the protected `dispatch-email-jobs` function; it never sends through the
+browser and never exposes provider credentials.
+
 The notification body contains only a generic instruction and an opaque referral UUID link. Patient reference, postcode, clinical summary and attachments are prohibited from the email template payload.
 
 ## Verification
