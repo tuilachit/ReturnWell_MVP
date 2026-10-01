@@ -1,4 +1,5 @@
 export type NotificationKind =
+  | "referral_action_required"
   | "referral_created"
   | "referral_accepted"
   | "referral_declined"
@@ -41,6 +42,12 @@ const copy: Record<
   NotificationKind,
   { subject: string; heading: string; action: string }
 > = {
+  referral_action_required: {
+    subject: "A referral needs your review — ReturnWell",
+    heading: "A referral is waiting for your review",
+    action:
+      "Sign in to ReturnWell to review onboarding progress and choose the next step. The referral has not been released.",
+  },
   referral_cancelled: {
     subject: "A referral has been cancelled — ReturnWell",
     heading: "The referring practice cancelled a referral",

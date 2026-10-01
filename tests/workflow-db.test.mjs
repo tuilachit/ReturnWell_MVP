@@ -5,6 +5,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import test from "node:test";
 import { directoryScaleFixtureSql } from "./helpers/directory-scale-fixture.mjs";
 import { matchPractitioners } from "../app/lib/matching.ts";
+import { referralGrowthChecks } from "./helpers/referral-growth-db.mjs";
 
 // Opt-in, isolated Postgres. Never opens a URL or uses the application's hosted credentials.
 const enabled = process.env.RW_DATABASE_TEST === "1";
@@ -2726,6 +2727,33 @@ test(
           );
         },
       );
+      // Growth fixtures have their own notifications; keep them after the legacy
+      // single-job lease assertions so those fixtures remain independent.
+      await referralGrowthChecks(t, {
+        rpc,
+        sql,
+        id,
+        profile,
+        review,
+        sqlAsync: async (query) => {
+          const result = await promisify(execFile)("docker", [
+            "exec",
+            container,
+            "psql",
+            "-U",
+            "postgres",
+            "-X",
+            "-q",
+            "-A",
+            "-t",
+            "-v",
+            "ON_ERROR_STOP=1",
+            "-c",
+            query,
+          ]);
+          return result.stdout.trim();
+        },
+      });
     } finally {
       execFileSync("docker", ["stop", container], { stdio: "pipe" });
     }

@@ -78,7 +78,7 @@ export async function dispatchJobs(
         } else {
           const data = row(job.payload);
           let message: { subject: string; text: string; html?: string };
-          if (job.family === "referral") {
+          if (job.family === "referral" || job.family === "coordination") {
             message = buildNotification(
               {
                 id: String(job.id),

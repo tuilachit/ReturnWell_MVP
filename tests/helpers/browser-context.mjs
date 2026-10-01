@@ -19,10 +19,16 @@ export async function selectFixturePractitioner(page, clinic) {
       throw Error("Fictional recipient absent from directory");
     // These radios use React state and have no HTML value attribute ("on").
     // Wait for a real visible recipient label change after pagination.
-    const previous = await page.getByRole("radio").first().locator('..').innerText();
+    const previous = await page
+      .getByRole("radio")
+      .first()
+      .locator("..")
+      .innerText();
     await next.click();
     await expect
-      .poll(async () => page.getByRole("radio").first().locator('..').innerText())
+      .poll(async () =>
+        page.getByRole("radio").first().locator("..").innerText(),
+      )
       .not.toBe(previous);
   }
   throw Error("Fictional directory exceeded bounded test search");
@@ -34,6 +40,8 @@ export async function doctorBrowser(
   {
     dropFinalResponseOnce = false,
     dropTransitionResponseOnce = false,
+    dropInvitationResponseOnce = false,
+    dropReconfirmResponseOnce = false,
     actor = "doctor",
   } = {},
 ) {
@@ -98,6 +106,24 @@ export async function doctorBrowser(
           : request.postData(),
       }),
     );
+    if (
+      dropInvitationResponseOnce &&
+      endpoint === "manage-referral" &&
+      request.postDataJSON()?.operation === "draft.invite" &&
+      response.ok
+    ) {
+      dropInvitationResponseOnce = false;
+      return route.abort("failed");
+    }
+    if (
+      dropReconfirmResponseOnce &&
+      endpoint === "manage-referral" &&
+      request.postDataJSON()?.operation === "onboarding.reconfirm" &&
+      response.ok
+    ) {
+      dropReconfirmResponseOnce = false;
+      return route.abort("failed");
+    }
     if (
       dropFinalResponseOnce &&
       endpoint === "manage-referral" &&

@@ -142,6 +142,29 @@ const mappings: Record<
     },
   },
   "manage-referral": {
+    "draft.invite": {
+      action: "growth.invite",
+      fields: [
+        "id",
+        "expectedVersion",
+        "requestId",
+        "consentConfirmed",
+        "contactConsentConfirmed",
+        "contactBasis",
+        "recipientName",
+        "recipientEmail",
+      ],
+    },
+    "onboarding.status": { action: "growth.status", fields: ["referralId"] },
+    "onboarding.reconfirm": {
+      action: "growth.reconfirm",
+      fields: [
+        "referralId",
+        "expectedVersion",
+        "requestId",
+        "consentConfirmed",
+      ],
+    },
     "handover.read": { action: "referral.handover", fields: ["referralId"] },
     transition: {
       action: "referral.transition",
@@ -440,7 +463,8 @@ export function workflowHandler(endpoint: string, runtime: WorkflowRuntime) {
       }
       if (
         mapping.action === "invitations.create" ||
-        mapping.action === "invitations.resend"
+        mapping.action === "invitations.resend" ||
+        mapping.action === "growth.invite"
       ) {
         if (
           !runtime.env.INVITATION_ENCRYPTION_KEY ||
@@ -469,6 +493,20 @@ export function workflowHandler(endpoint: string, runtime: WorkflowRuntime) {
           throw Error("terms_changed");
       }
       const data = await runtime.rpc(user.id, mapping.action, input);
+      if (
+        ["invitation.claim", "review.decide", "growth.reconfirm"].includes(
+          mapping.action,
+        )
+      ) {
+        // The first transaction has committed. A failed bounded release check
+        // is safely retried by the existing dispatch worker; no patient data is
+        // granted by this best-effort wake-up or by the client response.
+        try {
+          await runtime.rpc(null, "growth.sweep", {});
+        } catch {
+          /* Remains private until the worker retries. */
+        }
+      }
       if (mapping.action === "application.load") {
         return json({
           ...row(data),

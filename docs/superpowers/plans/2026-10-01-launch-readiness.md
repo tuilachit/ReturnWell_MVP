@@ -10,7 +10,7 @@
 
 **Spec:** [Launch-readiness design](../specs/2026-10-01-launch-readiness-design.md).
 
-Status: **implementation in progress**, under the approved [two-doctor pilot plan](2026-10-01-two-doctor-pilot.md). Work is isolated on `codex/pilot-readiness`; it is not deployed or approved for real referrals. D1/D2, A1/direct-referral parts of A2, B1–B4/B6 and A3–A6 have local checkpoints. A6 includes D3's server-enforced privileged-MFA foundation, not all security/recovery work. A4's contact direction still needs clinician acceptance. A5's whole-account interruption acceptance remains part of A7. B5 is blocked by the absent approved geography source. A7, C1–C5, remaining D3–D7 and the referral-linked invitation/release journey remain unfinished. No hosted changes or real email sends.
+Status: **implementation in progress**, under the approved [two-doctor pilot plan](2026-10-01-two-doctor-pilot.md). Work is isolated on `codex/pilot-readiness`; it is not deployed or approved for real referrals. D1/D2, A1/A2, B1–B4/B6 and A3–A6 have local checkpoints. The referral-linked invitation, mailbox-proof, independent review, automatic release and seven-day reconfirmation core now has local fictional-data acceptance, including real local Auth and lost-response browser tests. A6 includes D3's server-enforced privileged-MFA foundation, not all security/recovery work. A4's contact direction still needs clinician acceptance. A5's whole-account interruption acceptance remains part of A7. B5 is blocked by the absent approved geography source. A7, C1–C5 and remaining D3–D7 remain unfinished. No hosted changes or real email sends.
 
 ## Global Constraints
 

@@ -41,6 +41,8 @@ import { usePractitionerSearch } from "./lib/use-practitioner-search";
 import DirectoryPages from "./components/directory-pages";
 import ReferralActions from "./referral-actions";
 import HandoverPanel from "./handover-panel";
+import InviteReferralPanel from "./invite-referral-panel";
+import ReferralGrowthPanel from "./referral-growth-panel";
 import terminology from "../shared/terminology.json";
 import CapabilityRequirements from "./components/capability-requirements";
 import { normalizeTerm } from "./lib/terminology";
@@ -136,6 +138,7 @@ export default function DoctorPortal({
   const [consentConfirmed, setConsentConfirmed] = useState(false);
   const [draft, setDraft] = useState<ReferralDraft | null>(null);
   const [draftPending, setDraftPending] = useState(false);
+  const [inviteOpen, setInviteOpen] = useState(false);
   const [leaving, setLeaving] = useState(false);
   const leaveAction = useRef<(() => void) | null>(null);
   const [loading, setLoading] = useState(mode === "authenticated");
@@ -324,6 +327,7 @@ export default function DoctorPortal({
   ]);
 
   const resetForm = () => {
+    setInviteOpen(false);
     setDraft(null);
     setDraftPending(false);
     setStep(1);
@@ -1388,147 +1392,200 @@ export default function DoctorPortal({
                         </div>
                       )}
                     </dl>
-                    <button className="text-button" onClick={() => setStep(1)}>
+                    <button
+                      className="text-button"
+                      disabled={draftPending}
+                      onClick={() => setStep(1)}
+                    >
                       Edit referral need
                     </button>
                   </aside>
                   <section className="shortlist-main">
-                    {mode === "authenticated" && (
-                      <DirectoryPages
-                        page={remoteMatches.page}
-                        group={remoteMatches.group}
-                        busy={remoteMatches.loading}
-                        hasCursor={Boolean(matchCursor)}
-                        telehealthOnly={appointmentFormat === "telehealth"}
-                        onGroup={(value) => {
-                          setMatchGroup(value);
-                          setMatchCursor(null);
-                          setSelectedPractitionerId(null);
-                        }}
-                        onFirst={() => {
-                          setMatchCursor(null);
-                          setSelectedPractitionerId(null);
-                        }}
-                        onNext={() => {
-                          setMatchGroup(remoteMatches.group);
-                          setMatchCursor(remoteMatches.page.nextCursor);
-                          setSelectedPractitionerId(null);
-                        }}
-                      />
-                    )}
-                    {remoteMatches.error && (
-                      <p role="alert">
-                        {remoteMatches.error}{" "}
+                    {mode === "authenticated" && client && workspace && (
+                      <>
                         <button
                           className="button secondary"
-                          onClick={() => setRefresh((value) => value + 1)}
+                          disabled={draftPending}
+                          onClick={() => {
+                            setSelectedPractitionerId(null);
+                            setInviteOpen((value) => !value);
+                          }}
                         >
-                          Try again
+                          {inviteOpen
+                            ? "Back to directory"
+                            : "Invite a practitioner"}
                         </button>
-                      </p>
+                        {inviteOpen && (
+                          <InviteReferralPanel
+                            client={client}
+                            organisationId={workspace.organisationId}
+                            input={draftInput()}
+                            draft={draft}
+                            onSaved={setDraft}
+                            onPendingChange={setDraftPending}
+                            onCreated={async (id) => {
+                              const referral = await getReferral(
+                                client,
+                                workspace.organisationId,
+                                id,
+                              );
+                              setDetailReferral(referral);
+                              setDraftPending(false);
+                              setInviteOpen(false);
+                              setView("detail");
+                              setRefresh((value) => value + 1);
+                            }}
+                          />
+                        )}
+                      </>
                     )}
-                    <div className="section-heading">
-                      <div>
-                        <h2>
-                          {mode === "authenticated"
-                            ? remoteMatches.page.totalEligible
-                            : matches.length}{" "}
-                          eligible{" "}
-                          {(mode === "authenticated"
-                            ? remoteMatches.page.totalEligible
-                            : matches.length) === 1
-                            ? "practitioner"
-                            : "practitioners"}
-                        </h2>
-                        <p>
-                          Matches your funding, format, language and selected
-                          capability requirements. Confirm fees and rebate
-                          eligibility directly. Distance ranking is not
-                          available yet. Check the practice location before
-                          choosing.
-                        </p>
-                      </div>
-                    </div>
-                    {mode === "authenticated" && remoteMatches.loading ? (
-                      <p role="status">Loading eligible practitioners…</p>
-                    ) : matches.length === 0 ? (
-                      <div className="no-matches">
-                        <h3>No eligible practitioners found</h3>
-                        <p>
-                          Only active, registration-verified and
-                          provider-confirmed profiles accepting referrals can
-                          appear. Try changing the format, funding or language
-                          preference.
-                        </p>
-                        {mode === "preview" && !demoMode && (
+                    <fieldset
+                      disabled={inviteOpen || draftPending}
+                      style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}
+                    >
+                      <legend className="sr-only">
+                        Choose an existing practitioner
+                      </legend>
+                      {mode === "authenticated" && (
+                        <DirectoryPages
+                          page={remoteMatches.page}
+                          group={remoteMatches.group}
+                          busy={remoteMatches.loading}
+                          hasCursor={Boolean(matchCursor)}
+                          telehealthOnly={appointmentFormat === "telehealth"}
+                          onGroup={(value) => {
+                            setMatchGroup(value);
+                            setMatchCursor(null);
+                            setSelectedPractitionerId(null);
+                          }}
+                          onFirst={() => {
+                            setMatchCursor(null);
+                            setSelectedPractitionerId(null);
+                          }}
+                          onNext={() => {
+                            setMatchGroup(remoteMatches.group);
+                            setMatchCursor(remoteMatches.page.nextCursor);
+                            setSelectedPractitionerId(null);
+                          }}
+                        />
+                      )}
+                      {remoteMatches.error && (
+                        <p role="alert">
+                          {remoteMatches.error}{" "}
                           <button
                             className="button secondary"
-                            onClick={loadDemoWorkspace}
+                            onClick={() => setRefresh((value) => value + 1)}
                           >
-                            Load demo workspace
+                            Try again
                           </button>
-                        )}
+                        </p>
+                      )}
+                      <div className="section-heading">
+                        <div>
+                          <h2>
+                            {mode === "authenticated"
+                              ? remoteMatches.page.totalEligible
+                              : matches.length}{" "}
+                            eligible{" "}
+                            {(mode === "authenticated"
+                              ? remoteMatches.page.totalEligible
+                              : matches.length) === 1
+                              ? "practitioner"
+                              : "practitioners"}
+                          </h2>
+                          <p>
+                            Matches your funding, format, language and selected
+                            capability requirements. Confirm fees and rebate
+                            eligibility directly. Distance ranking is not
+                            available yet. Check the practice location before
+                            choosing.
+                          </p>
+                        </div>
                       </div>
-                    ) : (
-                      <div className="provider-list">
-                        {matches.map(({ practitioner, reasons }) => (
-                          <label
-                            className={`provider-row ${selectedPractitionerId === practitioner.id ? "selected" : ""}`}
-                            key={practitioner.id}
-                          >
-                            <input
-                              type="radio"
-                              name="practitioner"
-                              checked={
-                                selectedPractitionerId === practitioner.id
-                              }
-                              onChange={() =>
-                                setSelectedPractitionerId(practitioner.id)
-                              }
-                            />
-                            <span className="provider-name">
-                              <strong>{practitioner.displayName}</strong>
-                              <small>{practitioner.practiceName}</small>
-                            </span>
-                            <span>
-                              <strong>
-                                {practitioner.location
-                                  ? `${practitioner.location.suburb} ${practitioner.location.postcode}`
-                                  : practitioner.telehealth
-                                    ? "Telehealth"
-                                    : "Location not provided"}
-                              </strong>
-                              <small>
-                                {practitioner.services.slice(0, 2).join(" · ")}
-                              </small>
-                            </span>
-                            <ul>
-                              {reasons.map((reason) => (
-                                <li key={reason}>
-                                  <Check size={12} />
-                                  {reason}
-                                </li>
-                              ))}
-                            </ul>
-                          </label>
-                        ))}
+                      {mode === "authenticated" && remoteMatches.loading ? (
+                        <p role="status">Loading eligible practitioners…</p>
+                      ) : matches.length === 0 ? (
+                        <div className="no-matches">
+                          <h3>No eligible practitioners found</h3>
+                          <p>
+                            Only active, registration-verified and
+                            provider-confirmed profiles accepting referrals can
+                            appear. Try changing the format, funding or language
+                            preference.
+                          </p>
+                          {mode === "preview" && !demoMode && (
+                            <button
+                              className="button secondary"
+                              onClick={loadDemoWorkspace}
+                            >
+                              Load demo workspace
+                            </button>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="provider-list">
+                          {matches.map(({ practitioner, reasons }) => (
+                            <label
+                              className={`provider-row ${selectedPractitionerId === practitioner.id ? "selected" : ""}`}
+                              key={practitioner.id}
+                            >
+                              <input
+                                type="radio"
+                                name="practitioner"
+                                checked={
+                                  selectedPractitionerId === practitioner.id
+                                }
+                                onChange={() =>
+                                  setSelectedPractitionerId(practitioner.id)
+                                }
+                              />
+                              <span className="provider-name">
+                                <strong>{practitioner.displayName}</strong>
+                                <small>{practitioner.practiceName}</small>
+                              </span>
+                              <span>
+                                <strong>
+                                  {practitioner.location
+                                    ? `${practitioner.location.suburb} ${practitioner.location.postcode}`
+                                    : practitioner.telehealth
+                                      ? "Telehealth"
+                                      : "Location not provided"}
+                                </strong>
+                                <small>
+                                  {practitioner.services
+                                    .slice(0, 2)
+                                    .join(" · ")}
+                                </small>
+                              </span>
+                              <ul>
+                                {reasons.map((reason) => (
+                                  <li key={reason}>
+                                    <Check size={12} />
+                                    {reason}
+                                  </li>
+                                ))}
+                              </ul>
+                            </label>
+                          ))}
+                        </div>
+                      )}
+                      <div className="form-actions">
+                        <button
+                          className="button secondary"
+                          disabled={draftPending}
+                          onClick={() => setStep(1)}
+                        >
+                          Back
+                        </button>
+                        <button
+                          className="button primary"
+                          disabled={!selectedPractitionerId}
+                          onClick={() => setStep(3)}
+                        >
+                          Review referral <ArrowRight size={16} />
+                        </button>
                       </div>
-                    )}
-                    <div className="form-actions">
-                      <button
-                        className="button secondary"
-                        onClick={() => setStep(1)}
-                      >
-                        Back
-                      </button>
-                      <button
-                        className="button primary"
-                        disabled={!selectedPractitionerId}
-                        onClick={() => setStep(3)}
-                      >
-                        Review referral <ArrowRight size={16} />
-                      </button>
-                    </div>
+                    </fieldset>
                   </section>
                 </div>
               )}
@@ -1721,6 +1778,15 @@ export default function DoctorPortal({
                       </a>
                       .
                     </p>
+                  )}
+                  {client && mode === "authenticated" && (
+                    <ReferralGrowthPanel
+                      key={"growth-" + detailReferral.id}
+                      client={client}
+                      referralId={detailReferral.id}
+                      version={detailReferral.version}
+                      onChanged={refreshWorkspace}
+                    />
                   )}
                   {client && mode === "authenticated" && (
                     <HandoverPanel

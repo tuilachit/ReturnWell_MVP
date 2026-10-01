@@ -177,3 +177,50 @@ test("public invitation inspection cannot create an account or expose server cre
   assert.deepEqual(Object.keys(calls[0][2]), ["tokenHash"]);
   assert.doesNotMatch(await res.text(), /attacker|evil.test|tokenHash/);
 });
+test("linked invitation HTTP keeps actor and token material server owned", async () => {
+  const calls = [];
+  const runtime = {
+    env: {
+      APP_URL: "https://returnwell.example",
+      INVITATION_ENCRYPTION_KEY: btoa("a".repeat(32)),
+      INVITATION_KEY_ID: "local-test",
+    },
+    getUser: async () => ({ id: "verified-actor", aal: "aal1" }),
+    rpc: async (actor, action, input) => {
+      calls.push({ actor, action, input });
+      return { referralId: "safe-id" };
+    },
+  };
+  const response = await api.workflowHandler(
+    "manage-referral",
+    runtime,
+  )(
+    new Request("https://local.test", {
+      method: "POST",
+      headers: {
+        authorization: "Bearer fixture",
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        operation: "draft.invite",
+        id: "draft-id",
+        expectedVersion: 0,
+        requestId: "request",
+        consentConfirmed: true,
+        contactConsentConfirmed: true,
+        contactBasis: "recipient_requested",
+        recipientEmail: "recipient@example.test",
+        recipientName: "Fictional",
+        actor: "forged",
+        tokenHash: "forged",
+        envelope: "forged",
+      }),
+    }),
+  );
+  assert.equal(response.status, 200);
+  assert.equal(calls[0].actor, "verified-actor");
+  assert.equal(calls[0].action, "growth.invite");
+  assert.match(calls[0].input.tokenHash, /^[a-f0-9]{64}$/);
+  assert.notEqual(calls[0].input.envelope, "forged");
+  assert.equal(calls[0].input.actor, undefined);
+});
