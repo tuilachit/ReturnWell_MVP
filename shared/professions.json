@@ -1,0 +1,380 @@
+{
+  "version": 1,
+  "reviewedAt": "2026-10-01",
+  "professions": [
+    {
+      "id": "physiotherapist",
+      "label": "Physiotherapy",
+      "route": "ahpra",
+      "authorityId": "ahpra_physiotherapy",
+      "scope": "supported",
+      "credentialLabel": "AHPRA registration number",
+      "sourceUrls": [
+        "https://www.ahpra.gov.au/Registration/Registers-of-Practitioners/Professions-and-Divisions.aspx"
+      ]
+    },
+    {
+      "id": "psychologist",
+      "label": "Psychology",
+      "route": "ahpra",
+      "authorityId": "ahpra_psychology",
+      "scope": "supported",
+      "credentialLabel": "AHPRA registration number",
+      "sourceUrls": [
+        "https://www.ahpra.gov.au/Registration/Registers-of-Practitioners/Professions-and-Divisions.aspx"
+      ]
+    },
+    {
+      "id": "occupational_therapist",
+      "label": "Occupational therapy",
+      "route": "ahpra",
+      "authorityId": "ahpra_occupational_therapy",
+      "scope": "review_required",
+      "credentialLabel": "AHPRA registration number",
+      "sourceUrls": [
+        "https://www.ahpra.gov.au/Registration/Registers-of-Practitioners/Professions-and-Divisions.aspx"
+      ]
+    },
+    {
+      "id": "exercise_physiologist",
+      "label": "Exercise physiology",
+      "route": "professional_body",
+      "authorityId": "protocol_pending",
+      "scope": "review_required",
+      "credentialLabel": "Professional credential",
+      "sourceUrls": [
+        "https://www.ahpa.com.au/allied-health-professions"
+      ]
+    },
+    {
+      "id": "speech_pathologist",
+      "label": "Speech pathology",
+      "route": "professional_body",
+      "authorityId": "protocol_pending",
+      "scope": "review_required",
+      "credentialLabel": "Professional credential",
+      "sourceUrls": [
+        "https://www.ahpa.com.au/allied-health-professions"
+      ]
+    },
+    {
+      "id": "dietitian",
+      "label": "Dietetics",
+      "route": "professional_body",
+      "authorityId": "protocol_pending",
+      "scope": "review_required",
+      "credentialLabel": "Professional credential",
+      "sourceUrls": [
+        "https://www.ahpa.com.au/allied-health-professions"
+      ]
+    },
+    {
+      "id": "nutritionist",
+      "label": "Nutrition",
+      "route": "professional_body",
+      "authorityId": "protocol_pending",
+      "scope": "out_of_scope",
+      "credentialLabel": "Professional credential",
+      "sourceUrls": [
+        "https://www.ahpa.com.au/allied-health-professions"
+      ]
+    },
+    {
+      "id": "podiatrist",
+      "label": "Podiatry",
+      "route": "ahpra",
+      "authorityId": "ahpra_podiatry",
+      "scope": "review_required",
+      "credentialLabel": "AHPRA registration number",
+      "sourceUrls": [
+        "https://www.ahpra.gov.au/Registration/Registers-of-Practitioners/Professions-and-Divisions.aspx"
+      ]
+    },
+    {
+      "id": "audiologist",
+      "label": "Audiology",
+      "route": "professional_body",
+      "authorityId": "protocol_pending",
+      "scope": "review_required",
+      "credentialLabel": "Professional credential",
+      "sourceUrls": [
+        "https://www.ahpa.com.au/allied-health-professions"
+      ]
+    },
+    {
+      "id": "social_worker",
+      "label": "Social work",
+      "route": "professional_body",
+      "authorityId": "protocol_pending",
+      "scope": "review_required",
+      "credentialLabel": "Professional credential",
+      "sourceUrls": [
+        "https://www.ahpa.com.au/allied-health-professions"
+      ]
+    },
+    {
+      "id": "genetic_counsellor",
+      "label": "Genetic counselling",
+      "route": "professional_body",
+      "authorityId": "protocol_pending",
+      "scope": "review_required",
+      "credentialLabel": "Professional credential",
+      "sourceUrls": [
+        "https://www.ahpa.com.au/allied-health-professions"
+      ]
+    },
+    {
+      "id": "rehabilitation_counsellor",
+      "label": "Rehabilitation counselling",
+      "route": "professional_body",
+      "authorityId": "protocol_pending",
+      "scope": "review_required",
+      "credentialLabel": "Professional credential",
+      "sourceUrls": [
+        "https://www.ahpa.com.au/allied-health-professions"
+      ]
+    },
+    {
+      "id": "counsellor",
+      "label": "Counselling",
+      "route": "professional_body",
+      "authorityId": "protocol_pending",
+      "scope": "review_required",
+      "credentialLabel": "Professional credential",
+      "sourceUrls": [
+        "https://www.ahpa.com.au/allied-health-professions"
+      ]
+    },
+    {
+      "id": "psychotherapist",
+      "label": "Psychotherapy",
+      "route": "professional_body",
+      "authorityId": "protocol_pending",
+      "scope": "review_required",
+      "credentialLabel": "Professional credential",
+      "sourceUrls": [
+        "https://www.ahpa.com.au/allied-health-professions"
+      ]
+    },
+    {
+      "id": "chiropractor",
+      "label": "Chiropractic",
+      "route": "ahpra",
+      "authorityId": "ahpra_chiropractic",
+      "scope": "review_required",
+      "credentialLabel": "AHPRA registration number",
+      "sourceUrls": [
+        "https://www.ahpra.gov.au/Registration/Registers-of-Practitioners/Professions-and-Divisions.aspx"
+      ]
+    },
+    {
+      "id": "osteopath",
+      "label": "Osteopathy",
+      "route": "ahpra",
+      "authorityId": "ahpra_osteopathy",
+      "scope": "review_required",
+      "credentialLabel": "AHPRA registration number",
+      "sourceUrls": [
+        "https://www.ahpra.gov.au/Registration/Registers-of-Practitioners/Professions-and-Divisions.aspx"
+      ]
+    },
+    {
+      "id": "optometrist",
+      "label": "Optometry",
+      "route": "ahpra",
+      "authorityId": "ahpra_optometry",
+      "scope": "review_required",
+      "credentialLabel": "AHPRA registration number",
+      "sourceUrls": [
+        "https://www.ahpra.gov.au/Registration/Registers-of-Practitioners/Professions-and-Divisions.aspx"
+      ]
+    },
+    {
+      "id": "pharmacist",
+      "label": "Pharmacy",
+      "route": "ahpra",
+      "authorityId": "ahpra_pharmacy",
+      "scope": "review_required",
+      "credentialLabel": "AHPRA registration number",
+      "sourceUrls": [
+        "https://www.ahpra.gov.au/Registration/Registers-of-Practitioners/Professions-and-Divisions.aspx"
+      ]
+    },
+    {
+      "id": "orthoptist",
+      "label": "Orthoptics",
+      "route": "professional_body",
+      "authorityId": "protocol_pending",
+      "scope": "review_required",
+      "credentialLabel": "Professional credential",
+      "sourceUrls": [
+        "https://www.ahpa.com.au/allied-health-professions"
+      ]
+    },
+    {
+      "id": "orthotist",
+      "label": "Orthotics",
+      "route": "professional_body",
+      "authorityId": "protocol_pending",
+      "scope": "review_required",
+      "credentialLabel": "Professional credential",
+      "sourceUrls": [
+        "https://www.ahpa.com.au/allied-health-professions"
+      ]
+    },
+    {
+      "id": "prosthetist",
+      "label": "Prosthetics",
+      "route": "professional_body",
+      "authorityId": "protocol_pending",
+      "scope": "review_required",
+      "credentialLabel": "Professional credential",
+      "sourceUrls": [
+        "https://www.ahpa.com.au/allied-health-professions"
+      ]
+    },
+    {
+      "id": "pedorthist",
+      "label": "Pedorthics",
+      "route": "professional_body",
+      "authorityId": "protocol_pending",
+      "scope": "review_required",
+      "credentialLabel": "Professional credential",
+      "sourceUrls": [
+        "https://www.ahpa.com.au/allied-health-professions"
+      ]
+    },
+    {
+      "id": "art_therapist",
+      "label": "Arts therapy",
+      "route": "professional_body",
+      "authorityId": "protocol_pending",
+      "scope": "review_required",
+      "credentialLabel": "Professional credential",
+      "sourceUrls": [
+        "https://www.ahpa.com.au/allied-health-professions"
+      ]
+    },
+    {
+      "id": "music_therapist",
+      "label": "Music therapy",
+      "route": "professional_body",
+      "authorityId": "protocol_pending",
+      "scope": "review_required",
+      "credentialLabel": "Professional credential",
+      "sourceUrls": [
+        "https://www.ahpa.com.au/allied-health-professions"
+      ]
+    },
+    {
+      "id": "child_life_therapist",
+      "label": "Child life therapy",
+      "route": "professional_body",
+      "authorityId": "protocol_pending",
+      "scope": "review_required",
+      "credentialLabel": "Professional credential",
+      "sourceUrls": [
+        "https://www.ahpa.com.au/allied-health-professions"
+      ]
+    },
+    {
+      "id": "diversional_therapist",
+      "label": "Diversional therapy",
+      "route": "professional_body",
+      "authorityId": "protocol_pending",
+      "scope": "review_required",
+      "credentialLabel": "Professional credential",
+      "sourceUrls": [
+        "https://www.ahpa.com.au/allied-health-professions"
+      ]
+    },
+    {
+      "id": "radiographer",
+      "label": "Diagnostic radiography",
+      "route": "ahpra",
+      "authorityId": "ahpra_medical_radiation",
+      "scope": "review_required",
+      "credentialLabel": "AHPRA registration number",
+      "sourceUrls": [
+        "https://www.ahpra.gov.au/Registration/Registers-of-Practitioners/Professions-and-Divisions.aspx"
+      ]
+    },
+    {
+      "id": "medical_radiation_practitioner",
+      "label": "Medical radiation practice",
+      "route": "ahpra",
+      "authorityId": "ahpra_medical_radiation",
+      "scope": "review_required",
+      "credentialLabel": "AHPRA registration number",
+      "sourceUrls": [
+        "https://www.ahpra.gov.au/Registration/Registers-of-Practitioners/Professions-and-Divisions.aspx"
+      ]
+    },
+    {
+      "id": "radiation_therapist",
+      "label": "Radiation therapy",
+      "route": "ahpra",
+      "authorityId": "ahpra_medical_radiation",
+      "scope": "review_required",
+      "credentialLabel": "AHPRA registration number",
+      "sourceUrls": [
+        "https://www.ahpra.gov.au/Registration/Registers-of-Practitioners/Professions-and-Divisions.aspx"
+      ]
+    },
+    {
+      "id": "nuclear_medicine_technologist",
+      "label": "Nuclear medicine technology",
+      "route": "ahpra",
+      "authorityId": "ahpra_medical_radiation",
+      "scope": "review_required",
+      "credentialLabel": "AHPRA registration number",
+      "sourceUrls": [
+        "https://www.ahpra.gov.au/Registration/Registers-of-Practitioners/Professions-and-Divisions.aspx"
+      ]
+    },
+    {
+      "id": "sonographer",
+      "label": "Sonography",
+      "route": "professional_body",
+      "authorityId": "protocol_pending",
+      "scope": "review_required",
+      "credentialLabel": "Professional credential",
+      "sourceUrls": [
+        "https://www.ahpa.com.au/allied-health-professions"
+      ]
+    },
+    {
+      "id": "cardiac_physiologist",
+      "label": "Cardiac physiology",
+      "route": "professional_body",
+      "authorityId": "protocol_pending",
+      "scope": "review_required",
+      "credentialLabel": "Professional credential",
+      "sourceUrls": [
+        "https://www.ahpa.com.au/allied-health-professions"
+      ]
+    },
+    {
+      "id": "sexual_assault_worker",
+      "label": "Sexual assault support",
+      "route": "professional_body",
+      "authorityId": "protocol_pending",
+      "scope": "out_of_scope",
+      "credentialLabel": "Professional credential",
+      "sourceUrls": [
+        "https://www.ahpa.com.au/allied-health-professions"
+      ]
+    },
+    {
+      "id": "welfare_worker",
+      "label": "Welfare support",
+      "route": "professional_body",
+      "authorityId": "protocol_pending",
+      "scope": "out_of_scope",
+      "credentialLabel": "Professional credential",
+      "sourceUrls": [
+        "https://www.ahpa.com.au/allied-health-professions"
+      ]
+    }
+  ]
+}

@@ -11,6 +11,7 @@ import {
   PeopleIcon as Users,
 } from "./ui-icons";
 import type { Practitioner } from "./types";
+import { professionLabel, supportedProfessions } from "./lib/professions";
 
 export default function PractitionerDirectory({
   practitioners,
@@ -81,8 +82,7 @@ export default function PractitionerDirectory({
             onChange={(e) => setProfession(e.target.value)}
           >
             <option value="all">All professions</option>
-            <option value="physiotherapist">Physiotherapy</option>
-            <option value="psychologist">Psychology</option>
+            {supportedProfessions.map(p => <option key={p.id} value={p.id}>{p.label}</option>)}
           </select>
         </div>
         {loading ? (
@@ -130,9 +130,7 @@ export default function PractitionerDirectory({
                 </div>
                 <div className="directory-profile">
                   <span className="eyebrow">
-                    {p.profession === "physiotherapist"
-                      ? "Physiotherapy"
-                      : "Psychology"}
+                    {professionLabel(p.profession)}
                   </span>
                   <h2>{p.displayName}</h2>
                   <p>{p.practiceName}</p>

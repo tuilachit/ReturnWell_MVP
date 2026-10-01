@@ -2,6 +2,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { useEffect, useState } from "react";
 import WorkflowShell from "./workflow-shell";
+import { getProfession, supportedProfessions } from "./lib/professions";
 import {
   errorText,
   invoke,
@@ -165,7 +166,7 @@ export default function Onboarding({
               {(
                 [
                   ["displayName", "Full professional name", 160],
-                  ["registrationNumber", "Registration number", 40],
+                  ["registrationNumber", getProfession(profile.profession || "")?.credentialLabel ?? "Professional credential", 40],
                   ["practiceName", "Practice name", 200],
                 ] as const
               ).map(([key, label, max]) => (
@@ -198,8 +199,7 @@ export default function Onboarding({
                   <option value="" disabled>
                     Select profession
                   </option>
-                  <option value="physiotherapist">Physiotherapist</option>
-                  <option value="psychologist">Psychologist</option>
+                  {supportedProfessions.map(p => <option key={p.id} value={p.id}>{p.label}</option>)}
                 </select>
               </label>
               {(

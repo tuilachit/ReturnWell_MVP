@@ -15,6 +15,7 @@ import {
   ComposeIcon as FilePlus2,
 } from "./ui-icons";
 import type { Referral } from "./types";
+import { professionLabel } from "./lib/professions";
 
 export const referralStatusLabel = (status: Referral["status"]) =>
   ({
@@ -254,9 +255,7 @@ export default function ReferralOverview({
                 </span>
                 <span>
                   <strong>
-                    {referral.profession === "physiotherapist"
-                      ? "Physiotherapy"
-                      : "Psychology"}
+                    {professionLabel(referral.profession)}
                   </strong>
                   <small>{referral.clinicalSummary}</small>
                 </span>

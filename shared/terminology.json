@@ -1,0 +1,160 @@
+{
+  "version": 1,
+  "funding": [
+    {
+      "id": "medicare",
+      "label": "Medicare",
+      "aliases": [
+        "Medicare"
+      ]
+    },
+    {
+      "id": "ndis",
+      "label": "NDIS",
+      "aliases": [
+        "NDIS"
+      ]
+    },
+    {
+      "id": "private_health",
+      "label": "Private health",
+      "aliases": [
+        "Private health",
+        "Private health insurance"
+      ]
+    },
+    {
+      "id": "self_funded",
+      "label": "Self funded",
+      "aliases": [
+        "Self funded",
+        "Self-funded"
+      ]
+    }
+  ],
+  "language": [
+    {
+      "id": "english",
+      "label": "English",
+      "aliases": [
+        "English"
+      ]
+    },
+    {
+      "id": "mandarin",
+      "label": "Mandarin",
+      "aliases": [
+        "Mandarin"
+      ]
+    },
+    {
+      "id": "cantonese",
+      "label": "Cantonese",
+      "aliases": [
+        "Cantonese"
+      ]
+    },
+    {
+      "id": "vietnamese",
+      "label": "Vietnamese",
+      "aliases": [
+        "Vietnamese"
+      ]
+    },
+    {
+      "id": "arabic",
+      "label": "Arabic",
+      "aliases": [
+        "Arabic"
+      ]
+    },
+    {
+      "id": "hindi",
+      "label": "Hindi",
+      "aliases": [
+        "Hindi"
+      ]
+    },
+    {
+      "id": "spanish",
+      "label": "Spanish",
+      "aliases": [
+        "Spanish"
+      ]
+    },
+    {
+      "id": "italian",
+      "label": "Italian",
+      "aliases": [
+        "Italian"
+      ]
+    },
+    {
+      "id": "greek",
+      "label": "Greek",
+      "aliases": [
+        "Greek"
+      ]
+    },
+    {
+      "id": "korean",
+      "label": "Korean",
+      "aliases": [
+        "Korean"
+      ]
+    },
+    {
+      "id": "punjabi",
+      "label": "Punjabi",
+      "aliases": [
+        "Punjabi"
+      ]
+    },
+    {
+      "id": "auslan",
+      "label": "Auslan",
+      "aliases": [
+        "Auslan"
+      ]
+    }
+  ],
+  "service": [
+    {
+      "id": "persistent_pain",
+      "label": "Persistent pain",
+      "aliases": [
+        "Persistent pain"
+      ]
+    }
+  ],
+  "ageGroup": [
+    {
+      "id": "child",
+      "label": "Child",
+      "aliases": [
+        "Child"
+      ]
+    },
+    {
+      "id": "adolescent",
+      "label": "Adolescent",
+      "aliases": [
+        "Adolescent"
+      ]
+    },
+    {
+      "id": "adult",
+      "label": "Adult",
+      "aliases": [
+        "Adult"
+      ]
+    },
+    {
+      "id": "older_adult",
+      "label": "Older adult",
+      "aliases": [
+        "Older adult"
+      ]
+    }
+  ]
+}

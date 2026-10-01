@@ -33,7 +33,7 @@ export type Application = {
 };
 export type Profile = {
   displayName: string;
-  profession: "physiotherapist" | "psychologist";
+  profession: string;
   registrationNumber: string;
   practiceName: string;
   services: string[];

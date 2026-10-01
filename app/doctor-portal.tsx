@@ -35,6 +35,7 @@ import {
 } from "./lib/workflow";
 import { demoPractitioners, demoReferrals } from "./data/demo-workspace";
 import { matchPractitioners } from "./lib/matching";
+import { professionLabel, supportedProfessions } from "./lib/professions";
 import {
   createReferral,
   ReferralSubmissionError,
@@ -64,8 +65,6 @@ type PortalProps = {
   onExitPreview?: () => void;
 };
 
-const professionLabel = (profession: Profession) =>
-  profession === "physiotherapist" ? "Physiotherapy" : "Psychology";
 const formatLabel = (format: AppointmentFormat) =>
   ({ either: "Either", in_person: "In person", telehealth: "Telehealth" })[
     format
@@ -869,10 +868,7 @@ export default function DoctorPortal({
                               setProfession(event.target.value as Profession)
                             }
                           >
-                            <option value="physiotherapist">
-                              Physiotherapist
-                            </option>
-                            <option value="psychologist">Psychologist</option>
+                            {supportedProfessions.map(p => <option key={p.id} value={p.id}>{p.label}</option>)}
                           </select>
                         </label>
                         <label>

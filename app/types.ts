@@ -1,4 +1,6 @@
-export type Profession = "physiotherapist" | "psychologist";
+// IDs are validated against the shared catalogue; unknown historical values are
+// displayed explicitly rather than silently relabelled as psychology.
+export type Profession = string;
 export type AppointmentFormat = "either" | "in_person" | "telehealth";
 export type SelectionMode = "doctor" | "patient";
 
