@@ -4,6 +4,7 @@ import { promisify } from "node:util";
 import { readdirSync, readFileSync } from "node:fs";
 import test from "node:test";
 import { directoryScaleFixtureSql } from "./helpers/directory-scale-fixture.mjs";
+import { geographyImportSql } from "../scripts/import-geography.mjs";
 import { matchPractitioners } from "../app/lib/matching.ts";
 import { referralGrowthChecks } from "./helpers/referral-growth-db.mjs";
 import { invitationProgressChecks } from "./helpers/invitation-progress-db.mjs";
@@ -2438,6 +2439,73 @@ test(
             ),
             "1",
           );
+        },
+      );
+      await t.test(
+        "postcode selection, all-location distance, radius and edition-safe cursors are authoritative",
+        () => {
+          const lookup = { lookup: true, postcode: '2000' };
+          assert.deepEqual(rpc(id(2), 'directory.search', lookup), { source: null, localities: [] });
+          assert.throws(() => rpc(id(4), 'directory.search', lookup), /denied/);
+          const source = { version: 'fictional-geo-v1', url: 'https://example.org/fictional', license: 'Test only', attribution: 'Fictional test reference', sha256: 'a'.repeat(64), publishedAt: '2026-10-01' };
+          const localities = [
+            { postcode: '2000', state: 'NSW', suburb: 'Origin Test', latitude: -33, longitude: 151 },
+            { postcode: '2000', state: 'NSW', suburb: 'Other Test', latitude: -34, longitude: 151 },
+            { postcode: '2001', state: 'NSW', suburb: 'Nearby Test', latitude: -33.01, longitude: 151 },
+          ];
+          sql(geographyImportSql({ source, localities }));
+          try {
+            const found = rpc(id(2), 'directory.search', lookup);
+            assert.equal(found.source.version, 'fictional-geo-v1');
+            assert.equal(found.localities.length, 2);
+            const preference = { patientPostcode: '2000', patientLocalityId: 'NSW:2000:origin test', searchRadiusKm: 10 };
+            const validated = JSON.parse(sql(`select private.validate_referral_draft('${JSON.stringify(preference)}',false);`));
+            assert.equal(validated.patientLocalityId, preference.patientLocalityId);
+            assert.equal(validated.searchRadiusKm, 10);
+            assert.throws(() => sql(`select private.validate_referral_draft('{"patientPostcode":"2001","patientLocalityId":"NSW:2000:origin test"}',false);`), /invalid_draft/);
+            assert.equal(Object.hasOwn(found.localities[0], 'latitude'), false);
+            assert.equal(rpc(id(2), 'directory.search', { lookup: true, postcode: '9999' }).localities.length, 0);
+            assert.throws(() => sql(`begin;set local role authenticated;select * from private.postcode_localities;rollback;`), /permission denied/);
+            sql(directoryScaleFixtureSql({ ownerId: id(3), reviewerId: id(1), tag: 'GEOGRAPHY-TEST', count: 8 }));
+            const ids = JSON.parse(sql(`select jsonb_agg(id order by display_name) from public.practitioners where practice_name='GEOGRAPHY-TEST'`));
+            // n=2 has an unknown primary plus a secondary at zero. n=4/6 tie at 1.11195km; n=8 stays unknown.
+            sql(`insert into public.practitioner_locations(practitioner_id,suburb,postcode,state,is_primary) values('${ids[1]}','Origin Test','2000','NSW',false),('${ids[3]}','Nearby Test','2001','NSW',false),('${ids[5]}','Nearby Test','2001','NSW',false);`);
+            const query = { query: 'GEOGRAPHY-TEST', postcode: '2000', localityId: 'NSW:2000:origin test', distanceGroup: 'local', limit: 1 };
+            const first = rpc(id(2), 'directory.search', query);
+            assert.equal(first.items[0].practitioner.id, ids[1]);
+            assert.equal(first.items[0].distanceKm, 0);
+            assert.equal(first.items[0].practitioner.location.suburb, 'Origin Test');
+            assert.equal(first.items[0].locationPrecision, 'suburb_reference');
+            assert.deepEqual(first.groupCounts, { local: 3, unknown: 1, remote: 4 });
+            const second = rpc(id(2), 'directory.search', { ...query, cursor: first.nextCursor });
+            assert.equal(second.items[0].practitioner.id, ids[3]);
+            assert.ok(Math.abs(second.items[0].distanceKm - 1.1119508) < 0.00001);
+            const third = rpc(id(2), 'directory.search', { ...query, cursor: second.nextCursor });
+            assert.equal(third.items[0].practitioner.id, ids[5]);
+            assert.equal(third.nextCursor, null);
+            assert.equal(rpc(id(2), 'directory.search', { ...query, radiusKm: 1 }).totalEligible, 1);
+            assert.equal(rpc(id(2), 'directory.search', { ...query, radiusKm: second.items[0].distanceKm }).totalEligible, 3);
+            assert.equal(rpc(id(2), 'directory.search', { ...query, radiusKm: 1, distanceGroup: 'unknown' }).items[0].distanceKm, null);
+            assert.equal(rpc(id(2), 'directory.search', { ...query, radiusKm: 1, distanceGroup: 'remote' }).totalEligible, 4);
+            assert.equal(rpc(id(2), 'directory.search', { ...query, localityId: undefined, distanceGroup: 'unknown' }).totalEligible, 4);
+            for (const bad of [{ postcode: '2001' }, { localityId: 'forged' }, { radiusKm: -1 }, { radiusKm: 0 }, { radiusKm: 501 }, { localityId: undefined, radiusKm: 10 }]) {
+              assert.throws(() => rpc(id(2), 'directory.search', { ...query, ...bad }), /invalid_location|invalid_radius|location_required/);
+            }
+            assert.throws(() => rpc(id(2), 'directory.search', { ...query, radiusKm: 10, cursor: first.nextCursor }), /invalid_cursor/);
+            const remote = rpc(id(2), 'directory.search', { ...query, needs: { professionId: 'physiotherapist', fundingId: 'medicare', requiredServiceIds: [], appointmentFormat: 'telehealth' }, distanceGroup: 'remote' });
+            assert.equal(remote.totalEligible, 8);
+            assert.equal(remote.items[0].distanceKm, null);
+            assert.equal(remote.items[0].reasons.some(x => x.includes('km')), false);
+            // An immutable version cannot be replaced; a bad transaction keeps v1 active.
+            assert.throws(() => sql(geographyImportSql({ source, localities: localities.slice(1) })), /edition_conflict/);
+            assert.equal(rpc(id(2), 'directory.search', lookup).source.version, source.version);
+            sql(geographyImportSql({ source: { ...source, version: 'fictional-geo-v2' }, localities }));
+            assert.throws(() => rpc(id(2), 'directory.search', { ...query, cursor: first.nextCursor }), /invalid_cursor/);
+            sql(`select private.activate_geography('fictional-geo-v1');`);
+            assert.equal(rpc(id(2), 'directory.search', lookup).source.version, source.version);
+          } finally {
+            sql(`delete from private.geography_active; delete from private.postcode_localities; delete from private.geography_sources; update public.practitioners set lifecycle_status='inactive' where practice_name='GEOGRAPHY-TEST';`);
+          }
         },
       );
       await t.test(

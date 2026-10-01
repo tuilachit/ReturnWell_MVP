@@ -137,6 +137,8 @@ const mappings: Record<
       fields: [
         "needs",
         "postcode",
+        "lookup",
+        "localityId",
         "radiusKm",
         "distanceGroup",
         "cursor",
@@ -549,7 +551,7 @@ export function workflowHandler(endpoint: string, runtime: WorkflowRuntime) {
             : "request_failed";
       const code =
         message.match(
-          /\b(denied|step_up_required|verified_owner_required|last_owner|conflict|rate_limited|invitation_unavailable|recipient_suppressed|reviewed_identity_required|consent_required|credential_policy_required|evidence_required|invalid_profile|invalid_draft|recipient_ineligible|terms_changed|sender_configuration|body_too_large|invalid_request|invalid_cursor|geography_unavailable)\b/,
+          /\b(denied|step_up_required|verified_owner_required|last_owner|conflict|rate_limited|invitation_unavailable|recipient_suppressed|reviewed_identity_required|consent_required|credential_policy_required|evidence_required|invalid_profile|invalid_draft|recipient_ineligible|terms_changed|sender_configuration|body_too_large|invalid_request|invalid_cursor|geography_unavailable|invalid_location|invalid_radius|location_required)\b/,
         )?.[1] ?? "request_failed";
       const status =
         code === "body_too_large"
@@ -580,6 +582,9 @@ export function workflowHandler(endpoint: string, runtime: WorkflowRuntime) {
           "This page no longer matches your filters. Return to the first page.",
         geography_unavailable:
           "Distance filtering is not configured. Browse by suburb or appointment format.",
+        invalid_location: "Choose a suburb in the entered postcode again; the reference may have changed.",
+        invalid_radius: "Choose a radius greater than zero and no more than 500 km.",
+        location_required: "Choose a suburb with reference coordinates before using a radius.",
         credential_policy_required:
           "This profession needs an approved verification and review policy before activation.",
         conflict: "This record changed. Refresh and review the latest version.",
