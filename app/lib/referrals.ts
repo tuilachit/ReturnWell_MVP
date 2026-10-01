@@ -115,17 +115,35 @@ export async function listPractitioners(client: SupabaseClient): Promise<Practit
   });
 }
 
+export class ReferralSubmissionError extends Error {
+  outcome: "unconfirmed" | "conflict" | "rejected";
+
+  constructor(outcome: "unconfirmed" | "conflict" | "rejected") {
+    super({
+      unconfirmed: "We could not confirm whether the referral was saved. Keep this page open and use Check and retry. Do not create another referral for this handover.",
+      conflict: "A referral with this submission ID already exists with different details. Review your referral list before taking further action; no details were overwritten.",
+      rejected: "The database rejected this save. Check the referral details and your workspace access before trying again.",
+    }[outcome]);
+    this.name = "ReferralSubmissionError";
+    this.outcome = outcome;
+  }
+}
+
 export async function createReferral(
   client: SupabaseClient,
   workspace: Workspace,
   userId: string,
   input: ReferralInput,
+  submissionId: string = crypto.randomUUID(),
 ): Promise<Referral> {
   const errors = validateReferralInput(input);
   if (errors.length > 0) throw new Error(errors.join(" "));
 
-  const reference = `RW-${crypto.randomUUID().slice(0, 8).toUpperCase()}`;
-  const { data, error } = await client.from("referrals").insert({
+  // The caller retains this ID until the outcome is confirmed. INSERT (never
+  // upsert) preserves the original clinical record when a response is lost.
+  const reference = `RW-${submissionId.replaceAll("-", "").slice(0, 12).toUpperCase()}`;
+  const values = {
+    id: submissionId,
     reference,
     organisation_id: workspace.organisationId,
     created_by: userId,
@@ -138,8 +156,47 @@ export async function createReferral(
     language_or_access: input.languageOrAccess.trim() || null,
     selection_mode: input.selectionMode,
     selected_practitioner_id: input.selectedPractitionerId,
-    consent_confirmed_at: new Date().toISOString(),
-  }).select("*").single();
-  if (error) throw error;
-  return rowToReferral(data as ReferralRow);
+  };
+  let failure: unknown;
+  try {
+    const { data, error } = await client.from("referrals").insert({
+      ...values,
+      // Required acknowledgement for the existing INSERT contract. The
+      // database replaces this value with server time before applying RLS.
+      consent_confirmed_at: new Date().toISOString(),
+    }).select("*").single();
+    if (!error && data) return rowToReferral(data as ReferralRow);
+    failure = error;
+  } catch (error) {
+    failure = error;
+  }
+  const code = typeof failure === "object" && failure !== null && "code" in failure
+    ? failure.code : "";
+  // These responses prove this INSERT was rejected even if the follow-up
+  // lookup fails. The caller separately retains any earlier ambiguous attempt.
+  // A duplicate key alone cannot prove whose record exists or its outcome.
+  const failureOutcome = ["23502", "23503", "23514", "22001", "22P02", "42501"].includes(String(code))
+    ? "rejected" : "unconfirmed";
+
+  // RLS still applies. Scope reconciliation to the original creator and
+  // workspace as well as the ID; never disclose or overwrite another record.
+  let existing: Record<string, unknown> | null;
+  try {
+    const { data, error } = await client.from("referrals").select("*")
+      .eq("id", submissionId)
+      .eq("organisation_id", workspace.organisationId)
+      .eq("created_by", userId)
+      .maybeSingle();
+    if (error) throw error;
+    existing = data;
+  } catch {
+    throw new ReferralSubmissionError(failureOutcome);
+  }
+  if (existing) {
+    if (!Object.entries(values).every(([key, value]) => existing[key] === value)) {
+      throw new ReferralSubmissionError("conflict");
+    }
+    return rowToReferral(existing as ReferralRow);
+  }
+  throw new ReferralSubmissionError(failureOutcome);
 }

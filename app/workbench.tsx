@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { ChevronLeft, ChevronRight, ExternalLink, Search, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, ExternalLink, Search, X } from "./ui-icons";
 
 type Location = { address: string | null; suburb: string | null; postcode: string | null; state: string | null; sourceUrl: string | null };
 export type Practitioner = {

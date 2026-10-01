@@ -428,6 +428,86 @@ test(
       selectedPractitionerId: practitionerId,
       consentConfirmed: true,
     };
+    // Inject failures below the real SDK, after the real local database commit.
+    // All requests still pass through localRuntime's localhost-only guard.
+    async function withLostResponse(blockReads, operation) {
+      const originalFetch = globalThis.fetch;
+      let dropped = false;
+      globalThis.fetch = async (request, init) => {
+        const url = new URL(typeof request === "string" ? request : request instanceof URL ? request.href : request.url);
+        const isReferral = url.pathname === "/rest/v1/referrals";
+        const method = init?.method ?? "GET";
+        if (isReferral && blockReads && method === "GET") throw new TypeError("Fictional offline read");
+        const response = await originalFetch(request, init);
+        if (isReferral && method === "POST" && response.ok && !dropped) {
+          dropped = true;
+          await response.arrayBuffer();
+          throw new TypeError("Fictional response lost after commit");
+        }
+        return response;
+      };
+      try { return await operation(); }
+      finally { globalThis.fetch = originalFetch; }
+    }
+    await t.test("lost INSERT response recovers the saved referral and queues only one notification", async () => {
+      const submissionId = randomUUID();
+      const saved = await withLostResponse(false, () => createReferral(doctor.client, workspace, doctor.userId, input, submissionId));
+      assert.equal(saved.id, submissionId);
+      assert.equal(local.sql(`select count(*) from public.referral_events where referral_id=${local.uuidSql(submissionId)} and event_type='created'`), "1");
+      assert.equal(local.sql(`select count(*) from public.notification_outbox where referral_id=${local.uuidSql(submissionId)} and kind='referral_created'`), "1");
+    });
+    await t.test("offline reconciliation reports uncertainty and a retry returns the same record", async () => {
+      const submissionId = randomUUID();
+      await assert.rejects(withLostResponse(true, () => createReferral(doctor.client, workspace, doctor.userId, input, submissionId)), error => error.outcome === "unconfirmed");
+      const saved = await createReferral(doctor.client, workspace, doctor.userId, input, submissionId);
+      assert.equal(saved.id, submissionId);
+      assert.equal(local.sql(`select count(*) from public.referral_events where referral_id=${local.uuidSql(submissionId)} and event_type='created'`), "1");
+      assert.equal(local.sql(`select count(*) from public.notification_outbox where referral_id=${local.uuidSql(submissionId)} and kind='referral_created'`), "1");
+    });
+    await t.test("concurrent submissions with one identity produce one referral", async () => {
+      const submissionId = randomUUID();
+      const results = await Promise.all([
+        createReferral(doctor.client, workspace, doctor.userId, input, submissionId),
+        createReferral(doctor.client, workspace, doctor.userId, input, submissionId),
+      ]);
+      assert.deepEqual(results.map(row => row.id), [submissionId, submissionId]);
+      assert.equal(local.sql(`select count(*) from public.notification_outbox where referral_id=${local.uuidSql(submissionId)} and kind='referral_created'`), "1");
+    });
+    await t.test("reusing an identity cannot overwrite a different referral or disclose it to another actor", async () => {
+      const submissionId = randomUUID();
+      await createReferral(doctor.client, workspace, doctor.userId, input, submissionId);
+      await assert.rejects(createReferral(doctor.client, workspace, doctor.userId, { ...input, clinicalSummary: "Fictional changed details" }, submissionId), error => error.outcome === "conflict");
+      await assert.rejects(createReferral(outsider.client, workspace, outsider.userId, input, submissionId));
+      assert.equal(noError(await doctor.client.from("referrals").select("clinical_summary").eq("id", submissionId).single()).clinical_summary, input.clinicalSummary);
+    });
+    await t.test("failed connection before INSERT remains uncertain until retry succeeds", async () => {
+      const submissionId = randomUUID();
+      const originalFetch = globalThis.fetch;
+      globalThis.fetch = async (request, init) => {
+        const url = new URL(typeof request === "string" ? request : request instanceof URL ? request.href : request.url);
+        if (url.pathname === "/rest/v1/referrals" && init?.method === "POST") throw new TypeError("Fictional disconnected request");
+        return originalFetch(request, init);
+      };
+      try {
+        await assert.rejects(createReferral(doctor.client, workspace, doctor.userId, input, submissionId), error => error.outcome === "unconfirmed");
+      } finally { globalThis.fetch = originalFetch; }
+      assert.equal(local.sql(`select count(*) from public.referrals where id=${local.uuidSql(submissionId)}`), "0");
+      assert.equal((await createReferral(doctor.client, workspace, doctor.userId, input, submissionId)).id, submissionId);
+    });
+    await t.test("a definite database constraint failure is distinguished from a timeout", async () => {
+      const submissionId = randomUUID();
+      await assert.rejects(createReferral(doctor.client, workspace, doctor.userId, { ...input, patientReference: "X".repeat(81) }, submissionId), error => error.outcome === "rejected");
+      assert.equal(local.sql(`select count(*) from public.referrals where id=${local.uuidSql(submissionId)}`), "0");
+    });
+    await t.test("a rejected INSERT remains correctable when the reconciliation read is offline", async () => {
+      const submissionId = randomUUID();
+      await assert.rejects(
+        withLostResponse(true, () => createReferral(doctor.client, workspace, doctor.userId, { ...input, patientReference: "X".repeat(81) }, submissionId)),
+        error => error.outcome === "rejected",
+      );
+      assert.equal(local.sql(`select count(*) from public.referrals where id=${local.uuidSql(submissionId)}`), "0");
+      assert.equal((await createReferral(doctor.client, workspace, doctor.userId, input, submissionId)).id, submissionId);
+    });
     const referral = await createReferral(
       doctor.client,
       workspace,
@@ -494,6 +574,7 @@ test(
       "real practitioner response is atomic, idempotent and visible in doctor timeline",
       async () => {
         assert.equal(accepted.status, "accepted");
+        assert.equal((await createReferral(doctor.client, workspace, doctor.userId, input, referral.id)).status, "accepted");
         assert.equal(accepted.version, 1);
         assert.equal(
           ok(

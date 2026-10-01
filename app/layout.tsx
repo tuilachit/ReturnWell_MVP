@@ -2,9 +2,12 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"),
+  metadataBase: new URL(
+    process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000",
+  ),
   title: "ReturnWell GP Referrals",
   description: "Find, send and track allied health referrals.",
+  icons: { icon: "/icon.svg" },
   robots: { index: false, follow: false },
   openGraph: {
     title: "ReturnWell GP Referrals",
@@ -19,7 +22,9 @@ export const metadata: Metadata = {
   },
 };
 
-export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
+export default function RootLayout({
+  children,
+}: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en-AU">
       <body>{children}</body>

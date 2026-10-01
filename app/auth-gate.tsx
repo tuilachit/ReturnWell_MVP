@@ -4,6 +4,7 @@
 import type { Session } from "@supabase/supabase-js";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import DoctorPortal from "./doctor-portal";
+import SignIn from "./sign-in";
 import WorkflowShell from "./workflow-shell";
 import Invitations from "./invitations-panel";
 import Onboarding from "./onboarding-panel";
@@ -102,56 +103,36 @@ export default function AuthGate({
     );
   if (!session || !client)
     return (
-      <WorkflowShell title="Sign in to your referral workspace">
-        <p>
-          Access is invitation-only. We’ll email a secure sign-in link to your
-          registered address.
-        </p>
-        <form
-          onSubmit={async (event) => {
-            event.preventDefault();
-            if (!client) {
-              setMessage("The secure backend is not configured in this build.");
-              return;
-            }
-            setBusy(true);
-            const destination = safeDestination(window.location.pathname);
-            const { error } = await client.auth.signInWithOtp({
-              email: email.trim(),
-              options: {
-                shouldCreateUser: false,
-                emailRedirectTo: `${window.location.origin}${destination}`,
-              },
-            });
-            setBusy(false);
-            setMessage(
-              error
-                ? "We could not send the sign-in link. Check your invited account."
-                : "Check your email for a secure sign-in link.",
-            );
-          }}
-        >
-          <label>
-            Work email
-            <input
-              type="email"
-              autoComplete="email"
-              required
-              value={email}
-              onChange={(event) => setEmail(event.target.value)}
-            />
-          </label>
-          <button className="button primary" disabled={busy || loading}>
-            Email me a sign-in link
-          </button>
-        </form>
-        {message && <p role="status">{message}</p>}
-        <hr />
-        <button className="button secondary" onClick={() => setPreview(true)}>
-          Preview empty workspace
-        </button>
-        <p>Fictional demo records appear only if you explicitly load them.</p>
-      </WorkflowShell>
+      <SignIn
+        email={email}
+        setEmail={setEmail}
+        busy={busy}
+        loading={loading}
+        message={message}
+        onPreview={() => setPreview(true)}
+        onSubmit={async (event) => {
+          event.preventDefault();
+          if (!client) {
+            setMessage("The secure backend is not configured in this build.");
+            return;
+          }
+          setBusy(true);
+          const destination = safeDestination(window.location.pathname);
+          const { error } = await client.auth.signInWithOtp({
+            email: email.trim(),
+            options: {
+              shouldCreateUser: false,
+              emailRedirectTo: `${window.location.origin}${destination}`,
+            },
+          });
+          setBusy(false);
+          setMessage(
+            error
+              ? "We could not send the sign-in link. Check your invited account."
+              : "Check your email for a secure sign-in link.",
+          );
+        }}
+      />
     );
   if (!access)
     return (

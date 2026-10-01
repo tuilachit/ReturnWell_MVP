@@ -1,6 +1,9 @@
 "use client";
+/* Full navigation keeps invitation credentials out of workspace state. */
+/* eslint-disable @next/next/no-html-link-for-pages */
 import { useEffect, useRef, useState } from "react";
 import WorkflowShell from "../workflow-shell";
+import { ArrowRight, AttentionIcon, Check, Mail } from "../ui-icons";
 import {
   errorText,
   invitationEntry,
@@ -13,7 +16,7 @@ export default function JoinPage() {
   const [consent, setConsent] = useState(false);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
-  const [completed, setCompleted] = useState(false);
+  const [completed, setCompleted] = useState<"beginSignup" | "decline" | null>(null);
   const signupRequest = useRef<string | null>(null);
   useEffect(() => {
     let active = true;
@@ -54,7 +57,7 @@ export default function JoinPage() {
         consentAccepted: consent,
         requestId: signupRequest.current,
       });
-      setCompleted(true);
+      setCompleted(operation);
       setMessage(
         operation === "decline"
           ? "Invitation declined. Follow-up invitations are suppressed unless you request another invitation."
@@ -67,11 +70,11 @@ export default function JoinPage() {
     }
   }
   return (
-    <WorkflowShell title="You’re invited to ReturnWell">
+    <WorkflowShell title="You’re invited to ReturnWell" compact step={1}>
       {info ? (
         <>
-          <p>
-            {info.inviterName}
+          <p className="workflow-lead">
+            <strong>{info.inviterName}</strong>
             {info.practiceName
               ? ` at ${info.practiceName}`
               : " from ReturnWell"}{" "}
@@ -80,15 +83,18 @@ export default function JoinPage() {
               ? "to join their practice workspace."
               : "to create a practitioner profile for review."}
           </p>
-          <p>
-            Invited mailbox: <strong>{info.maskedEmail}</strong>. Invitation
-            expires {new Date(info.expiresAt).toLocaleString("en-AU")}.
-          </p>
-          <p>
+          <dl className="invitation-details">
+            <div><dt>Invited email</dt><dd>{info.maskedEmail}</dd></div>
+            <div><dt>Expires</dt><dd>{new Date(info.expiresAt).toLocaleString("en-AU")}</dd></div>
+          </dl>
+          <div className="account-next">
+            <h2>What happens next</h2>
+            <p>
             {info.kind === "practitioner"
               ? "After email verification, you’ll confirm your profile and submit it for review. Approval is required before you can receive referrals."
               : "Verify your invited email to join the named practice as a referrer."}
-          </p>
+            </p>
+          </div>
           {!completed && (
             <>
               <label className="workflow-check">
@@ -97,7 +103,7 @@ export default function JoinPage() {
                   checked={consent}
                   onChange={(event) => setConsent(event.target.checked)}
                 />
-                I accept the{" "}
+                <span>I accept the{" "}
                 <a href={info.termsUrl} target="_blank" rel="noreferrer">
                   terms ({info.termsVersion})
                 </a>{" "}
@@ -105,7 +111,7 @@ export default function JoinPage() {
                 <a href={info.privacyUrl} target="_blank" rel="noreferrer">
                   privacy policy ({info.privacyVersion})
                 </a>
-                .
+                .</span>
               </label>
               <div className="workflow-actions">
                 <button
@@ -114,6 +120,7 @@ export default function JoinPage() {
                   onClick={() => void act("beginSignup")}
                 >
                   Create my account
+                  <ArrowRight size={16} />
                 </button>
                 <button
                   className="button secondary"
@@ -125,8 +132,8 @@ export default function JoinPage() {
               </div>
             </>
           )}
-          <footer>
-            <p>{info.businessName}</p>
+          <footer className="invitation-support">
+            <p>Sent by {info.businessName}</p>
             <a href={info.websiteUrl} target="_blank" rel="noreferrer">
               Visit ReturnWell independently: {info.websiteUrl}
             </a>
@@ -138,9 +145,17 @@ export default function JoinPage() {
           </footer>
         </>
       ) : (
-        !message && <p>Checking invitation…</p>
+        !message && <p role="status">Checking invitation…</p>
       )}
-      {message && <p role="status">{message}</p>}
+      {message && (
+        <div className="account-state" role="status">
+          {completed === "beginSignup" ? <Mail size={25} /> : completed === "decline" ? <Check size={25} /> : <AttentionIcon size={25} />}
+          {completed && <h2>{completed === "beginSignup" ? "Check your email" : "Invitation declined"}</h2>}
+          {!info && <h2>Invitation unavailable</h2>}
+          <p>{message}</p>
+          {!info && <a href="/">Return to sign in <ArrowRight size={14} /></a>}
+        </div>
+      )}
     </WorkflowShell>
   );
 }

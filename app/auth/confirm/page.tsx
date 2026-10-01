@@ -1,6 +1,9 @@
 "use client";
+/* Full navigation clears invitation credentials and account state. */
+/* eslint-disable @next/next/no-html-link-for-pages */
 import { useEffect, useMemo, useState } from "react";
 import WorkflowShell from "../../workflow-shell";
+import { ArrowRight, AttentionIcon, LockKeyhole } from "../../ui-icons";
 import { getSupabaseBrowserClient } from "../../lib/supabase";
 import {
   confirmationDetails,
@@ -94,15 +97,23 @@ export default function ConfirmPage() {
     }
   }
   return (
-    <WorkflowShell title="Verify your email">
-      {" "}
-      <p>
+    <WorkflowShell title="Verify your email" compact step={2}>
+      <p className="workflow-lead">
         Continue only if you requested this email. Opening this page does not
         verify or claim an invitation.
       </p>
-      {signedIn && !verified ? (
+      {checking || !credential ? (
+        <p role="status">Checking your verification link…</p>
+      ) : !confirmationDetails(credential.toString()) ? (
+        <div className="account-state" role="status">
+          <AttentionIcon size={25} />
+          <h2>This link is incomplete</h2>
+          <p>Reopen the complete verification link from your email. If it has expired, return to your invitation to request a new email.</p>
+          <a href="/">Return to sign in <ArrowRight size={14} /></a>
+        </div>
+      ) : signedIn && !verified ? (
         <>
-          <p>
+          <p className="account-next">
             An account is already signed in. Sign out explicitly before
             verifying the invited mailbox.
           </p>
@@ -122,7 +133,7 @@ export default function ConfirmPage() {
           </button>
         </>
       ) : (
-        <form
+        <form className="account-form"
           onSubmit={(event) => {
             event.preventDefault();
             void confirm();
@@ -147,7 +158,9 @@ export default function ConfirmPage() {
               : verified
                 ? "Complete signup"
                 : "Verify and continue"}
+            <ArrowRight size={16} />
           </button>
+          <p className="account-hint"><LockKeyhole size={14} /> This confirms access to the invited mailbox.</p>
         </form>
       )}
       {message && <p role="alert">{message}</p>}

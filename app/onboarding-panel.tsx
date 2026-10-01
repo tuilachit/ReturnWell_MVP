@@ -118,10 +118,11 @@ export default function Onboarding({
     setProfile((current) => ({ ...current, [key]: value }));
   }
   return (
-    <WorkflowShell title="Your practitioner profile">
+    <WorkflowShell title="Your practitioner profile" step={3}>
+      <p className="workflow-lead">Confirm your professional details and how you accept referrals. Your profile stays private until it has been reviewed and approved.</p>
       {message && <p role="status">{message}</p>}
       {!application ? (
-        <p>Loading your application…</p>
+        <p role="status">Loading your application…</p>
       ) : (
         <>
           <p>
@@ -153,7 +154,7 @@ export default function Onboarding({
               using your invitation for help.
             </p>
           )}
-          <form
+          <form className="onboarding-form"
             onSubmit={(event) => {
               event.preventDefault();
               void save(true);
@@ -361,7 +362,7 @@ export default function Onboarding({
                       checked={consent}
                       onChange={(event) => setConsent(event.target.checked)}
                     />
-                    I agree to receive referrals and accept the current
+                    <span>I agree to receive referrals and accept the current{" "}
                     <a
                       href={application.current_terms_url}
                       target="_blank"
@@ -383,7 +384,7 @@ export default function Onboarding({
                         application.privacy_version}
                       )
                     </a>
-                    .
+                    .</span>
                   </label>
                   <div className="workflow-actions">
                     <button

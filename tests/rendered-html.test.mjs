@@ -51,10 +51,17 @@ test("does not server-render fictional clinical or practice records", async () =
 });
 
 test("keeps the authenticated workspace empty by default with explicit demo opt-in", async () => {
-  const source = await readFile(new URL("../app/doctor-portal.tsx", import.meta.url), "utf8");
-  assert.match(source, /No referrals yet/i);
-  assert.match(source, /Create your first referral/i);
-  assert.match(source, /Load demo workspace/i);
+  const source = await readFile(
+    new URL("../app/doctor-portal.tsx", import.meta.url),
+    "utf8",
+  );
+  const overview = await readFile(
+    new URL("../app/referral-overview.tsx", import.meta.url),
+    "utf8",
+  );
+  assert.match(overview, /No referrals yet/i);
+  assert.match(overview, /Create your first referral/i);
+  assert.match(overview, /Load demo workspace/i);
   assert.match(source, /useState<Referral\[]>\(\[\]\)/);
   assert.match(source, /useState\(""\)/);
   assert.doesNotMatch(source, /const initialReferrals/);
@@ -72,9 +79,53 @@ test("publishes matching social metadata for the GP referral portal", async () =
 });
 
 test("provides a real authenticated landing route for opaque email links", async () => {
-  const response = await render("/referrals/3bbc9fd4-2da2-4a72-80e4-b920ad033692");
+  const response = await render(
+    "/referrals/3bbc9fd4-2da2-4a72-80e4-b920ad033692",
+  );
   assert.equal(response.status, 200);
   const html = await response.text();
   assert.match(html, /Sign in to your referral workspace/);
-  assert.doesNotMatch(html, /patient_reference|clinical_summary|patient_postcode/i);
+  assert.doesNotMatch(
+    html,
+    /patient_reference|clinical_summary|patient_postcode/i,
+  );
+});
+
+test("makes draft test notices accessible before authentication", async () => {
+  for (const pathname of ["/privacy", "/terms"]) {
+    const response = await render(pathname);
+    assert.equal(response.status, 200, `${pathname} must not require a session`);
+    const html = await response.text();
+    assert.match(html, /<h1[^>]*>[^<]*(Privacy|Terms)/i);
+    assert.match(html, /name="robots" content="[^"]*noindex/i);
+    assert.match(html, /href="mailto:nguyenvanlocdhqt@gmail\.com"/);
+    assert.match(html, /href="\/privacy"/);
+    assert.match(html, /href="\/terms"/);
+    assert.doesNotMatch(html, /<form\b/i, "reading a notice must not start signup");
+  }
+});
+
+test("provides notice links on the unauthenticated entry screen", async () => {
+  const response = await render();
+  const html = await response.text();
+  assert.match(html, /href="\/privacy"/);
+  assert.match(html, /href="\/terms"/);
+});
+
+test("email entry pages expose test notices before a recipient signs up", async () => {
+  for (const pathname of ["/join", "/auth/confirm"]) {
+    const response = await render(pathname);
+    const html = await response.text();
+    assert.match(html, /aria-label="Test information"/, pathname);
+    assert.match(html, /href="\/privacy"/, pathname);
+    assert.match(html, /href="\/terms"/, pathname);
+    assert.match(html, /Not for clinical use/, pathname);
+  }
+});
+
+test("verification entry checks its link before asking for identity details", async () => {
+  const response = await render("/auth/confirm");
+  const html = await response.text();
+  assert.match(html, /role="status"/);
+  assert.doesNotMatch(html, /<input\b/, "do not show an unusable identity form during the link check");
 });

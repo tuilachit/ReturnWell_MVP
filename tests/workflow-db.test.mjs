@@ -420,6 +420,19 @@ test(
           ), /permission denied/);
       });
       const practitionerId = approved.practitioner_id;
+      for (const offset of ["+ interval '5 minutes'", "- interval '1 day'"]) {
+        await t.test(`consent uses database time despite client clock ${offset}`, () => {
+          assert.equal(sql(`begin; set role authenticated; set request.jwt.claim.sub='${id(2)}';
+            insert into public.referrals(reference,organisation_id,created_by,patient_reference,patient_postcode,profession,clinical_summary,funding_path,appointment_format,selection_mode,selected_practitioner_id,consent_confirmed_at)
+            values('RW-CLOCK','${id(10)}','${id(2)}','Fictional','2000','physiotherapist','Fictional','Private','in_person','doctor','${practitionerId}',now() ${offset})
+            returning consent_confirmed_at = now(); rollback;`), "t");
+        });
+      }
+      await t.test("server timestamp cannot manufacture missing consent", () => {
+        assert.throws(() => sql(`begin; set role authenticated; set request.jwt.claim.sub='${id(2)}';
+          insert into public.referrals(reference,organisation_id,created_by,patient_reference,patient_postcode,profession,clinical_summary,funding_path,appointment_format,selection_mode,selected_practitioner_id,consent_confirmed_at)
+          values('RW-NO-CONSENT','${id(10)}','${id(2)}','Fictional','2000','physiotherapist','Fictional','Private','in_person','doctor','${practitionerId}',null); rollback;`));
+      });
       await t.test("a doctor cannot forge response status through the initial INSERT endpoint", () => {
         assert.throws(() =>
           sql(

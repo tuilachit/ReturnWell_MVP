@@ -1,0 +1,68 @@
+.copy p {
+  font-size: 15px;
+  line-height: 1.75;
+}
+
+.copy a {
+  color: var(--ink);
+  text-decoration: underline;
+  text-underline-offset: 4px;
+  overflow-wrap: anywhere;
+}
+
+.copy a:focus-visible,
+.signInLinks a:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 5px;
+}
+
+.notice {
+  border-left: 3px solid var(--brand);
+  padding: 16px 20px;
+  background: var(--surface);
+  border-radius: 0 12px 12px 0;
+}
+
+.notice p {
+  margin-bottom: 0;
+}
+
+.copy .version {
+  font-size: 12px;
+  margin: 22px 0 30px;
+}
+
+.links,
+.signInLinks {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 12px 24px;
+}
+
+.links {
+  justify-content: flex-start;
+  border-top: 1px solid var(--line);
+  margin-top: 32px;
+  padding-top: 24px;
+  font-size: 13px;
+}
+
+.signInFooter {
+  flex-direction: column;
+  text-align: center;
+  gap: 12px;
+}
+
+.signInLabel {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.signInLinks a {
+  color: inherit;
+  text-underline-offset: 3px;
+}

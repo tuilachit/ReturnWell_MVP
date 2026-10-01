@@ -1,0 +1,41 @@
+import assert from "node:assert/strict";
+import { after, test } from "node:test";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+import { createServer } from "vite";
+import react from "@vitejs/plugin-react";
+
+const cacheDir = await mkdtemp(join(tmpdir(), "returnwell-directory-test-"));
+const server = await createServer({
+  configFile: false,
+  cacheDir,
+  plugins: [react()],
+  server: { middlewareMode: true },
+  appType: "custom",
+});
+after(async () => {
+  await server.close();
+  await rm(cacheDir, { recursive: true, force: true });
+});
+const { default: Directory } = await server.ssrLoadModule("/app/practitioner-directory.tsx");
+const render = (error = "") => renderToStaticMarkup(createElement(Directory, {
+  practitioners: [], loading: false, preview: false, demo: false, error,
+  onDemo() {}, onRefer() {}, onRetry() {},
+}));
+
+test("failed directory loading cannot be mistaken for a successful empty result", () => {
+  const html = render("Could not load this workspace. Try again.");
+  assert.match(html, /role="alert"/);
+  assert.match(html, /Could not load this workspace/);
+  assert.match(html, /Try again/);
+  assert.doesNotMatch(html, /No practitioners yet|0 available/);
+});
+
+test("a successful empty directory still explains how practitioners become available", () => {
+  const html = render();
+  assert.match(html, /No practitioners yet/);
+  assert.doesNotMatch(html, /role="alert"/);
+});
