@@ -1,3 +1,4 @@
+import { renderTransactionalEmail, escapeEmailHtml } from "./email-layout.ts";
 export type TrustConfig = {
   appUrl: string;
   websiteUrl: string;
@@ -13,8 +14,10 @@ const encode = (bytes: Uint8Array) => btoa(String.fromCharCode(...bytes));
 const decode = (value: string) =>
   Uint8Array.from(atob(value), (x) => x.charCodeAt(0));
 export function newInvitationToken() {
-  return encode(crypto.getRandomValues(new Uint8Array(32))).replaceAll("+", "-")
-    .replaceAll("/", "_").replaceAll("=", "");
+  return encode(crypto.getRandomValues(new Uint8Array(32)))
+    .replaceAll("+", "-")
+    .replaceAll("/", "_")
+    .replaceAll("=", "");
 }
 export async function hashToken(token: string) {
   return Array.from(
@@ -66,41 +69,53 @@ export async function unseal(
   );
   return JSON.parse(new TextDecoder().decode(data));
 }
-export const escapeHtml = (value: string) =>
-  value.replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;").replaceAll("'", "&#39;");
+export const escapeHtml = escapeEmailHtml;
 export function invitationEmail(
   invite: {
     kind: string;
     recipient_name: string;
     inviter_name: string;
     practice_name: string;
+    expires_at?: string;
   },
   token: string,
   config: TrustConfig,
 ) {
+  validateTrustConfig(config);
   const url = new URL("/join", config.appUrl);
   url.hash = `invite=${encodeURIComponent(token)}`;
-  const purpose = invite.kind === "doctor"
-    ? "join their practice on ReturnWell"
-    : "create a practitioner profile on ReturnWell";
-  const text =
-    `Hello ${invite.recipient_name},\n\n${invite.inviter_name} from ${invite.practice_name} has invited you to ${purpose}.\n\nReturnWell helps practices coordinate allied health referrals. ${
+  const purpose =
+    invite.kind === "doctor"
+      ? "join their practice on ReturnWell"
+      : "create a practitioner profile on ReturnWell";
+  const expiry = invite.expires_at
+    ? `This invitation expires at ${new Date(invite.expires_at).toISOString()} (UTC). Replacing the link does not extend this deadline.`
+    : "The exact expiry will appear in the issued invitation.";
+  const paragraphs = [
+    `Hello ${invite.recipient_name},`,
+    `${invite.inviter_name} from ${invite.practice_name} has invited you to ${purpose}.`,
+    `ReturnWell helps practices coordinate allied health referrals. ${
       invite.kind === "practitioner"
         ? "After verifying your email, you can confirm your details for a separate identity and registration review. Signing up does not immediately publish your profile."
         : "Verify your work email to join the named practice as a referrer."
-    }\n\nReview your invitation:\n${url}\n\nThis invitation expires in seven days. You can decline it on the invitation page; no account is needed to decline. If you were not expecting this, contact us before continuing.\n\nYou can independently visit ${config.websiteUrl}\n${config.businessName}\nSupport: ${config.supportEmail}\nPrivacy: ${config.privacyUrl}\nTerms: ${config.termsUrl}`;
+    }`,
+    expiry,
+    "You can decline on the invitation page; no account is needed to decline. If you were not expecting this, contact us before continuing.",
+    config.businessName,
+    `Privacy: ${config.privacyUrl}\nTerms: ${config.termsUrl}`,
+  ];
   return {
-    subject: `${invite.inviter_name} invited you to ReturnWell`,
-    text,
-    html:
-      `<div style="font-family:Arial,sans-serif;max-width:580px;line-height:1.6"><h1>ReturnWell</h1>${
-        text.split("\n\n").map((p) =>
-          `<p>${escapeHtml(p).replaceAll("\n", "<br>")}</p>`
-        ).join("")
-      }<p><a href="${
-        escapeHtml(url.toString())
-      }">Review invitation</a></p></div>`,
+    subject: `${invite.inviter_name} invited you to ReturnWell`.replaceAll(
+      /[\r\n]/g,
+      " ",
+    ),
+    ...renderTransactionalEmail({
+      heading: "You’re invited to ReturnWell",
+      bodyParagraphs: paragraphs,
+      action: { label: "Review invitation", url: url.toString() },
+      supportEmail: config.supportEmail,
+      websiteUrl: config.websiteUrl,
+    }),
   };
 }
 
@@ -109,14 +124,20 @@ export function validateTrustConfig(config: TrustConfig) {
     throw new Error("sender_configuration");
   }
   const origin = new URL(config.appUrl).origin;
-  for (
-    const field of ["appUrl", "websiteUrl", "privacyUrl", "termsUrl"] as const
-  ) {
+  for (const field of [
+    "appUrl",
+    "websiteUrl",
+    "privacyUrl",
+    "termsUrl",
+  ] as const) {
     const url = new URL(config[field]);
     if (
-      url.protocol !== "https:" || url.username || url.password ||
+      url.protocol !== "https:" ||
+      url.username ||
+      url.password ||
       url.origin !== origin
-    ) throw new Error("sender_configuration");
+    )
+      throw new Error("sender_configuration");
   }
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(config.supportEmail)) {
     throw new Error("sender_configuration");

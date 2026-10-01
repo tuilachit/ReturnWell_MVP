@@ -11,6 +11,7 @@ import {
   requiresStepUp,
   type VerifiedIdentity,
 } from "./authorization.ts";
+import { verificationEmail } from "./email.ts";
 export type Row = Record<string, unknown>;
 export type WorkflowRuntime = {
   env: Record<string, string | undefined>;
@@ -410,9 +411,8 @@ export function workflowHandler(endpoint: string, runtime: WorkflowRuntime) {
           invitationId: String(attempt.invitationId),
           attemptId: String(attempt.attemptId),
         }).toString();
-        const text = `Verify your email for ReturnWell\n\nYou requested access to ReturnWell. Open this link, then choose Verify and continue. It expires in 15 minutes.\n\n${url}\n\nIf you did not request this, ignore this email.\n${config.businessName}\nSupport: ${config.supportEmail}\nWebsite: ${config.websiteUrl}`;
         const envelope = await seal(
-          { subject: "Verify your email for ReturnWell", text },
+          verificationEmail(config, url.toString(), String(attempt.expiresAt)),
           runtime.env.INVITATION_ENCRYPTION_KEY,
           runtime.env.INVITATION_KEY_ID,
           String(attempt.attemptId),

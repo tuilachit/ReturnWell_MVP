@@ -1,0 +1,15 @@
+ReturnWell
+
+Sign in to your workspace
+
+You requested a sign-in link for your ReturnWell account. Use it only if you made this request. It is single-use and expires according to the configured sign-in policy.
+
+Sign in to ReturnWell:
+{{ .ConfirmationURL }}
+
+If you did not request this email, ignore it. Do not forward your sign-in link.
+
+__RETURNWELL_BUSINESS_NAME__
+
+Visit independently: {{ .SiteURL }}
+Need help? __RETURNWELL_SUPPORT_EMAIL__

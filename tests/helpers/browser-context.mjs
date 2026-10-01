@@ -85,7 +85,7 @@ export async function doctorBrowser(
     ...local.runtime,
     env: {
       ...local.env,
-      APP_URL: "http://127.0.0.1:3101",
+      APP_URL: local.env.APP_URL,
       ALLOWED_ORIGINS: "http://127.0.0.1:3101",
       EMAIL_DELIVERY_ENABLED: "false",
     },

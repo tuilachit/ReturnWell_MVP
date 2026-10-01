@@ -29,6 +29,11 @@ test("cancel and close emails contain only generic coordination copy", () => {
         templateData: { note: "PRIVATE COORDINATION NOTE" },
       },
       "https://returnwell.example.test",
+      {
+        websiteUrl: "https://returnwell.example.test",
+        supportEmail: "support@example.test",
+        businessName: "Fictional ReturnWell",
+      },
     );
     assert.match(message.subject, /ReturnWell/);
     assert.doesNotMatch(

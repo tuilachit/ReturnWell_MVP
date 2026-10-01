@@ -89,6 +89,7 @@ export async function dispatchJobs(
                 templateData: {},
               },
               config!.appUrl,
+              config!,
             );
           } else if (job.family === "invitation") {
             const { token } = await decrypt(
@@ -102,6 +103,7 @@ export async function dispatchJobs(
                 recipient_name: String(invite.recipient_name),
                 inviter_name: String(invite.inviter_name),
                 practice_name: String(invite.practice_name),
+                expires_at: String(invite.expires_at),
               },
               String(token),
               config!,
@@ -114,6 +116,9 @@ export async function dispatchJobs(
             message = {
               subject: String(decrypted.subject),
               text: String(decrypted.text),
+              ...(typeof decrypted.html === "string"
+                ? { html: decrypted.html }
+                : {}),
             };
           }
           payload = {

@@ -1,3 +1,5 @@
+import { renderTransactionalEmail } from "./email-layout.ts";
+import type { TrustConfig } from "./workflow-security.ts";
 export type NotificationKind =
   | "referral_action_required"
   | "referral_created"
@@ -82,7 +84,11 @@ const copy: Record<
   },
 };
 
-export function buildNotification(job: NotificationJob, appUrl: string) {
+export function buildNotification(
+  job: NotificationJob,
+  appUrl: string,
+  identity: Pick<TrustConfig, "supportEmail" | "websiteUrl" | "businessName">,
+) {
   if (hasForbiddenKey(job.templateData)) {
     throw new Error(
       "Notification template data must not contain patient or clinical data.",
@@ -97,15 +103,45 @@ export function buildNotification(job: NotificationJob, appUrl: string) {
     baseUrl,
   ).toString();
   const content = copy[job.kind];
-  const text = `${content.heading}\n\n${content.action}\n\nSign in to ReturnWell:\n${link}\n\nNo sensitive health information is included in this email.`;
-  const html = `<h1>${content.heading}</h1><p>${content.action}</p><p><a href="${link}">Sign in to ReturnWell</a></p><p>No sensitive health information is included in this email.</p>`;
+  const message = renderTransactionalEmail({
+    heading: content.heading,
+    bodyParagraphs: [
+      content.action,
+      "No sensitive health information is included in this email.",
+      identity.businessName,
+    ],
+    action: { label: "Sign in to ReturnWell", url: link },
+    supportEmail: identity.supportEmail,
+    websiteUrl: identity.websiteUrl,
+  });
 
   return {
     to: job.recipientEmail,
     subject: content.subject,
-    text,
-    html,
+    ...message,
     idempotencyKey: job.idempotencyKey,
+  };
+}
+
+export function verificationEmail(
+  config: TrustConfig,
+  url: string,
+  expiresAt: string,
+) {
+  return {
+    subject: "Verify your email for ReturnWell",
+    ...renderTransactionalEmail({
+      heading: "Verify your email",
+      bodyParagraphs: [
+        "You requested access to ReturnWell. Open the link, then choose Verify and continue.",
+        `This verification expires at ${new Date(expiresAt).toISOString()} (UTC).`,
+        "If you did not request this, ignore this email. No workspace access is granted just by opening the link.",
+        config.businessName,
+      ],
+      action: { label: "Review email verification", url },
+      supportEmail: config.supportEmail,
+      websiteUrl: config.websiteUrl,
+    }),
   };
 }
 

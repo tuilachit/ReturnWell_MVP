@@ -92,6 +92,9 @@ export async function invitationProgressChecks(t, { rpc, sql, id: sourceId }) {
         consentAccepted: true,
         requestId: next(),
       });
+      const deadline=JSON.parse(sql(`select jsonb_build_object('expected',least(a.expires_at,i.expires_at),'live',least(a.expires_at,i.expires_at)>now(),'duration',extract(epoch from a.expires_at-a.created_at)) from private.invitation_auth_attempts a join public.workspace_invitations i on i.id=a.invitation_id where a.id='${attempt.attemptId}'`));
+      assert.equal(Date.parse(attempt.expiresAt),Date.parse(deadline.expected));
+      assert.equal(deadline.live,true);assert.equal(deadline.duration,900);
       rpc(null, "invitation.attach_auth", {
         attemptId: attempt.attemptId,
         authLeaseId: attempt.authLeaseId,
