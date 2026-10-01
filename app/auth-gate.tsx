@@ -12,6 +12,7 @@ import Reviews from "./review-panel";
 import PractitionerInbox from "./practitioner-panel";
 import PracticeAdmin from "./practice-admin-panel";
 import SecurityPanel from "./security-panel";
+import EmailOperations from "./email-operations-panel";
 import { getSupabaseBrowserClient } from "./lib/supabase";
 import {
   errorText,
@@ -28,7 +29,9 @@ export default function AuthGate({
     | "operator"
     | "practitioner"
     | "practices"
-    | "security";
+    | "security"
+    | "email";
+  // Email diagnostics are operator-only and never grant clinical access.
 }) {
   const client = useMemo(() => getSupabaseBrowserClient(), []);
   const [session, setSession] = useState<Session | null>(null);
@@ -218,6 +221,7 @@ export default function AuthGate({
         <>
           <a href="/admin/practitioners">Application reviews</a>
           <a href="/admin/practices">Practice administration</a>
+          <a href="/admin/email">Email delivery</a>
         </>
       )}
       <button onClick={() => void signOut()}>Sign out</button>
@@ -257,7 +261,7 @@ export default function AuthGate({
       (!requested ||
         (requested === "invitations"
           ? item.id.startsWith("doctor:") || item.id === "operator"
-          : requested === "practices"
+          : requested === "practices" || requested === "email"
             ? item.id === "operator"
             : item.id.startsWith(requested))),
   );
@@ -308,7 +312,9 @@ export default function AuthGate({
   return (
     <>
       {navigation}
-      {requested === "practices" && access.operator ? (
+      {requested === "email" && access.operator ? (
+        <EmailOperations key={session.user.id} client={client} />
+      ) : requested === "practices" && access.operator ? (
         <PracticeAdmin key={session.user.id} client={client} />
       ) : requested === "invitations" ? (
         <Invitations

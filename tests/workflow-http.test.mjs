@@ -14,18 +14,91 @@ const base = {
     throw Error("RPC should not be reached");
   },
 };
-test('rate limits expose Retry-After across the configured browser origin',async()=>{
-  const handle=api.workflowHandler('workspace-access',{...base,getUser:async()=>({id:'trusted-user'}),rpc:async()=>{throw Error('rate_limited SECRET');}});
-  const response=await handle(new Request('https://api.example.test',{method:'POST',headers:{authorization:'Bearer verified',origin:base.env.APP_URL},body:'{}'}));
-  assert.equal(response.status,429);assert.equal(response.headers.get('retry-after'),'60');
-  assert.equal(response.headers.get('access-control-expose-headers'),'Retry-After');
-  assert.doesNotMatch(await response.text(),/SECRET/);
+test("email diagnostics use current authenticated actor and cannot dispatch transport actions", async () => {
+  const calls = [];
+  const handle = api.workflowHandler("email-operations", {
+    ...base,
+    getUser: async () => ({ id: "verified-operator" }),
+    rpc: async (...args) => {
+      calls.push(args);
+      return { jobs: [] };
+    },
+  });
+  const request = (body) =>
+    new Request("https://api.example.test", {
+      method: "POST",
+      headers: { authorization: "Bearer verified" },
+      body: JSON.stringify(body),
+    });
+  assert.equal(
+    (
+      await handle(
+        request({
+          operation: "list",
+          actor: "victim",
+          limit: 25,
+          providerId: "secret",
+        }),
+      )
+    ).status,
+    200,
+  );
+  assert.deepEqual(calls, [
+    ["verified-operator", "operations.email", { limit: 25 }],
+  ]);
+  assert.equal(
+    (await handle(request({ operation: "email.claim" }))).status,
+    400,
+  );
+  assert.equal(calls.length, 1);
 });
-test('claim recovery takes actor from verified session and accepts no recipient or token override',async()=>{
-  const calls=[];
-  const handle=api.workflowHandler('claim-invitation',{...base,getUser:async()=>({id:'trusted-user'}),rpc:async(...args)=>{calls.push(args);return {attempts:[]};}});
-  const response=await handle(new Request('https://api.example.test',{method:'POST',headers:{authorization:'Bearer verified'},body:JSON.stringify({operation:'recovery',actor:'victim',recipientEmail:'victim@example.test',token:'secret'})}));
-  assert.equal(response.status,200);assert.deepEqual(calls,[['trusted-user','invitation.recovery',{}]]);
+test("rate limits expose Retry-After across the configured browser origin", async () => {
+  const handle = api.workflowHandler("workspace-access", {
+    ...base,
+    getUser: async () => ({ id: "trusted-user" }),
+    rpc: async () => {
+      throw Error("rate_limited SECRET");
+    },
+  });
+  const response = await handle(
+    new Request("https://api.example.test", {
+      method: "POST",
+      headers: { authorization: "Bearer verified", origin: base.env.APP_URL },
+      body: "{}",
+    }),
+  );
+  assert.equal(response.status, 429);
+  assert.equal(response.headers.get("retry-after"), "60");
+  assert.equal(
+    response.headers.get("access-control-expose-headers"),
+    "Retry-After",
+  );
+  assert.doesNotMatch(await response.text(), /SECRET/);
+});
+test("claim recovery takes actor from verified session and accepts no recipient or token override", async () => {
+  const calls = [];
+  const handle = api.workflowHandler("claim-invitation", {
+    ...base,
+    getUser: async () => ({ id: "trusted-user" }),
+    rpc: async (...args) => {
+      calls.push(args);
+      return { attempts: [] };
+    },
+  });
+  const response = await handle(
+    new Request("https://api.example.test", {
+      method: "POST",
+      headers: { authorization: "Bearer verified" },
+      body: JSON.stringify({
+        operation: "recovery",
+        actor: "victim",
+        recipientEmail: "victim@example.test",
+        token: "secret",
+      }),
+    }),
+  );
+  assert.equal(response.status, 200);
+  assert.deepEqual(calls, [["trusted-user", "invitation.recovery", {}]]);
 });
 test("directory failures expose safe actionable codes, never SQL details", async () => {
   for (const code of ["invalid_cursor", "geography_unavailable"]) {

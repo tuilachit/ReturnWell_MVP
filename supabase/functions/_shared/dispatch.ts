@@ -1,4 +1,5 @@
 import { buildNotification, type NotificationKind } from "./email.ts";
+import { providerRetryAfter } from "./provider-transport.ts";
 import {
   type Row,
   row,
@@ -157,6 +158,9 @@ export async function dispatchJobs(
             response.status === 429 || response.status >= 500
               ? "transient"
               : "permanent",
+          retryAfterSeconds: providerRetryAfter(
+            response.headers.get("retry-after"),
+          ),
         });
         return "failed";
       } catch {

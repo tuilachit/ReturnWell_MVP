@@ -179,6 +179,7 @@ export function safeDestination(path: string) {
       "/onboarding",
       "/admin/practitioners",
       "/admin/practices",
+      "/admin/email",
       "/security",
       "/auth/confirm",
       "/practitioner",

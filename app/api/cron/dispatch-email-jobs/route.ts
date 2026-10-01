@@ -52,7 +52,8 @@ export async function GET(request: Request) {
         "content-type": "application/json",
       },
       body: JSON.stringify({ limit: 20 }),
-      signal: AbortSignal.timeout(15000),
+      // Provider timeout is 15s; leave time for durable lease completion.
+      signal: AbortSignal.timeout(25000),
     });
     if (!response.ok) return json({ error: "Email worker unavailable" }, 502);
     return json({ ok: true, result: safeResult(await response.json()) });

@@ -84,6 +84,9 @@ const mappings: Record<
   Record<string, { action: string; fields: string[] }>
 > = {
   "workspace-access": { default: { action: "workspace.access", fields: [] } },
+  "email-operations": {
+    list: { action: "operations.email", fields: ["cursor", "limit"] },
+  },
   "manage-practice": {
     list: {
       action: "practice.list",
