@@ -3,6 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { useEffect, useRef, useState } from "react";
 import WorkflowShell from "./workflow-shell";
 import PageState from "./components/page-state";
+import ProfileSummary from "./components/profile-summary";
 import ProfileAccessReview from "./profile-access-review";
 import { getProfession } from "./lib/professions";
 import { errorText, invoke, requestId, type Application } from "./lib/workflow";
@@ -31,8 +32,12 @@ export default function Reviews({ client }: { client: SupabaseClient }) {
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [failed, setFailed] = useState(false);
+  const alive = useRef(false);
+  const locked = useRef(false);
   useEffect(() => {
     let active = true;
+    alive.current = true;
     void Promise.all([
       invoke<{
         applications: Application[];
@@ -48,17 +53,24 @@ export default function Reviews({ client }: { client: SupabaseClient }) {
         }
       })
       .catch((error) => {
-        if (active) setMessage(errorText(error));
+        if (active) {
+          setMessage(errorText(error));
+          setFailed(true);
+        }
       })
       .finally(() => {
         if (active) setLoading(false);
       });
     return () => {
       active = false;
+      alive.current = false;
     };
   }, [client]);
   async function open(id: string) {
+    if (locked.current) return;
+    locked.current = true;
     setBusy(true);
+    setFailed(false);
     setMessage("");
     setSelected(null);
     try {
@@ -69,6 +81,7 @@ export default function Reviews({ client }: { client: SupabaseClient }) {
         operation: "detail",
         applicationId: id,
       });
+      if (!alive.current) return;
       setSelected(result.application);
       setReviews(result.reviews);
       setIdentity("");
@@ -79,15 +92,26 @@ export default function Reviews({ client }: { client: SupabaseClient }) {
       setRegistered(false);
       setFeedback("");
     } catch (error) {
+      if (!alive.current) return;
+      setFailed(true);
       setMessage(errorText(error));
     } finally {
-      setBusy(false);
+      locked.current = false;
+      if (alive.current) setBusy(false);
     }
   }
   return (
     <WorkflowShell title="Practitioner application reviews">
       <a href="/invitations">Manage invitations</a>
-      {message && <p role="status">{message}</p>}
+      {message && <p role={failed ? "alert" : "status"}>{message}</p>}
+      <p>
+        Changes require an independent operator with recent authenticator
+        verification.{" "}
+        <a href="/security" target="_blank" rel="noreferrer">
+          Verify your security session
+        </a>{" "}
+        in a new tab to keep these edits.
+      </p>
       {!loading && due.length > 0 && (
         <section className="workflow-card">
           <h2>Credentials needing review</h2>
@@ -138,18 +162,7 @@ export default function Reviews({ client }: { client: SupabaseClient }) {
       {selected && (
         <section className="workflow-card">
           <h2>{selected.profile.displayName}</h2>
-          <dl>
-            {Object.entries(selected.profile).map(([key, value]) => (
-              <div key={key}>
-                <dt>{key}</dt>
-                <dd>
-                  {typeof value === "object"
-                    ? JSON.stringify(value)
-                    : String(value)}
-                </dd>
-              </div>
-            ))}
-          </dl>
+          <ProfileSummary profile={selected.profile} />
           <p>
             Submitted version {selected.version}. Review checks must be
             independent of the applicant’s supplied mailbox.
@@ -158,7 +171,10 @@ export default function Reviews({ client }: { client: SupabaseClient }) {
             <form
               onSubmit={async (event) => {
                 event.preventDefault();
+                if (locked.current) return;
+                locked.current = true;
                 setBusy(true);
+                setFailed(false);
                 setMessage("");
                 try {
                   const evidence = {
@@ -201,6 +217,7 @@ export default function Reviews({ client }: { client: SupabaseClient }) {
                     "review-practitioner",
                     { ...payload, requestId: pending.current.id },
                   );
+                  if (!alive.current) return;
                   pending.current = null;
                   setSelected(row);
                   setRows((current) =>
@@ -208,93 +225,99 @@ export default function Reviews({ client }: { client: SupabaseClient }) {
                   );
                   setMessage("Review decision saved.");
                 } catch (error) {
+                  if (!alive.current) return;
+                  setFailed(true);
                   setMessage(errorText(error));
                 } finally {
-                  setBusy(false);
+                  locked.current = false;
+                  if (alive.current) setBusy(false);
                 }
               }}
             >
-              <label>
-                Decision
-                <select
-                  value={decision}
-                  onChange={(event) => setDecision(event.target.value)}
-                >
-                  <option value="approved">Approve</option>
-                  <option value="changes_requested">Request changes</option>
-                  <option value="rejected">Reject</option>
-                </select>
-              </label>
-              <label>
-                Independent practice contact evidence
-                <input
-                  required={decision === "approved"}
-                  maxLength={1000}
-                  value={identity}
-                  onChange={(event) => setIdentity(event.target.value)}
-                />
-              </label>
-              <label className="workflow-check">
-                <input
-                  type="checkbox"
-                  required={decision === "approved"}
-                  checked={matched}
-                  onChange={(event) => setMatched(event.target.checked)}
-                />
-                Identity matched through an independently verified practice
-                contact
-              </label>
-              <label>
-                Current register evidence reference
-                <input
-                  required={decision === "approved"}
-                  maxLength={1000}
-                  value={registration}
-                  onChange={(event) => setRegistration(event.target.value)}
-                />
-              </label>
-              <label className="workflow-check">
-                <input
-                  type="checkbox"
-                  required={decision === "approved"}
-                  checked={registered}
-                  onChange={(event) => setRegistered(event.target.checked)}
-                />
-                Current registration and professional identity match
-              </label>
-              <label>
-                Checks completed at
-                <input
-                  type="datetime-local"
-                  required={decision === "approved"}
-                  value={checkedAt}
-                  onChange={(event) => setCheckedAt(event.target.value)}
-                />
-              </label>
-              <label>
-                Credential expiry (if stated by the authority)
-                <input
-                  type="datetime-local"
-                  value={expiresAt}
-                  onChange={(event) => setExpiresAt(event.target.value)}
-                />
-              </label>
-              <p>
-                The approved profession policy sets the next review deadline. An
-                unknown expiry does not remove that deadline.
-              </p>
-              <label>
-                Applicant-visible feedback
-                <textarea
-                  required={decision !== "approved"}
-                  maxLength={1000}
-                  value={feedback}
-                  onChange={(event) => setFeedback(event.target.value)}
-                />
-              </label>
-              <button className="button primary" disabled={busy}>
-                Record decision
-              </button>
+              <fieldset disabled={busy}>
+                <legend>Independent review decision</legend>
+                <label>
+                  Decision
+                  <select
+                    value={decision}
+                    onChange={(event) => setDecision(event.target.value)}
+                  >
+                    <option value="approved">Approve</option>
+                    <option value="changes_requested">Request changes</option>
+                    <option value="rejected">Reject</option>
+                  </select>
+                </label>
+                <label>
+                  Independent practice contact evidence
+                  <input
+                    required={decision === "approved"}
+                    maxLength={1000}
+                    value={identity}
+                    onChange={(event) => setIdentity(event.target.value)}
+                  />
+                </label>
+                <label className="workflow-check">
+                  <input
+                    type="checkbox"
+                    required={decision === "approved"}
+                    checked={matched}
+                    onChange={(event) => setMatched(event.target.checked)}
+                  />
+                  Identity matched through an independently verified practice
+                  contact
+                </label>
+                <label>
+                  Current register evidence reference
+                  <input
+                    required={decision === "approved"}
+                    maxLength={1000}
+                    value={registration}
+                    onChange={(event) => setRegistration(event.target.value)}
+                  />
+                </label>
+                <label className="workflow-check">
+                  <input
+                    type="checkbox"
+                    required={decision === "approved"}
+                    checked={registered}
+                    onChange={(event) => setRegistered(event.target.checked)}
+                  />
+                  Current registration and professional identity match
+                </label>
+                <label>
+                  Checks completed at
+                  <input
+                    type="datetime-local"
+                    required={decision === "approved"}
+                    value={checkedAt}
+                    onChange={(event) => setCheckedAt(event.target.value)}
+                  />
+                </label>
+                <label>
+                  Credential expiry (if stated by the authority)
+                  <input
+                    type="datetime-local"
+                    value={expiresAt}
+                    onChange={(event) => setExpiresAt(event.target.value)}
+                  />
+                </label>
+                <p>
+                  The approved profession policy sets the next review deadline.
+                  An unknown expiry does not remove that deadline.
+                </p>
+                <label>
+                  Applicant-visible feedback
+                  <textarea
+                    required={decision !== "approved"}
+                    maxLength={1000}
+                    value={feedback}
+                    onChange={(event) => setFeedback(event.target.value)}
+                  />
+                </label>
+                <button className="button primary" disabled={busy}>
+                  Record decision
+                </button>
+              </fieldset>
             </form>
           )}
           <details>

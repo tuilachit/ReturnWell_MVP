@@ -274,7 +274,11 @@ export default function AuthGate({
           }
         />
       ) : selected === "onboarding" && access.applicationId ? (
-        <Onboarding client={client} applicationId={access.applicationId} />
+        <Onboarding
+          key={access.applicationId}
+          client={client}
+          applicationId={access.applicationId}
+        />
       ) : selected === "operator" ? (
         <Reviews client={client} />
       ) : practitioner ? (

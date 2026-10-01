@@ -551,6 +551,30 @@ test(
       });
       const appId = claim.applicationId;
       await t.test(
+        "application policy metadata is owner scoped and excludes independent verification evidence",
+        () => {
+          const own = rpc(id(3), "application.load", { applicationId: appId });
+          assert.ok(Array.isArray(own.professionPolicies));
+          assert.equal(
+            own.professionPolicies.find(
+              (p) => p.professionId === "physiotherapist",
+            ).enabled,
+            true,
+          );
+          assert.deepEqual(Object.keys(own.professionPolicies[0]).sort(), [
+            "authorityId",
+            "enabled",
+            "professionId",
+            "route",
+            "scope",
+          ]);
+          assert.throws(
+            () => rpc(id(4), "application.load", { applicationId: appId }),
+            /denied/,
+          );
+        },
+      );
+      await t.test(
         "claim creates only one private draft and counts acceptance once",
         () => {
           assert.equal(
@@ -700,6 +724,17 @@ test(
         "review requires an independent operator and evidence",
         () => {
           assert.throws(() => rpc(id(3), "review.decide", review), /denied/);
+          sql(
+            `insert into private.platform_operators(user_id) values ('${id(3)}')`,
+          );
+          assert.throws(
+            () => rpc(id(3), "review.decide", review),
+            /denied/,
+            "operator role must not permit self-approval",
+          );
+          sql(
+            `delete from private.platform_operators where user_id='${id(3)}'`,
+          );
           assert.throws(
             () =>
               rpc(id(1), "review.decide", { ...review, identityEvidence: {} }),

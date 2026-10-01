@@ -1,20 +1,33 @@
 import terms from "../../shared/terminology.json";
 import { normalizeTerm } from "../lib/terminology";
+import { useId } from "react";
 export default function TermChecklist({
   kind,
   label,
   values,
   onChange,
+  error,
 }: {
   kind: "funding" | "language" | "service" | "ageGroup";
   label: string;
   values: string[];
   onChange: (next: string[]) => void;
+  error?: string;
 }) {
+  const id = useId();
   const unknown = values.filter((value) => !normalizeTerm(kind, value));
   return (
-    <fieldset>
+    <fieldset
+      aria-invalid={Boolean(error)}
+      aria-describedby={error ? id : undefined}
+      tabIndex={error ? -1 : undefined}
+    >
       <legend>{label}</legend>
+      {error && (
+        <p id={id} className="field-error">
+          {error}
+        </p>
+      )}
       {terms[kind].map((term) => (
         <label className="consent-check" key={term.id}>
           <input

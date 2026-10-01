@@ -124,6 +124,7 @@ export async function doctorBrowser(
   });
   return {
     local,
+    runtime,
     doctor,
     owner,
     organisationId: org,

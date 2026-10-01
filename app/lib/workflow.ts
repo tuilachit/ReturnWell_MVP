@@ -30,6 +30,7 @@ export type Application = {
   current_privacy_version?: string;
   current_terms_url?: string;
   current_privacy_url?: string;
+  professionPolicies?: import("./profile-validation").ProfessionPolicy[];
 };
 export type Profile = {
   serviceIds?: string[];

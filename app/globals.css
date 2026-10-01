@@ -2830,3 +2830,8 @@ dd small {
     transform: none;
   }
 }
+.profile-summary { display: grid; gap: 0.75rem; }
+.profile-summary > div { display: grid; grid-template-columns: minmax(8rem, 1fr) minmax(0, 2fr); gap: 1rem; }
+.profile-summary dt { color: var(--muted); }
+.profile-summary dd { margin: 0; overflow-wrap: anywhere; }
+@media (max-width: 480px) { .profile-summary > div { grid-template-columns: 1fr; gap: .25rem; } }
