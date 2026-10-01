@@ -15,6 +15,8 @@ export type Referral = {
   patientAgeGroupId?: string;
   id: string;
   reference: string;
+  version?: number;
+  supersedesReferralId?: string | null;
   patientReference: string;
   patientPostcode: string;
   profession: Profession;
@@ -27,7 +29,14 @@ export type Referral = {
   selectionMode: SelectionMode;
   selectedPractitionerId: string | null;
   providerName: string;
-  status: "sent" | "accepted" | "declined" | "booked" | "cancelled";
+  status:
+    | "awaiting_onboarding"
+    | "sent"
+    | "accepted"
+    | "declined"
+    | "booked"
+    | "cancelled"
+    | "closed";
   createdAt: string;
   updatedAt: string;
 };

@@ -7,6 +7,8 @@ export function referralStatusLabel(status: string): string {
         declined: "Needs another option",
         booked: "Previously recorded as booked",
         cancelled: "Cancelled",
+        closed: "Closed",
+        awaiting_onboarding: "Awaiting practitioner onboarding",
       } as Record<string, string>
     )[status] ?? "Status unavailable"
   );

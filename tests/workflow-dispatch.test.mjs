@@ -25,10 +25,15 @@ test("delivery defaults to disabled and calls no email provider", async () => {
   );
   assert.equal(result.processed, 0);
   assert.equal(result.configurationNeeded, true);
-  assert.deepEqual(operations, [["email.claim", {
-    configured: false,
-    limit: 10,
-  }]]);
+  assert.deepEqual(operations, [
+    [
+      "email.claim",
+      {
+        configured: false,
+        limit: 10,
+      },
+    ],
+  ]);
 });
 test("generic notification dispatch freezes one payload then records the provider result with its lease", async () => {
   assert.equal(typeof worker.dispatchJobs, "function");
@@ -69,8 +74,8 @@ test("generic notification dispatch freezes one payload then records the provide
         return action === "email.claim"
           ? [job]
           : action === "email.start"
-          ? job
-          : { ok: true };
+            ? job
+            : { ok: true };
       },
     },
     1,
@@ -80,12 +85,10 @@ test("generic notification dispatch freezes one payload then records the provide
       return new Response('{"id":"provider-1"}', { status: 200 });
     },
   );
-  assert.deepEqual(calls.map((c) => c[0]), [
-    "email.claim",
-    "email.prepare",
-    "email.start",
-    "email.finish",
-  ]);
+  assert.deepEqual(
+    calls.map((c) => c[0]),
+    ["email.claim", "email.prepare", "email.start", "email.finish"],
+  );
   assert.equal(calls.at(-1)[1].leaseId, "lease-1");
   assert.equal(calls.at(-1)[1].providerId, "provider-1");
   assert.doesNotMatch(
@@ -97,4 +100,26 @@ test("generic notification dispatch freezes one payload then records the provide
     /\/referrals\/00000000-0000-4000-8000-000000000030/,
   );
   assert.doesNotMatch(JSON.stringify(calls[1]), /A referral has been accepted/);
+  let cancelledSends = 0;
+  await worker.dispatchJobs(
+    {
+      env,
+      rpc: async (_actor, action) =>
+        action === "email.claim"
+          ? [job]
+          : action === "email.start"
+            ? { sendAllowed: false }
+            : { ok: true },
+    },
+    1,
+    async () => {
+      cancelledSends++;
+      return new Response('{"id":"must-not-send"}');
+    },
+  );
+  assert.equal(
+    cancelledSends,
+    0,
+    "a transactionally cancelled initial notice must not reach the provider",
+  );
 });

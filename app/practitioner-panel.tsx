@@ -1,6 +1,7 @@
 "use client";
 import CapabilityRequirements from "./components/capability-requirements";
 import { normalizeTerm } from "./lib/terminology";
+import { referralStatusLabel } from "./lib/referral-status";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { useEffect, useRef, useState } from "react";
 import WorkflowShell from "./workflow-shell";
@@ -204,10 +205,7 @@ export default function PractitionerInbox({
             <h2>
               {detail.reference} · {detail.patient_reference}
             </h2>
-            <p>
-              Status:{" "}
-              {detail.status === "sent" ? "Awaiting response" : detail.status}
-            </p>
+            <p>Status: {referralStatusLabel(detail.status)}</p>
             <dl>
               <div>
                 <dt>Clinical need</dt>
@@ -333,6 +331,8 @@ export default function PractitionerInbox({
               ["sent", "Awaiting response"],
               ["accepted", "Accepted"],
               ["declined", "Declined"],
+              ["cancelled", "Cancelled"],
+              ["closed", "Closed"],
             ].map(([value, label]) => (
               <button
                 className={`button ${value === tab ? "primary" : "secondary"}`}

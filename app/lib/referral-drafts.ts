@@ -14,6 +14,7 @@ export type ReferralDraft = {
   input: DraftInput;
   updatedAt: string;
   finalizedReferralId: string | null;
+  supersedesReferralId?: string | null;
 };
 export type DraftSummary = {
   id: string;

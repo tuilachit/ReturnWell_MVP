@@ -848,7 +848,13 @@ test(
             configured: true,
             limit: 20,
           });
-          assert.equal(jobs.filter((j) => j.family === "referral").length, 2);
+          assert.equal(jobs.filter((j) => j.family === "referral").length, 1);
+          assert.equal(
+            sql(
+              `select status from public.notification_outbox where referral_id='${id(30)}' and kind='referral_created'`,
+            ),
+            "cancelled",
+          );
           assert.deepEqual(
             rpc(null, "email.claim", { configured: true, limit: 20 }),
             [],
@@ -975,6 +981,10 @@ test(
       await t.test(
         "authentic unmatched webhook is retained then reconciled and suppresses retries",
         () => {
+          // A current notice, not the now-obsolete initial notice for a declined referral.
+          sql(
+            `set role authenticated;set request.jwt.claim.sub='${id(2)}';insert into public.referrals(id,reference,organisation_id,created_by,patient_reference,patient_postcode,profession,clinical_summary,funding_path,appointment_format,selection_mode,selected_practitioner_id,consent_confirmed_at) values('${id(450)}','RW-WEBHOOK','${id(10)}','${id(2)}','Fictional webhook','2000','physiotherapist','Fictional protected summary','Self funded','in_person','doctor','${practitionerId}',now());`,
+          );
           rpc(null, "email.webhook", {
             eventId: "early-bounce",
             providerId: "early-provider",
@@ -1164,6 +1174,9 @@ test(
             )}',1,'timeout-final','timeout@example.test','processing',4,'${id(
               77,
             )}',now()+interval '1 minute',now()-interval '5 minutes')`,
+          );
+          sql(
+            `update private.email_jobs set payload=jsonb_build_object('kind','referral_accepted','referralId','${id(30)}') where id='${id(76)}'`,
           );
           rpc(null, "email.start", { jobId: id(76), leaseId: id(77) });
           rpc(null, "email.finish", {
@@ -1814,6 +1827,244 @@ test(
         },
       );
       await t.test(
+        "practice lifecycle transitions are versioned, idempotent and participant-only",
+        () => {
+          sql(
+            `set role authenticated;set request.jwt.claim.sub='${id(2)}';insert into public.referrals(id,reference,organisation_id,created_by,patient_reference,patient_postcode,profession,clinical_summary,funding_path,appointment_format,selection_mode,selected_practitioner_id,consent_confirmed_at) values('${id(400)}','RW-LIFECYCLE','${id(10)}','${id(2)}','Fictional lifecycle','2000','physiotherapist','Fictional protected summary','Self funded','in_person','doctor','${practitionerId}',now());`,
+          );
+          const cancel = {
+            referralId: id(400),
+            expectedVersion: 0,
+            requestId: id(401),
+            action: "cancel",
+            reasonCode: "entered_in_error",
+            note: "Fictional internal cancellation note",
+          };
+          sql(
+            `insert into private.email_jobs(id,family,related_id,related_version,source_outbox_id,idempotency_key,recipient_email,state,payload,lease_id,lease_expires_at) select '${id(408)}','referral',referral_id,0,id,idempotency_key,recipient_email,'processing',jsonb_build_object('kind',kind,'referralId',referral_id),'${id(409)}',now()+interval '1 minute' from public.notification_outbox where referral_id='${id(400)}' and kind='referral_created'`,
+          );
+          assert.throws(
+            () => rpc(id(4), "referral.transition", cancel),
+            /denied/,
+          );
+          assert.throws(
+            () => rpc(id(1), "referral.transition", cancel),
+            /denied/,
+          );
+          assert.throws(
+            () => rpc(id(3), "referral.transition", cancel),
+            /denied/,
+          );
+          const result = rpc(id(2), "referral.transition", cancel);
+          assert.equal(result.referral.status, "cancelled");
+          assert.equal(result.referral.version, 1);
+          assert.deepEqual(rpc(id(2), "referral.transition", cancel), result);
+          assert.equal(
+            sql(
+              `select count(*) from public.referral_events where referral_id='${id(400)}' and event_type='cancelled'`,
+            ),
+            "1",
+          );
+          assert.equal(
+            sql(
+              `select count(*) from public.notification_outbox where referral_id='${id(400)}' and kind='referral_cancelled'`,
+            ),
+            "1",
+          );
+          assert.equal(
+            sql(
+              `select count(*) from private.email_jobs where related_id='${id(400)}' and state not in ('sent','cancelled') and payload->>'kind'='referral_created'`,
+            ),
+            "0",
+          );
+          assert.deepEqual(
+            rpc(null, "email.start", { jobId: id(408), leaseId: id(409) }),
+            { sendAllowed: false },
+          );
+          assert.equal(
+            sql(
+              `select attempts from private.email_jobs where id='${id(408)}'`,
+            ),
+            "0",
+          );
+          assert.throws(
+            () =>
+              rpc(id(3), "referral.respond", {
+                referralId: id(400),
+                expectedVersion: 0,
+                decision: "accepted",
+                requestId: id(402),
+              }),
+            /conflict/,
+          );
+          const replacement = {
+            referralId: id(400),
+            expectedVersion: 1,
+            requestId: id(403),
+          };
+          const draft = rpc(id(2), "referral.replace", replacement);
+          assert.deepEqual(rpc(id(2), "referral.replace", replacement), draft);
+          assert.equal(draft.supersedesReferralId, id(400));
+          assert.notEqual(draft.id, id(400));
+          assert.equal(draft.input.selectedPractitionerId, null);
+          assert.equal(Object.hasOwn(draft.input, "consentConfirmed"), false);
+          assert.throws(
+            () =>
+              rpc(id(2), "draft.finalize", {
+                id: draft.id,
+                expectedVersion: draft.version,
+                requestId: id(404),
+                consentConfirmed: true,
+              }),
+            /invalid_draft/,
+          );
+          assert.equal(
+            sql(`select status from public.referrals where id='${id(400)}'`),
+            "cancelled",
+          );
+          const revised = rpc(id(2), "draft.save", {
+            id: draft.id,
+            organisationId: id(10),
+            expectedVersion: draft.version,
+            input: { ...draft.input, selectedPractitionerId: practitionerId },
+            requestId: id(405),
+          });
+          assert.throws(
+            () =>
+              rpc(id(2), "draft.finalize", {
+                id: revised.id,
+                expectedVersion: revised.version,
+                consentConfirmed: false,
+                requestId: id(406),
+              }),
+            /consent_required/,
+          );
+          const replacementRef = rpc(id(2), "draft.finalize", {
+            id: revised.id,
+            expectedVersion: revised.version,
+            consentConfirmed: true,
+            requestId: id(407),
+          });
+          assert.equal(replacementRef.supersedes_referral_id, id(400));
+          assert.equal(
+            sql(
+              `select count(*) from public.notification_outbox where referral_id='${replacementRef.id}'`,
+            ),
+            "1",
+          );
+        },
+      );
+      await t.test(
+        "lifecycle matrix rejects stale, terminal and legacy-booked transitions",
+        () => {
+          for (const status of [
+            "awaiting_onboarding",
+            "sent",
+            "accepted",
+            "declined",
+            "cancelled",
+            "closed",
+            "booked",
+          ]) {
+            for (const action of ["cancel", "close"]) {
+              const allowed =
+                action === "cancel"
+                  ? ["awaiting_onboarding", "sent", "accepted"].includes(status)
+                  : status === "accepted";
+              const input = {
+                referralId: id(400),
+                expectedVersion: 1,
+                requestId: id(410),
+                action,
+                reasonCode: action === "cancel" ? "other" : "unable_to_arrange",
+              };
+              const run = () =>
+                sql(
+                  `begin;update public.referrals set status='${status}',version=1 where id='${id(400)}';delete from private.workflow_requests where actor_id='${id(2)}' and request_id='${id(410)}';delete from private.email_jobs where related_id='${id(400)}' and payload->>'kind' in ('referral_cancelled','referral_closed');delete from public.notification_outbox where referral_id='${id(400)}' and kind in ('referral_cancelled','referral_closed');select public.rw_workflow('${id(2)}','referral.transition','${JSON.stringify(input)}');rollback;`,
+                );
+              if (allowed)
+                assert.equal(
+                  JSON.parse(run()).referral.status,
+                  action === "cancel" ? "cancelled" : "closed",
+                );
+              else assert.throws(run, /conflict/);
+            }
+          }
+          assert.throws(
+            () =>
+              sql(
+                `begin;update public.referrals set status='accepted' where id='${id(400)}';select public.rw_workflow('${id(2)}','referral.transition','${JSON.stringify({ referralId: id(400), expectedVersion: 1, requestId: id(411), action: "close", reasonCode: "handover_completed" })}');rollback;`,
+              ),
+            /consent_required/,
+          );
+        },
+      );
+      await t.test(
+        "acceptance and cancellation race has one winning state and event",
+        async () => {
+          sql(
+            `set role authenticated;set request.jwt.claim.sub='${id(2)}';insert into public.referrals(id,reference,organisation_id,created_by,patient_reference,patient_postcode,profession,clinical_summary,funding_path,appointment_format,selection_mode,selected_practitioner_id,consent_confirmed_at) values('${id(420)}','RW-CANCEL-RACE','${id(10)}','${id(2)}','Fictional race','2000','physiotherapist','Fictional summary','Self funded','in_person','doctor','${practitionerId}',now());`,
+          );
+          const run = promisify(execFile);
+          const requests = [
+            {
+              actor: id(2),
+              action: "referral.transition",
+              body: {
+                referralId: id(420),
+                expectedVersion: 0,
+                requestId: id(421),
+                action: "cancel",
+                reasonCode: "other",
+              },
+            },
+            {
+              actor: id(3),
+              action: "referral.respond",
+              body: {
+                referralId: id(420),
+                expectedVersion: 0,
+                requestId: id(422),
+                decision: "accepted",
+              },
+            },
+          ];
+          const results = await Promise.allSettled(
+            requests.map((r) =>
+              run("docker", [
+                "exec",
+                container,
+                "psql",
+                "-U",
+                "postgres",
+                "-X",
+                "-q",
+                "-A",
+                "-t",
+                "-v",
+                "ON_ERROR_STOP=1",
+                "-c",
+                `set statement_timeout='8s';set role service_role;select public.rw_workflow('${r.actor}','${r.action}','${JSON.stringify(r.body)}');`,
+              ]),
+            ),
+          );
+          assert.equal(
+            results.filter((x) => x.status === "fulfilled").length,
+            1,
+          );
+          assert.match(
+            results.find((x) => x.status === "rejected").reason.stderr,
+            /conflict/,
+          );
+          assert.equal(
+            sql(
+              `select count(*) from public.referral_events where referral_id='${id(420)}' and event_type in ('accepted','cancelled')`,
+            ),
+            "1",
+          );
+        },
+      );
+      await t.test(
         "bounded directory pages separate format groups and reject forged scope or cursor",
         () => {
           const query = {
@@ -2073,6 +2324,8 @@ test(
               `do $test$ declare started timestamptz; elapsed jsonb:='[]'; begin for n in 1..30 loop started:=clock_timestamp(); perform private.directory_page('${id(2)}','${JSON.stringify(query)}'); elapsed:=elapsed||to_jsonb(extract(epoch from clock_timestamp()-started)*1000); end loop; perform set_config('returnwell.fixture_timings',elapsed::text,false); end $test$; select current_setting('returnwell.fixture_timings');`,
             ),
           ).sort((a, b) => a - b);
+          assert.equal(sql(`begin;set local role authenticated;set local request.jwt.claim.sub='${id(4)}';set local statement_timeout='500ms';select count(*) from public.verified_practitioners;rollback;`),'0');
+          assert.equal(sql(`begin;set local role authenticated;set local request.jwt.claim.sub='${id(4)}';set local statement_timeout='500ms';select count(*) from public.practitioners;rollback;`),'0');
           const p50 = timings[14],
             p95 = timings[28],
             bytes = Buffer.byteLength(JSON.stringify(first));

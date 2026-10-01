@@ -3,6 +3,8 @@ import type { Referral, ReferralInput, Workspace } from "../types";
 
 export type ReferralRow = {
   id: string;
+  version?: number;
+  supersedes_referral_id?: string | null;
   reference: string;
   patient_reference: string;
   patient_postcode: string;
@@ -25,6 +27,8 @@ export type ReferralRow = {
 
 export const rowToReferral = (row: ReferralRow): Referral => ({
   id: row.id,
+  version: row.version,
+  supersedesReferralId: row.supersedes_referral_id,
   reference: row.reference,
   patientReference: row.patient_reference,
   patientPostcode: row.patient_postcode,

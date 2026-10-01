@@ -94,6 +94,22 @@ const mappings: Record<
     },
   },
   "manage-referral": {
+    transition: {
+      action: "referral.transition",
+      fields: [
+        "referralId",
+        "expectedVersion",
+        "requestId",
+        "action",
+        "reasonCode",
+        "note",
+        "handoverConfirmed",
+      ],
+    },
+    replace: {
+      action: "referral.replace",
+      fields: ["referralId", "expectedVersion", "requestId"],
+    },
     list: {
       action: "referral.list",
       fields: ["organisationId", "status", "search", "cursor", "limit"],

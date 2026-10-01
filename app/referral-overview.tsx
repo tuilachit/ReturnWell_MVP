@@ -57,8 +57,9 @@ export default function ReferralOverview({
       (counts.booked ?? 0) -
       (counts.cancelled ?? 0) -
       (counts.closed ?? 0)
-    : referrals.filter((r) => !["booked", "cancelled"].includes(r.status))
-        .length;
+    : referrals.filter(
+        (r) => !["booked", "cancelled", "closed"].includes(r.status),
+      ).length;
   const attention =
     counts?.declined ??
     (counts ? 0 : referrals.filter((r) => r.status === "declined").length);
@@ -85,6 +86,22 @@ export default function ReferralOverview({
       count: accepted,
     },
     { value: "declined", label: "Needs attention", count: attention },
+    {
+      value: "awaiting_onboarding",
+      label: "Onboarding",
+      count:
+        counts?.awaiting_onboarding ??
+        (counts
+          ? 0
+          : referrals.filter((r) => r.status === "awaiting_onboarding").length),
+    },
+    {
+      value: "closed",
+      label: "Closed",
+      count:
+        counts?.closed ??
+        (counts ? 0 : referrals.filter((r) => r.status === "closed").length),
+    },
     {
       value: "cancelled",
       label: "Cancelled",

@@ -39,6 +39,7 @@ import { matchPractitioners, normaliseMatchNeeds } from "./lib/matching";
 import { listReferralPage, type DistanceGroup } from "./lib/directory";
 import { usePractitionerSearch } from "./lib/use-practitioner-search";
 import DirectoryPages from "./components/directory-pages";
+import ReferralActions from "./referral-actions";
 import terminology from "../shared/terminology.json";
 import CapabilityRequirements from "./components/capability-requirements";
 import { normalizeTerm } from "./lib/terminology";
@@ -1100,6 +1101,13 @@ export default function DoctorPortal({
               {step === 1 && (
                 <div className="referral-start-layout">
                   <form className="referral-form" onSubmit={proceedToShortlist}>
+                    {draft?.supersedesReferralId && (
+                      <p role="status">
+                        Replacement referral: review the copied details, choose
+                        a practitioner and confirm consent again. The original
+                        record is unchanged.
+                      </p>
+                    )}
                     {mode === "authenticated" && client && workspace && (
                       <ReferralDraftPanel
                         client={client}
@@ -1700,6 +1708,38 @@ export default function DoctorPortal({
                       </dd>
                     </div>
                   </dl>
+                  {detailReferral.supersedesReferralId && (
+                    <p>
+                      This is a linked replacement.{" "}
+                      <a
+                        href={
+                          "/referrals/" + detailReferral.supersedesReferralId
+                        }
+                      >
+                        View the original referral
+                      </a>
+                      .
+                    </p>
+                  )}
+                  {client && mode === "authenticated" && (
+                    <ReferralActions
+                      key={detailReferral.id}
+                      client={client}
+                      referral={detailReferral}
+                      onChanged={(value) => {
+                        setDetailReferral(value);
+                        setRefresh((current) => current + 1);
+                      }}
+                      onRefresh={refreshWorkspace}
+                      onReplacement={(saved) => {
+                        restoreDraft(saved);
+                        setView("new");
+                        setDraftPending(false);
+                        setSubmissionPending(false);
+                        pendingSubmission.current = null;
+                      }}
+                    />
+                  )}
                 </section>
                 {client && mode === "authenticated" ? (
                   <ReferralActivity

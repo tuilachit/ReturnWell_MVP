@@ -29,7 +29,11 @@ export async function selectFixturePractitioner(page, clinic) {
 // Real local Auth + PostgREST + workflow handler; no hosted APIs or mail provider.
 export async function doctorBrowser(
   page,
-  { dropFinalResponseOnce = false, actor = "doctor" } = {},
+  {
+    dropFinalResponseOnce = false,
+    dropTransitionResponseOnce = false,
+    actor = "doctor",
+  } = {},
 ) {
   const local = localRuntime();
   const doctor = await local.verifiedFixtureUser(
@@ -99,6 +103,15 @@ export async function doctorBrowser(
       response.ok
     ) {
       dropFinalResponseOnce = false;
+      return route.abort("failed");
+    }
+    if (
+      dropTransitionResponseOnce &&
+      endpoint === "manage-referral" &&
+      request.postDataJSON()?.operation === "transition" &&
+      response.ok
+    ) {
+      dropTransitionResponseOnce = false;
       return route.abort("failed");
     }
     await route.fulfill({
