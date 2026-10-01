@@ -3,6 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { useEffect, useState } from "react";
 import WorkflowShell from "./workflow-shell";
 import PageState from "./components/page-state";
+import TermChecklist from "./components/term-checklist";
 import { getProfession, supportedProfessions } from "./lib/professions";
 import {
   errorText,
@@ -121,7 +122,10 @@ export default function Onboarding({
   }
   return (
     <WorkflowShell title="Your practitioner profile" step={3}>
-      <p className="workflow-lead">Confirm your professional details and how you accept referrals. Your profile stays private until it has been reviewed and approved.</p>
+      <p className="workflow-lead">
+        Confirm your professional details and how you accept referrals. Your
+        profile stays private until it has been reviewed and approved.
+      </p>
       {message && <p role="status">{message}</p>}
       {!application ? (
         <PageState kind="loading" title="Loading your application…" />
@@ -156,7 +160,8 @@ export default function Onboarding({
               using your invitation for help.
             </p>
           )}
-          <form className="onboarding-form"
+          <form
+            className="onboarding-form"
             onSubmit={(event) => {
               event.preventDefault();
               void save(true);
@@ -167,7 +172,12 @@ export default function Onboarding({
               {(
                 [
                   ["displayName", "Full professional name", 160],
-                  ["registrationNumber", getProfession(profile.profession || "")?.credentialLabel ?? "Professional credential", 40],
+                  [
+                    "registrationNumber",
+                    getProfession(profile.profession || "")?.credentialLabel ??
+                      "Professional credential",
+                    40,
+                  ],
                   ["practiceName", "Practice name", 200],
                 ] as const
               ).map(([key, label, max]) => (
@@ -200,30 +210,69 @@ export default function Onboarding({
                   <option value="" disabled>
                     Select profession
                   </option>
-                  {supportedProfessions.map(p => <option key={p.id} value={p.id}>{p.label}</option>)}
+                  {supportedProfessions.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.label}
+                    </option>
+                  ))}
                 </select>
               </label>
-              {(
-                [
-                  ["services", "Services", true],
-                  ["funding", "Funding accepted", false],
-                  ["languages", "Languages", true],
-                ] as const
-              ).map(([key, label, required]) => (
-                <label key={key}>
-                  {label} (comma separated)
-                  <input
-                    required={required}
-                    value={listText[key]}
-                    onChange={(event) =>
-                      setListText((current) => ({
-                        ...current,
-                        [key]: event.target.value,
-                      }))
-                    }
-                  />
-                </label>
-              ))}
+              {([["services", "Services", true]] as const).map(
+                ([key, label, required]) => (
+                  <label key={key}>
+                    {label} (comma separated)
+                    <input
+                      required={required}
+                      value={listText[key]}
+                      onChange={(event) =>
+                        setListText((current) => ({
+                          ...current,
+                          [key]: event.target.value,
+                        }))
+                      }
+                    />
+                  </label>
+                ),
+              )}
+              <TermChecklist
+                kind="funding"
+                label="Funding pathways accepted"
+                values={split(listText.funding)}
+                onChange={(values) =>
+                  setListText((current) => ({
+                    ...current,
+                    funding: values.join(", "),
+                  }))
+                }
+              />
+              <TermChecklist
+                kind="language"
+                label="Languages offered"
+                values={split(listText.languages)}
+                onChange={(values) =>
+                  setListText((current) => ({
+                    ...current,
+                    languages: values.join(", "),
+                  }))
+                }
+              />
+              <p>
+                Confirm only capabilities you provide. Leaving these optional
+                requirements blank means your profile will not match referrals
+                that require them.
+              </p>
+              <TermChecklist
+                kind="service"
+                label="Confirmed service capabilities"
+                values={profile.serviceIds ?? []}
+                onChange={(values) => field("serviceIds", values)}
+              />
+              <TermChecklist
+                kind="ageGroup"
+                label="Age groups you accept"
+                values={profile.ageGroupIds ?? []}
+                onChange={(values) => field("ageGroupIds", values)}
+              />
               {(
                 [
                   ["telehealth", "Do you provide telehealth?"],
@@ -363,29 +412,31 @@ export default function Onboarding({
                       checked={consent}
                       onChange={(event) => setConsent(event.target.checked)}
                     />
-                    <span>I agree to receive referrals and accept the current{" "}
-                    <a
-                      href={application.current_terms_url}
-                      target="_blank"
-                      rel="noreferrer"
-                    >
-                      terms (
-                      {application.current_terms_version ||
-                        application.terms_version}
-                      )
-                    </a>
-                    and{" "}
-                    <a
-                      href={application.current_privacy_url}
-                      target="_blank"
-                      rel="noreferrer"
-                    >
-                      privacy policy (
-                      {application.current_privacy_version ||
-                        application.privacy_version}
-                      )
-                    </a>
-                    .</span>
+                    <span>
+                      I agree to receive referrals and accept the current{" "}
+                      <a
+                        href={application.current_terms_url}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        terms (
+                        {application.current_terms_version ||
+                          application.terms_version}
+                        )
+                      </a>
+                      and{" "}
+                      <a
+                        href={application.current_privacy_url}
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        privacy policy (
+                        {application.current_privacy_version ||
+                          application.privacy_version}
+                        )
+                      </a>
+                      .
+                    </span>
                   </label>
                   <div className="workflow-actions">
                     <button

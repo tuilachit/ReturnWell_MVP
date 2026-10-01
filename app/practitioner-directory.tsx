@@ -12,6 +12,8 @@ import {
 } from "./ui-icons";
 import type { Practitioner } from "./types";
 import { professionLabel, supportedProfessions } from "./lib/professions";
+import { isEligibleForNewReferral } from "./lib/credentials";
+import { normalizeTerm } from "./lib/terminology";
 
 export default function PractitionerDirectory({
   practitioners,
@@ -37,13 +39,7 @@ export default function PractitionerDirectory({
   const directory = useMemo(
     () =>
       practitioners
-        .filter(
-          (p) =>
-            p.lifecycleStatus === "active" &&
-            p.ahpraVerificationStatus === "verified" &&
-            p.providerConfirmationStatus === "confirmed" &&
-            p.acceptingNewReferrals,
-        )
+        .filter((p) => isEligibleForNewReferral(p, p.profession))
         .filter(
           (p) =>
             (profession === "all" || p.profession === profession) &&
@@ -62,7 +58,11 @@ export default function PractitionerDirectory({
         </div>
         <span className="directory-count">
           <Users size={16} />
-          {loading ? "Checking availability…" : error ? "Availability unavailable" : `${directory.length} available`}
+          {loading
+            ? "Checking availability…"
+            : error
+              ? "Availability unavailable"
+              : `${directory.length} available`}
         </span>
       </div>
       <section className="directory-panel">
@@ -82,7 +82,11 @@ export default function PractitionerDirectory({
             onChange={(e) => setProfession(e.target.value)}
           >
             <option value="all">All professions</option>
-            {supportedProfessions.map(p => <option key={p.id} value={p.id}>{p.label}</option>)}
+            {supportedProfessions.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.label}
+              </option>
+            ))}
           </select>
         </div>
         {loading ? (
@@ -94,7 +98,9 @@ export default function PractitionerDirectory({
             <CircleAlert size={27} />
             <h2>Couldn’t load practitioners</h2>
             <p role="alert">{error}</p>
-            <button className="button secondary" onClick={onRetry}>Try again</button>
+            <button className="button secondary" onClick={onRetry}>
+              Try again
+            </button>
           </div>
         ) : directory.length === 0 ? (
           <div className="empty-state">
@@ -158,11 +164,28 @@ export default function PractitionerDirectory({
                     <dl>
                       <div>
                         <dt>Funding</dt>
-                        <dd>{p.funding.join(" · ") || "Not stated"}</dd>
+                        <dd>
+                          {p.funding
+                            .map(
+                              (value) =>
+                                normalizeTerm("funding", value)?.label ??
+                                `${value} (needs clarification)`,
+                            )
+                            .join(" · ") || "Not stated"}
+                          . Confirm fees and rebate eligibility directly.
+                        </dd>
                       </div>
                       <div>
                         <dt>Languages</dt>
-                        <dd>{p.languages.join(" · ") || "Not stated"}</dd>
+                        <dd>
+                          {p.languages
+                            .map(
+                              (value) =>
+                                normalizeTerm("language", value)?.label ??
+                                value,
+                            )
+                            .join(" · ") || "Not stated"}
+                        </dd>
                       </div>
                       <div>
                         <dt>Verification</dt>

@@ -376,7 +376,7 @@ test(
         registrationNumber: "PHY0001234567",
         practiceName: "Fictional Allied Health",
         services: ["Physiotherapy"],
-        funding: ["Private"],
+        funding: ["Self funded"],
         languages: ["English"],
         telehealth: false,
         acceptingNewReferrals: true,
@@ -624,7 +624,7 @@ test(
             assert.equal(
               sql(`begin; set role authenticated; set request.jwt.claim.sub='${id(2)}';
             insert into public.referrals(reference,organisation_id,created_by,patient_reference,patient_postcode,profession,clinical_summary,funding_path,appointment_format,selection_mode,selected_practitioner_id,consent_confirmed_at)
-            values('RW-CLOCK','${id(10)}','${id(2)}','Fictional','2000','physiotherapist','Fictional','Private','in_person','doctor','${practitionerId}',now() ${offset})
+            values('RW-CLOCK','${id(10)}','${id(2)}','Fictional','2000','physiotherapist','Fictional','Self funded','in_person','doctor','${practitionerId}',now() ${offset})
             returning consent_confirmed_at = now(); rollback;`),
               "t",
             );
@@ -637,7 +637,7 @@ test(
           assert.throws(() =>
             sql(`begin; set role authenticated; set request.jwt.claim.sub='${id(2)}';
           insert into public.referrals(reference,organisation_id,created_by,patient_reference,patient_postcode,profession,clinical_summary,funding_path,appointment_format,selection_mode,selected_practitioner_id,consent_confirmed_at)
-          values('RW-NO-CONSENT','${id(10)}','${id(2)}','Fictional','2000','physiotherapist','Fictional','Private','in_person','doctor','${practitionerId}',null); rollback;`),
+          values('RW-NO-CONSENT','${id(10)}','${id(2)}','Fictional','2000','physiotherapist','Fictional','Self funded','in_person','doctor','${practitionerId}',null); rollback;`),
           );
         },
       );
@@ -652,7 +652,7 @@ test(
                 )}'; insert into public.referrals(id,reference,organisation_id,created_by,patient_reference,patient_postcode,profession,clinical_summary,funding_path,appointment_format,selection_mode,selected_practitioner_id,consent_confirmed_at,status,version)
         values('${id(96)}','RW-FORGED','${id(10)}','${id(
           2,
-        )}','Fictional','2000','physiotherapist','Fictional','Private','in_person','doctor','${practitionerId}',now(),'accepted',9); rollback;`,
+        )}','Fictional','2000','physiotherapist','Fictional','Self funded','in_person','doctor','${practitionerId}',now(),'accepted',9); rollback;`,
               ),
             /permission denied/,
           );
@@ -664,7 +664,7 @@ test(
         )}'; insert into public.referrals(id,reference,organisation_id,created_by,patient_reference,patient_postcode,profession,clinical_summary,funding_path,appointment_format,selection_mode,selected_practitioner_id,consent_confirmed_at)
       values('${id(30)}','RW-TEST-1','${id(10)}','${id(
         2,
-      )}','Fictional patient','2000','physiotherapist','Fictional details only','Private','in_person','doctor','${practitionerId}',now());`,
+      )}','Fictional patient','2000','physiotherapist','Fictional details only','Self funded','in_person','doctor','${practitionerId}',now());`,
       );
       await t.test(
         "pause removes matching but keeps assigned access; strangers cannot respond",
@@ -734,7 +734,7 @@ test(
           assert.throws(
             () =>
               sql(
-                `begin; set role authenticated; set request.jwt.claim.sub='${id(2)}'; insert into public.referrals(reference,organisation_id,created_by,patient_reference,patient_postcode,profession,clinical_summary,funding_path,appointment_format,selection_mode,selected_practitioner_id,consent_confirmed_at) values('RW-EXPIRED','${id(10)}','${id(2)}','FICTIONAL','2000','physiotherapist','Fictional','Private','in_person','doctor','${practitionerId}',now()); rollback;`,
+                `begin; set role authenticated; set request.jwt.claim.sub='${id(2)}'; insert into public.referrals(reference,organisation_id,created_by,patient_reference,patient_postcode,profession,clinical_summary,funding_path,appointment_format,selection_mode,selected_practitioner_id,consent_confirmed_at) values('RW-EXPIRED','${id(10)}','${id(2)}','FICTIONAL','2000','physiotherapist','Fictional','Self funded','in_person','doctor','${practitionerId}',now()); rollback;`,
               ),
             /recipient_ineligible/,
           );
@@ -887,7 +887,7 @@ test(
         )}'; insert into public.referrals(id,reference,organisation_id,created_by,patient_reference,patient_postcode,profession,clinical_summary,funding_path,appointment_format,selection_mode,selected_practitioner_id,consent_confirmed_at)
         values('${id(40)}','RW-TEST-2','${id(10)}','${id(
           2,
-        )}','Fictional patient','2000','physiotherapist','Fictional details','Private','in_person','doctor','${practitionerId}',now());`,
+        )}','Fictional patient','2000','physiotherapist','Fictional details','Self funded','in_person','doctor','${practitionerId}',now());`,
           );
           const res = rpc(id(3), "referral.respond", {
             referralId: id(40),
@@ -1039,7 +1039,7 @@ test(
             )}'; insert into public.referrals(id,reference,organisation_id,created_by,patient_reference,patient_postcode,profession,clinical_summary,funding_path,appointment_format,selection_mode,selected_practitioner_id,consent_confirmed_at)
         values('${id(60)}','RW-TEST-3','${id(10)}','${id(
           2,
-        )}','Fictional patient','2000','physiotherapist','Fictional details','Private','in_person','doctor','${practitionerId}',now());`,
+        )}','Fictional patient','2000','physiotherapist','Fictional details','Self funded','in_person','doctor','${practitionerId}',now());`,
           );
           const run = promisify(execFile);
           const results = await Promise.allSettled(
@@ -1343,7 +1343,7 @@ test(
             patientPostcode: "2000",
             profession: "physiotherapist",
             clinicalSummary: "Fictional summary",
-            fundingPath: "Private",
+            fundingPath: "Self funded",
             appointmentFormat: "either",
             selectedPractitionerId: practitionerId,
           };
@@ -1404,7 +1404,7 @@ test(
             )}'; insert into public.referrals(id,reference,organisation_id,created_by,patient_reference,patient_postcode,profession,clinical_summary,funding_path,appointment_format,selection_mode,selected_practitioner_id,consent_confirmed_at)
         values('${id(93)}','RW-INVALID-CONFIG','${id(10)}','${id(
           2,
-        )}','Fictional','2000','physiotherapist','Fictional','Private','in_person','doctor','${practitionerId}',now());`,
+        )}','Fictional','2000','physiotherapist','Fictional','Self funded','in_person','doctor','${practitionerId}',now());`,
           );
           const result = rpc(id(3), "referral.respond", {
             referralId: id(93),
@@ -1704,6 +1704,111 @@ test(
           end $test$;
           select ahpra_registration_number is null and ahpra_verification_status='not_checked' and private.practitioner_is_eligible(id,'exercise_physiologist',now()) from public.practitioners where id='${practitionerId}'; rollback;`);
           assert.equal(result, "t");
+        },
+      );
+      await t.test(
+        "structured requirements are enforced at finalisation and direct INSERT",
+        () => {
+          const input = {
+            patientReference: "FICTIONAL-CAPABILITY",
+            patientPostcode: "2000",
+            profession: "physiotherapist",
+            clinicalSummary: "Fictional assessment",
+            fundingPath: "self_funded",
+            appointmentFormat: "in_person",
+            preferredLanguage: "english",
+            accessNotes: "wheelchair access",
+            requiredServiceIds: ["persistent_pain"],
+            patientAgeGroupId: "adult",
+            selectedPractitionerId: practitionerId,
+          };
+          const draft = rpc(id(2), "draft.save", {
+            id: id(170),
+            organisationId: id(10),
+            expectedVersion: -1,
+            requestId: id(171),
+            input,
+          });
+          const finalize = {
+            id: draft.id,
+            expectedVersion: draft.version,
+            requestId: id(172),
+            consentConfirmed: true,
+          };
+          assert.throws(
+            () => rpc(id(2), "draft.finalize", finalize),
+            /recipient_ineligible/,
+          );
+          const proposal = rpc(id(3), "application.revision_start", {
+            practitionerId,
+            requestId: id(175),
+          });
+          const edited = rpc(id(3), "application.save", {
+            applicationId: proposal.id,
+            expectedVersion: proposal.version,
+            profile: {
+              ...profile,
+              serviceIds: ["persistent_pain"],
+              ageGroupIds: ["adult"],
+            },
+          });
+          const submitted = rpc(id(3), "application.submit", {
+            applicationId: proposal.id,
+            expectedVersion: edited.version,
+            profileConfirmed: true,
+            referralConsent: true,
+            termsVersion: "v1",
+            privacyVersion: "v1",
+          });
+          rpc(id(1), "review.decide", {
+            ...review,
+            applicationId: proposal.id,
+            expectedVersion: submitted.version,
+            requestId: id(176),
+          });
+          assert.equal(
+            sql(
+              `select service_ids[1] from public.practitioners where id='${practitionerId}'`,
+            ),
+            "persistent_pain",
+          );
+          const sent = rpc(id(2), "draft.finalize", finalize);
+          assert.deepEqual(sent.required_service_ids, ["persistent_pain"]);
+          assert.equal(sent.patient_age_group_id, "adult");
+          assert.equal(sent.preferred_language, "english");
+          assert.equal(sent.access_notes, "wheelchair access");
+          assert.equal(
+            sql(
+              `select private.practitioner_meets_requirements('${practitionerId}','physiotherapist','Self-funded','in_person',' ENGLISH ',array['persistent_pain'],'adult')`,
+            ),
+            "t",
+          );
+          assert.equal(
+            sql(
+              `select private.practitioner_meets_requirements('${practitionerId}','physiotherapist','Private','in_person','',array[]::text[],null)`,
+            ),
+            "f",
+          );
+          assert.throws(
+            () =>
+              sql(
+                `begin; set role authenticated; set request.jwt.claim.sub='${id(2)}'; insert into public.referrals(reference,organisation_id,created_by,patient_reference,patient_postcode,profession,clinical_summary,funding_path,appointment_format,selection_mode,selected_practitioner_id,consent_confirmed_at,required_service_ids) values('RW-FORGED-CAPABILITY','${id(10)}','${id(2)}','FICTIONAL','2000','physiotherapist','Fictional','Self funded','in_person','doctor','${practitionerId}',now(),array['unknown']); rollback;`,
+              ),
+            /recipient_ineligible|invalid_requirements/,
+          );
+          assert.equal(
+            sql(
+              `select private.normalize_term('language','wheelchair access') is null and private.normalize_term('language','Chinese') is null`,
+            ),
+            "t",
+          );
+          assert.throws(
+            () =>
+              sql(
+                `select private.validate_practitioner_profile('${JSON.stringify({ ...profile, serviceIds: ["made_up"] })}',false)`,
+              ),
+            /invalid_profile/,
+          );
         },
       );
     } finally {

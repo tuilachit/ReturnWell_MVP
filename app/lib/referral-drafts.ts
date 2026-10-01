@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { ReferralInput } from "../types";
 import { invoke } from "./workflow.ts";
 import { isSupportedProfession } from "./professions.ts";
+import { normalizeTerm } from "./terminology.ts";
 export type DraftInput = Partial<
   Omit<ReferralInput, "selectionMode" | "consentConfirmed">
 > & { preferredLanguage?: string; accessNotes?: string };
@@ -32,9 +33,21 @@ export function validateDraft(input: DraftInput): string[] {
     preferredLanguage: 120,
     accessNotes: 500,
     selectedPractitionerId: 36,
+    patientAgeGroupId: 120,
   };
   const errors: string[] = [];
   for (const [key, value] of Object.entries(input)) {
+    if (key === "requiredServiceIds") {
+      if (
+        !Array.isArray(value) ||
+        value.length > 30 ||
+        value.some(
+          (id) => typeof id !== "string" || !normalizeTerm("service", id),
+        )
+      )
+        errors.push("Choose supported services.");
+      continue;
+    }
     if (key === "selectedPractitionerId" && value === null) continue;
     if (
       !(key in limits) ||
@@ -55,6 +68,11 @@ export function validateDraft(input: DraftInput): string[] {
     !["either", "in_person", "telehealth"].includes(input.appointmentFormat)
   )
     errors.push("Choose an appointment format.");
+  if (
+    input.patientAgeGroupId &&
+    !normalizeTerm("ageGroup", input.patientAgeGroupId)
+  )
+    errors.push("Choose a supported age group.");
   return errors;
 }
 export function saveReferralDraft(

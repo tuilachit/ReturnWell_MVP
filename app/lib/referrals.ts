@@ -18,6 +18,8 @@ export type ReferralRow = {
   language_or_access: string | null;
   preferred_language?: string;
   access_notes?: string;
+  required_service_ids?: string[];
+  patient_age_group_id?: string | null;
   selection_mode: Referral["selectionMode"];
   selected_practitioner_id: string | null;
   status: Referral["status"];
@@ -38,6 +40,8 @@ export const rowToReferral = (row: ReferralRow): Referral => ({
   languageOrAccess: row.language_or_access ?? "",
   preferredLanguage: row.preferred_language ?? "",
   accessNotes: row.access_notes ?? "",
+  requiredServiceIds: row.required_service_ids ?? [],
+  patientAgeGroupId: row.patient_age_group_id ?? "",
   selectionMode: row.selection_mode,
   selectedPractitionerId: row.selected_practitioner_id,
   providerName:
@@ -156,6 +160,8 @@ export async function listPractitioners(
       funding: row.funding ?? [],
       languages: row.languages ?? [],
       services: row.services ?? [],
+      serviceIds: row.service_ids ?? [],
+      ageGroupIds: row.age_group_ids ?? [],
       location: location
         ? { suburb: location.suburb, postcode: location.postcode }
         : null,
@@ -208,6 +214,10 @@ export async function createReferral(
     funding_path: input.fundingPath,
     appointment_format: input.appointmentFormat,
     language_or_access: input.languageOrAccess.trim() || null,
+    preferred_language: input.preferredLanguage?.trim() ?? "",
+    access_notes: input.accessNotes?.trim() ?? "",
+    required_service_ids: input.requiredServiceIds ?? [],
+    patient_age_group_id: input.patientAgeGroupId || null,
     selection_mode: input.selectionMode,
     selected_practitioner_id: input.selectedPractitionerId,
   };
@@ -264,7 +274,10 @@ export async function createReferral(
   }
   if (existing) {
     if (
-      !Object.entries(values).every(([key, value]) => existing[key] === value)
+      !Object.entries(values).every(
+        ([key, value]) =>
+          JSON.stringify(existing[key]) === JSON.stringify(value),
+      )
     ) {
       throw new ReferralSubmissionError("conflict");
     }

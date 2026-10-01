@@ -14,6 +14,7 @@ type Profile = {
   providerConfirmationStatus: string;
   acceptingNewReferrals: boolean;
   accessSuspended?: boolean;
+  profileRevisionPending?: boolean;
   credentials?: CredentialSummary[];
 };
 export function isEligibleForNewReferral(
@@ -28,7 +29,8 @@ export function isEligibleForNewReferral(
     profile.lifecycleStatus !== "active" ||
     profile.providerConfirmationStatus !== "confirmed" ||
     !profile.acceptingNewReferrals ||
-    profile.accessSuspended
+    profile.accessSuspended ||
+    profile.profileRevisionPending
   )
     return false;
   const time = now.getTime();

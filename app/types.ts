@@ -11,6 +11,8 @@ export type Workspace = {
 };
 
 export type Referral = {
+  requiredServiceIds?: string[];
+  patientAgeGroupId?: string;
   id: string;
   reference: string;
   patientReference: string;
@@ -33,6 +35,10 @@ export type Referral = {
 export type Practitioner = {
   credentials?: import("./lib/credentials").CredentialSummary[];
   accessSuspended?: boolean;
+  profileRevisionPending?: boolean;
+  serviceIds?: string[];
+  ageGroupIds?: string[];
+  locationPrecision?: string | null;
   id: string;
   displayName: string;
   practiceName: string;
@@ -50,6 +56,8 @@ export type Practitioner = {
 };
 
 export type ReferralInput = {
+  requiredServiceIds?: string[];
+  patientAgeGroupId?: string;
   patientReference: string;
   patientPostcode: string;
   profession: Profession;

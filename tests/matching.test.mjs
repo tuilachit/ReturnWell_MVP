@@ -87,7 +87,7 @@ test("sorts by known distance then name and explains the order without a score",
       candidate({ id: "near-z", displayName: "Zara Cole", distanceKm: 2.3 }),
       candidate({ id: "near-a", displayName: "Ari Cole", distanceKm: 2.3 }),
     ],
-    needs,
+    { ...needs, appointmentFormat: "in_person" },
   );
 
   assert.deepEqual(
@@ -98,10 +98,112 @@ test("sorts by known distance then name and explains the order without a score",
     "Registration verified",
     "Provider details confirmed",
     "Accepting new referrals",
-    "Offers telehealth",
-    "Supports Medicare",
+    "Funding pathway reported: Medicare",
     "Speaks Mandarin",
-    "2.3 km from the patient postcode",
+    "Approx. 2.3 km between postcode areas",
   ]);
   assert.equal("score" in result[0], false);
+});
+
+test("canonical capability requirements need explicit provider confirmation, not free-text inference", () => {
+  const structured = {
+    professionId: "physiotherapist",
+    appointmentFormat: "either",
+    fundingId: "medicare",
+    preferredLanguageId: "mandarin",
+    requiredServiceIds: ["persistent_pain"],
+    patientAgeGroupId: "adult",
+  };
+  const result = matchPractitioners(
+    [
+      candidate({ id: "text-only" }),
+      candidate({
+        id: "wrong-age",
+        serviceIds: ["persistent_pain"],
+        ageGroupIds: ["child"],
+      }),
+      candidate({
+        id: "confirmed",
+        serviceIds: ["persistent_pain"],
+        ageGroupIds: ["adult"],
+      }),
+    ],
+    structured,
+  );
+  assert.deepEqual(
+    result.map((x) => x.practitioner.id),
+    ["confirmed"],
+  );
+  assert.ok(result[0].reasons.includes("Service: Persistent pain"));
+  assert.ok(result[0].warnings.some((x) => x.includes("rebate")));
+  assert.equal(
+    matchPractitioners([candidate()], {
+      ...structured,
+      requiredServiceIds: ["made_up"],
+      patientAgeGroupId: undefined,
+    }).length,
+    0,
+  );
+  assert.equal(
+    matchPractitioners([candidate()], {
+      ...structured,
+      requiredServiceIds: [],
+      patientAgeGroupId: undefined,
+    }).length,
+    1,
+  );
+});
+test("known aliases normalise, but ambiguous funding and access notes never become criteria", () => {
+  const base = {
+    professionId: "physiotherapist",
+    appointmentFormat: "either",
+    fundingId: " private HEALTH insurance ",
+    preferredLanguageId: " MANDARIN ",
+    requiredServiceIds: [],
+    accessNotes: "wheelchair access",
+  };
+  assert.equal(
+    matchPractitioners([candidate({ funding: ["private_health"] })], base)
+      .length,
+    1,
+  );
+  assert.equal(
+    matchPractitioners([candidate({ funding: ["Private"] })], {
+      ...base,
+      fundingId: "Private",
+    }).length,
+    0,
+  );
+  assert.equal(
+    matchPractitioners([candidate()], {
+      ...base,
+      fundingId: "medicare",
+      preferredLanguageId: "Chinese",
+    }).length,
+    0,
+  );
+});
+test("telehealth ignores distance and clinical text, and duplicate names tie-break by id", () => {
+  const providers = [
+    candidate({ id: "z", distanceKm: 0 }),
+    candidate({ id: "a", distanceKm: 100 }),
+  ];
+  const result = matchPractitioners(providers, {
+    ...needs,
+    clinicalSummary: "Do not rank based on this text",
+  });
+  assert.deepEqual(
+    result.map((x) => x.practitioner.id),
+    ["a", "z"],
+  );
+  assert.equal(result[0].distanceKm, null);
+  assert.equal(
+    result[0].reasons.some((x) => x.includes("km")),
+    false,
+  );
+  assert.equal(
+    matchPractitioners([candidate({ profileRevisionPending: true })], needs)
+      .length,
+    0,
+  );
 });

@@ -1,4 +1,6 @@
 "use client";
+import CapabilityRequirements from "./components/capability-requirements";
+import { normalizeTerm } from "./lib/terminology";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { useEffect, useRef, useState } from "react";
 import WorkflowShell from "./workflow-shell";
@@ -16,6 +18,8 @@ type Assigned = {
   appointment_format: string;
   language_or_access: string | null;
   preferred_language: string;
+  required_service_ids: string[];
+  patient_age_group_id: string | null;
   access_notes: string;
   status: string;
   version: number;
@@ -62,7 +66,7 @@ export default function PractitionerInbox({
       const { data, error } = await client
         .from("referrals")
         .select(
-          "id,reference,patient_reference,patient_postcode,clinical_summary,funding_path,appointment_format,language_or_access,preferred_language,access_notes,status,version",
+          "id,reference,patient_reference,patient_postcode,clinical_summary,funding_path,appointment_format,language_or_access,preferred_language,access_notes,required_service_ids,patient_age_group_id,status,version",
         )
         .eq("selected_practitioner_id", practitioner.practitionerId)
         .order("created_at", { ascending: false });
@@ -209,6 +213,10 @@ export default function PractitionerInbox({
                 <dt>Clinical need</dt>
                 <dd>{detail.clinical_summary}</dd>
               </div>
+              <CapabilityRequirements
+                services={detail.required_service_ids}
+                ageGroup={detail.patient_age_group_id}
+              />
               <div>
                 <dt>Postcode</dt>
                 <dd>{detail.patient_postcode}</dd>
@@ -216,13 +224,18 @@ export default function PractitionerInbox({
               <div>
                 <dt>Funding and format</dt>
                 <dd>
-                  {detail.funding_path} ·{" "}
-                  {detail.appointment_format.replaceAll("_", " ")}
+                  {normalizeTerm("funding", detail.funding_path)?.label ??
+                    detail.funding_path}{" "}
+                  · {detail.appointment_format.replaceAll("_", " ")}
                 </dd>
               </div>
               <div>
                 <dt>Preferred language</dt>
-                <dd>{detail.preferred_language || "Not specified"}</dd>
+                <dd>
+                  {normalizeTerm("language", detail.preferred_language)
+                    ?.label ??
+                    (detail.preferred_language || "Not specified")}
+                </dd>
               </div>
               <div>
                 <dt>Accessibility notes</dt>

@@ -1,50 +1,109 @@
-import type { AppointmentFormat, Practitioner, Profession } from "../types";
+import type { AppointmentFormat, Practitioner } from "../types";
 import { isEligibleForNewReferral } from "./credentials.ts";
+import { normalizeTerm } from "./terminology.ts";
 
 export type MatchNeeds = {
-  profession: Profession;
+  professionId: string;
+  appointmentFormat: AppointmentFormat;
+  fundingId: string;
+  preferredLanguageId?: string;
+  requiredServiceIds: string[];
+  patientAgeGroupId?: string;
+};
+export type LegacyMatchNeeds = {
+  profession: string;
   appointmentFormat: AppointmentFormat;
   fundingPath: string;
   language?: string;
+  requiredServiceIds?: string[];
+  patientAgeGroupId?: string;
 };
-
-export type MatchedPractitioner = {
+export type MatchResult = {
   practitioner: Practitioner;
   reasons: string[];
+  warnings: string[];
+  distanceKm: number | null;
+  locationPrecision: string | null;
 };
+export type MatchedPractitioner = MatchResult;
 
-const includesIgnoreCase = (values: string[], wanted: string) => {
-  const normalized = wanted.trim().toLocaleLowerCase("en-AU");
-  return values.some(
-    (value) => value.trim().toLocaleLowerCase("en-AU") === normalized,
+// Only known catalogue aliases are adapted. Old mixed language/access notes
+// are deliberately not a field here, and unknown funding cannot pass a match.
+export function normaliseMatchNeeds(
+  input: MatchNeeds | LegacyMatchNeeds,
+): MatchNeeds | null {
+  const needs =
+    "professionId" in input
+      ? input
+      : {
+          professionId: input.profession,
+          appointmentFormat: input.appointmentFormat,
+          fundingId: input.fundingPath,
+          preferredLanguageId: input.language,
+          requiredServiceIds: input.requiredServiceIds ?? [],
+          patientAgeGroupId: input.patientAgeGroupId,
+        };
+  const funding = normalizeTerm("funding", needs.fundingId);
+  const language = needs.preferredLanguageId?.trim()
+    ? normalizeTerm("language", needs.preferredLanguageId)
+    : null;
+  const age = needs.patientAgeGroupId?.trim()
+    ? normalizeTerm("ageGroup", needs.patientAgeGroupId)
+    : null;
+  const services = needs.requiredServiceIds.map((id) =>
+    normalizeTerm("service", id),
   );
-};
+  if (
+    !funding ||
+    (needs.preferredLanguageId?.trim() && !language) ||
+    (needs.patientAgeGroupId?.trim() && !age) ||
+    services.some((x) => !x)
+  )
+    return null;
+  if (!["in_person", "telehealth", "either"].includes(needs.appointmentFormat))
+    return null;
+  return {
+    ...needs,
+    fundingId: funding.id,
+    preferredLanguageId: language?.id,
+    requiredServiceIds: [...new Set(services.map((x) => x!.id))].sort(),
+    patientAgeGroupId: age?.id,
+  };
+}
 
 export function matchPractitioners(
   practitioners: Practitioner[],
-  needs: MatchNeeds,
-): MatchedPractitioner[] {
-  const language = needs.language?.trim() ?? "";
-
+  input: MatchNeeds | LegacyMatchNeeds,
+): MatchResult[] {
+  const needs = normaliseMatchNeeds(input);
+  if (!needs) return [];
   return practitioners
-    .filter((practitioner) => {
-      if (
-        !isEligibleForNewReferral(practitioner, needs.profession) ||
-        practitioner.profession !== needs.profession
-      )
-        return false;
-
-      if (needs.appointmentFormat === "telehealth" && !practitioner.telehealth)
-        return false;
-      if (needs.appointmentFormat === "in_person" && !practitioner.location)
-        return false;
-      if (!includesIgnoreCase(practitioner.funding, needs.fundingPath))
-        return false;
-      if (language && !includesIgnoreCase(practitioner.languages, language))
-        return false;
-      return true;
-    })
-    .map((practitioner) => {
+    .filter(
+      (p) =>
+        isEligibleForNewReferral(p, needs.professionId) &&
+        p.profession === needs.professionId &&
+        (needs.appointmentFormat !== "telehealth" || p.telehealth) &&
+        (needs.appointmentFormat !== "in_person" || p.location !== null) &&
+        (needs.appointmentFormat !== "either" ||
+          p.telehealth ||
+          p.location !== null) &&
+        p.funding.some(
+          (f) => normalizeTerm("funding", f)?.id === needs.fundingId,
+        ) &&
+        (!needs.preferredLanguageId ||
+          p.languages.some(
+            (l) =>
+              normalizeTerm("language", l)?.id === needs.preferredLanguageId,
+          )) &&
+        needs.requiredServiceIds.every((id) => p.serviceIds?.includes(id)) &&
+        (!needs.patientAgeGroupId ||
+          p.ageGroupIds?.includes(needs.patientAgeGroupId)),
+    )
+    .map((p) => {
+      const distanceKm =
+        needs.appointmentFormat === "telehealth" || !p.location
+          ? null
+          : p.distanceKm;
       const reasons = [
         "Registration verified",
         "Provider details confirmed",
@@ -52,27 +111,51 @@ export function matchPractitioners(
       ];
       if (needs.appointmentFormat === "telehealth")
         reasons.push("Offers telehealth");
-      reasons.push(`Supports ${needs.fundingPath}`);
-      if (language) reasons.push(`Speaks ${language}`);
-      if (practitioner.distanceKm !== null) {
+      reasons.push(
+        "Funding pathway reported: " +
+          normalizeTerm("funding", needs.fundingId)!.label,
+      );
+      if (needs.preferredLanguageId)
         reasons.push(
-          `${practitioner.distanceKm.toFixed(1)} km from the patient postcode`,
+          "Speaks " +
+            normalizeTerm("language", needs.preferredLanguageId)!.label,
         );
-      }
-      return { practitioner, reasons };
+      for (const id of needs.requiredServiceIds)
+        reasons.push("Service: " + normalizeTerm("service", id)!.label);
+      if (needs.patientAgeGroupId)
+        reasons.push(
+          "Age group: " +
+            normalizeTerm("ageGroup", needs.patientAgeGroupId)!.label,
+        );
+      if (distanceKm !== null)
+        reasons.push(
+          "Approx. " + distanceKm.toFixed(1) + " km between postcode areas",
+        );
+      const warnings = [
+        "Confirm fees and rebate eligibility with the practitioner.",
+      ];
+      if (
+        needs.appointmentFormat !== "telehealth" &&
+        p.location &&
+        distanceKm === null
+      )
+        warnings.push("Distance unavailable; browse by suburb.");
+      return {
+        practitioner: p,
+        reasons,
+        warnings,
+        distanceKm,
+        locationPrecision:
+          distanceKm === null ? null : (p.locationPrecision ?? null),
+      };
     })
-    .sort((left, right) => {
-      const leftDistance =
-        left.practitioner.distanceKm ?? Number.POSITIVE_INFINITY;
-      const rightDistance =
-        right.practitioner.distanceKm ?? Number.POSITIVE_INFINITY;
-      return (
-        leftDistance - rightDistance ||
-        left.practitioner.displayName.localeCompare(
-          right.practitioner.displayName,
+    .sort(
+      (a, b) =>
+        (a.distanceKm ?? Infinity) - (b.distanceKm ?? Infinity) ||
+        a.practitioner.displayName.localeCompare(
+          b.practitioner.displayName,
           "en-AU",
         ) ||
-        left.practitioner.id.localeCompare(right.practitioner.id)
-      );
-    });
+        a.practitioner.id.localeCompare(b.practitioner.id),
+    );
 }

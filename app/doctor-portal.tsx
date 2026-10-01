@@ -36,6 +36,9 @@ import {
 } from "./lib/workflow";
 import { demoPractitioners, demoReferrals } from "./data/demo-workspace";
 import { matchPractitioners } from "./lib/matching";
+import terminology from "../shared/terminology.json";
+import CapabilityRequirements from "./components/capability-requirements";
+import { normalizeTerm } from "./lib/terminology";
 import { professionLabel, supportedProfessions } from "./lib/professions";
 import { referralStatusLabel as statusLabel } from "./lib/referral-status";
 import ReferralDraftPanel from "./referral-draft-panel";
@@ -111,6 +114,8 @@ export default function DoctorPortal({
     useState<AppointmentFormat>("either");
   const [languageOrAccess, setLanguageOrAccess] = useState("");
   const [accessNotes, setAccessNotes] = useState("");
+  const [requiredServiceIds, setRequiredServiceIds] = useState<string[]>([]);
+  const [patientAgeGroupId, setPatientAgeGroupId] = useState("");
   const selectionMode: SelectionMode = "doctor";
   const [selectedPractitionerId, setSelectedPractitionerId] = useState<
     string | null
@@ -151,15 +156,17 @@ export default function DoctorPortal({
       clinicalSummary !== (draft?.input.clinicalSummary ?? "") ||
       postcode !== (draft?.input.patientPostcode ?? "") ||
       profession !== (draft?.input.profession ?? "physiotherapist") ||
-      fundingPath !== (draft?.input.fundingPath ?? "Medicare") ||
+      (normalizeTerm("funding", fundingPath)?.id ?? fundingPath) !==
+        (normalizeTerm("funding", draft?.input.fundingPath ?? "Medicare")?.id ??
+          draft?.input.fundingPath) ||
       appointmentFormat !== (draft?.input.appointmentFormat ?? "either") ||
       selectedPractitionerId !==
         (draft?.input.selectedPractitionerId ?? null) ||
       accessNotes !== (draft?.input.accessNotes ?? "") ||
-      languageOrAccess !==
-        (draft?.input.preferredLanguage ??
-          draft?.input.languageOrAccess ??
-          ""));
+      patientAgeGroupId !== (draft?.input.patientAgeGroupId ?? "") ||
+      JSON.stringify(requiredServiceIds) !==
+        JSON.stringify(draft?.input.requiredServiceIds ?? []) ||
+      languageOrAccess !== (draft?.input.preferredLanguage ?? ""));
   useEffect(() => {
     if (!submissionPending && !draftPending && !dirtyDraft) return;
     const warnBeforeLeaving = (event: BeforeUnloadEvent) => {
@@ -290,6 +297,8 @@ export default function DoctorPortal({
     setFundingPath("Medicare");
     setAppointmentFormat("either");
     setLanguageOrAccess("");
+    setRequiredServiceIds([]);
+    setPatientAgeGroupId("");
     setAccessNotes("");
     setSelectedPractitionerId(null);
     setConsentConfirmed(false);
@@ -355,6 +364,8 @@ export default function DoctorPortal({
         appointmentFormat,
         fundingPath,
         language: languageOrAccess,
+        requiredServiceIds,
+        patientAgeGroupId,
       }),
     [
       appointmentFormat,
@@ -362,6 +373,8 @@ export default function DoctorPortal({
       languageOrAccess,
       practitioners,
       profession,
+      requiredServiceIds,
+      patientAgeGroupId,
     ],
   );
 
@@ -391,6 +404,8 @@ export default function DoctorPortal({
     languageOrAccess,
     preferredLanguage: languageOrAccess,
     accessNotes,
+    requiredServiceIds,
+    patientAgeGroupId,
     selectionMode,
     selectedPractitionerId,
     consentConfirmed,
@@ -407,6 +422,8 @@ export default function DoctorPortal({
     selectedPractitionerId,
     preferredLanguage: languageOrAccess,
     accessNotes,
+    requiredServiceIds,
+    patientAgeGroupId,
   });
   const restoreDraft = (saved: ReferralDraft) => {
     setDraft(saved);
@@ -414,12 +431,18 @@ export default function DoctorPortal({
     setPostcode(saved.input.patientPostcode ?? "");
     setProfession(saved.input.profession ?? "physiotherapist");
     setClinicalSummary(saved.input.clinicalSummary ?? "");
-    setFundingPath(saved.input.fundingPath ?? "Medicare");
-    setAppointmentFormat(saved.input.appointmentFormat ?? "either");
-    setLanguageOrAccess(
-      saved.input.preferredLanguage ?? saved.input.languageOrAccess ?? "",
+    setFundingPath(
+      normalizeTerm("funding", saved.input.fundingPath ?? "Medicare")?.label ??
+        saved.input.fundingPath ??
+        "Medicare",
     );
-    setAccessNotes(saved.input.accessNotes ?? "");
+    setAppointmentFormat(saved.input.appointmentFormat ?? "either");
+    setLanguageOrAccess(saved.input.preferredLanguage ?? "");
+    setAccessNotes(
+      saved.input.accessNotes ?? saved.input.languageOrAccess ?? "",
+    );
+    setRequiredServiceIds(saved.input.requiredServiceIds ?? []);
+    setPatientAgeGroupId(saved.input.patientAgeGroupId ?? "");
     setSelectedPractitionerId(saved.input.selectedPractitionerId ?? null);
     setConsentConfirmed(false);
     setStep(1);
@@ -500,6 +523,8 @@ export default function DoctorPortal({
             submission.input.preferredLanguage ??
             submission.input.languageOrAccess,
           accessNotes: submission.input.accessNotes ?? "",
+          requiredServiceIds: submission.input.requiredServiceIds ?? [],
+          patientAgeGroupId: submission.input.patientAgeGroupId ?? "",
           selectedPractitionerId: submission.input.selectedPractitionerId,
         };
         const savedDraft = await saveReferralDraft(client, {
@@ -548,6 +573,10 @@ export default function DoctorPortal({
           fundingPath: input.fundingPath,
           appointmentFormat: input.appointmentFormat,
           languageOrAccess: input.languageOrAccess.trim(),
+          preferredLanguage: input.preferredLanguage,
+          accessNotes: input.accessNotes,
+          requiredServiceIds: input.requiredServiceIds,
+          patientAgeGroupId: input.patientAgeGroupId,
           selectionMode: input.selectionMode,
           selectedPractitionerId: input.selectedPractitionerId,
           providerName: selectedPractitioner?.practiceName ?? "Not assigned",
@@ -1028,9 +1057,10 @@ export default function DoctorPortal({
                           <span>Profession</span>
                           <select
                             value={profession}
-                            onChange={(event) =>
-                              setProfession(event.target.value as Profession)
-                            }
+                            onChange={(event) => {
+                              setProfession(event.target.value as Profession);
+                              setSelectedPractitionerId(null);
+                            }}
                           >
                             {supportedProfessions.map((p) => (
                               <option key={p.id} value={p.id}>
@@ -1043,11 +1073,12 @@ export default function DoctorPortal({
                           <span>Appointment format</span>
                           <select
                             value={appointmentFormat}
-                            onChange={(event) =>
+                            onChange={(event) => {
                               setAppointmentFormat(
                                 event.target.value as AppointmentFormat,
-                              )
-                            }
+                              );
+                              setSelectedPractitionerId(null);
+                            }}
                           >
                             <option value="either">
                               In person or telehealth
@@ -1080,13 +1111,16 @@ export default function DoctorPortal({
                           <span>Funding pathway</span>
                           <select
                             value={fundingPath}
-                            onChange={(event) =>
-                              setFundingPath(event.target.value)
-                            }
+                            onChange={(event) => {
+                              setFundingPath(event.target.value);
+                              setSelectedPractitionerId(null);
+                            }}
                           >
-                            <option>Medicare</option>
-                            <option>Self funded</option>
-                            <option>NDIS</option>
+                            {terminology.funding.map((term) => (
+                              <option key={term.id} value={term.label}>
+                                {term.label}
+                              </option>
+                            ))}
                           </select>
                         </label>
                         <label>
@@ -1095,12 +1129,59 @@ export default function DoctorPortal({
                           </span>
                           <input
                             value={languageOrAccess}
-                            onChange={(event) =>
-                              setLanguageOrAccess(event.target.value)
-                            }
+                            onChange={(event) => {
+                              setLanguageOrAccess(event.target.value);
+                              setSelectedPractitionerId(null);
+                            }}
                             placeholder="e.g. English"
                           />
                         </label>
+                        <label className="full-width">
+                          <span>
+                            Age group requirement <small>Optional</small>
+                          </span>
+                          <select
+                            value={patientAgeGroupId}
+                            onChange={(event) => {
+                              setPatientAgeGroupId(event.target.value);
+                              setSelectedPractitionerId(null);
+                            }}
+                          >
+                            <option value="">No age-group requirement</option>
+                            {terminology.ageGroup.map((term) => (
+                              <option key={term.id} value={term.id}>
+                                {term.label}
+                              </option>
+                            ))}
+                          </select>
+                        </label>
+                        <fieldset className="full-width">
+                          <legend>
+                            Required services <small>Optional</small>
+                          </legend>
+                          <p>
+                            Only explicitly confirmed capabilities are used.
+                            Other care needs belong in the summary for the
+                            practitioner to assess.
+                          </p>
+                          {terminology.service.map((term) => (
+                            <label className="consent-check" key={term.id}>
+                              <input
+                                type="checkbox"
+                                checked={requiredServiceIds.includes(term.id)}
+                                onChange={(event) => {
+                                  setRequiredServiceIds((current) =>
+                                    event.target.checked
+                                      ? [...current, term.id]
+                                      : current.filter((id) => id !== term.id),
+                                  );
+                                  setSelectedPractitionerId(null);
+                                }}
+                              />
+                              {term.label}
+                            </label>
+                          ))}
+                        </fieldset>
                         <label className="full-width">
                           <span>Accessibility notes (optional)</span>
                           <textarea
@@ -1208,9 +1289,11 @@ export default function DoctorPortal({
                             : "practitioners"}
                         </h2>
                         <p>
-                          Matches your funding, format and language preferences.
-                          Distance ranking is not available yet. Check the
-                          practice location before choosing.
+                          Matches your funding, format, language and selected
+                          capability requirements. Confirm fees and rebate
+                          eligibility directly. Distance ranking is not
+                          available yet. Check the practice location before
+                          choosing.
                         </p>
                       </div>
                     </div>
@@ -1266,7 +1349,7 @@ export default function DoctorPortal({
                               </small>
                             </span>
                             <ul>
-                              {reasons.slice(0, 4).map((reason) => (
+                              {reasons.map((reason) => (
                                 <li key={reason}>
                                   <Check size={12} />
                                   {reason}
@@ -1309,6 +1392,10 @@ export default function DoctorPortal({
                         <dt>Reason</dt>
                         <dd>{clinicalSummary}</dd>
                       </div>
+                      <CapabilityRequirements
+                        services={requiredServiceIds}
+                        ageGroup={patientAgeGroupId}
+                      />
                       <div>
                         <dt>Profession</dt>
                         <dd>{professionLabel(profession)}</dd>
@@ -1438,6 +1525,10 @@ export default function DoctorPortal({
                       <dt>Clinical need</dt>
                       <dd>{detailReferral.clinicalSummary}</dd>
                     </div>
+                    <CapabilityRequirements
+                      services={detailReferral.requiredServiceIds}
+                      ageGroup={detailReferral.patientAgeGroupId}
+                    />
                     <div>
                       <dt>Preferred language</dt>
                       <dd>

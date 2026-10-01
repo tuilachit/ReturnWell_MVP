@@ -32,6 +32,8 @@ export type Application = {
   current_privacy_url?: string;
 };
 export type Profile = {
+  serviceIds?: string[];
+  ageGroupIds?: string[];
   displayName: string;
   profession: string;
   registrationNumber: string;
@@ -68,7 +70,10 @@ export class WorkflowError extends Error {
   code: string;
   status: number;
   constructor(message: string, code: string, status: number) {
-    super(message); this.name="WorkflowError"; this.code=code; this.status=status;
+    super(message);
+    this.name = "WorkflowError";
+    this.code = code;
+    this.status = status;
   }
 }
 export async function invoke<T>(
@@ -84,14 +89,21 @@ export async function invoke<T>(
       if (payload?.code === "terms_changed")
         throw new WorkflowError(
           "The terms or privacy notice changed. Load the current saved version, review the linked notices, and confirm consent again. Your profile edits are retained.",
-          "terms_changed", response.status,
+          "terms_changed",
+          response.status,
         );
       if (response.status === 409)
         throw new WorkflowError(
           "This record changed. Your edits are retained. Reload the saved version before trying again.",
-          payload?.code || "conflict", response.status,
+          payload?.code || "conflict",
+          response.status,
         );
-      if (payload?.error) throw new WorkflowError(payload.error, payload.code || "request_failed", response.status);
+      if (payload?.error)
+        throw new WorkflowError(
+          payload.error,
+          payload.code || "request_failed",
+          response.status,
+        );
     }
     throw new Error("The request could not be completed. Please try again.");
   }

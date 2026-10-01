@@ -3,6 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { useEffect, useRef, useState } from "react";
 import { invoke } from "./lib/workflow";
 import { professionLabel } from "./lib/professions";
+import { normalizeTerm } from "./lib/terminology";
 import type { CredentialSummary } from "./lib/credentials";
 import ConfirmDialog from "./components/confirm-dialog";
 import { startProfileRevision } from "./lib/profile-revisions";
@@ -15,6 +16,8 @@ type ApprovedProfile = {
   funding: string[];
   languages: string[];
   telehealth: boolean;
+  service_ids: string[];
+  age_group_ids: string[];
 };
 type Location = {
   suburb: string;
@@ -49,7 +52,7 @@ export default function PractitionerProfile({
       client
         .from("practitioners")
         .select(
-          "display_name,profession,practice_name,services,funding,languages,telehealth",
+          "display_name,profession,practice_name,services,funding,languages,telehealth,service_ids,age_group_ids",
         )
         .eq("id", practitionerId)
         .maybeSingle(),
@@ -154,11 +157,39 @@ export default function PractitionerProfile({
           </div>
           <div>
             <dt>Funding</dt>
-            <dd>{profile.funding.join(", ") || "None listed"}</dd>
+            <dd>
+              {profile.funding
+                .map(
+                  (v) =>
+                    normalizeTerm("funding", v)?.label ??
+                    `${v} (needs clarification)`,
+                )
+                .join(", ") || "None listed"}
+            </dd>
           </div>
           <div>
             <dt>Languages</dt>
-            <dd>{profile.languages.join(", ")}</dd>
+            <dd>
+              {profile.languages
+                .map((v) => normalizeTerm("language", v)?.label ?? v)
+                .join(", ")}
+            </dd>
+          </div>
+          <div>
+            <dt>Confirmed service capabilities</dt>
+            <dd>
+              {profile.service_ids
+                .map((v) => normalizeTerm("service", v)?.label ?? v)
+                .join(", ") || "Not confirmed"}
+            </dd>
+          </div>
+          <div>
+            <dt>Age groups accepted</dt>
+            <dd>
+              {profile.age_group_ids
+                .map((v) => normalizeTerm("ageGroup", v)?.label ?? v)
+                .join(", ") || "Not confirmed"}
+            </dd>
           </div>
           <div>
             <dt>Telehealth</dt>
