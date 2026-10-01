@@ -12,6 +12,7 @@ const webhook =
   );
 const env = {
   EMAIL_DELIVERY_ENABLED: "true",
+  EMAIL_TEST_ALLOWLIST: "fixture@example.test",
   RESEND_API_KEY: "fictional",
   RESEND_FROM: "ReturnWell <mail@example.test>",
   APP_URL: "https://returnwell.example.test",

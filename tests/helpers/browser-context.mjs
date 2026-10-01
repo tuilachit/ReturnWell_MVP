@@ -43,6 +43,7 @@ export async function doctorBrowser(
     dropInvitationResponseOnce = false,
     dropReconfirmResponseOnce = false,
     dropClaimResponseOnce = false,
+    dropPractitionerResponseOnce = false,
     seedSession = true,
     actor = "doctor",
   } = {},
@@ -109,6 +110,14 @@ export async function doctorBrowser(
           : request.postData(),
       }),
     );
+    if (
+      dropPractitionerResponseOnce &&
+      endpoint === "respond-to-referral" &&
+      response.ok
+    ) {
+      dropPractitionerResponseOnce = false;
+      return route.abort("failed");
+    }
     if (
       dropClaimResponseOnce &&
       endpoint === "claim-invitation" &&

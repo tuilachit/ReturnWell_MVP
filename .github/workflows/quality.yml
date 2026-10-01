@@ -19,6 +19,7 @@ jobs:
       - run: npm run check:release-inputs > /tmp/returnwell-release-inputs.json
       - run: npm run test:database
       - run: npx --no-install playwright install --with-deps chromium
+      - run: RW_PRODUCTION_BROWSER=1 node --test tests/production-preview.test.mjs
       - run: npm run test:browser
       - name: Local Auth and PostgREST journey (no hosted credentials)
         shell: bash

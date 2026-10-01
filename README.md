@@ -2,6 +2,8 @@
 
 ReturnWell is an early GP referral workflow for finding an eligible allied health practitioner, recording a referral and tracking its outcome. The current implementation is an MVP foundation, not a production clinical system.
 
+**Current branch status (2 October 2026):** the two-doctor pilot implementation is local and under final verification, not deployed. Read [current implementation status](docs/superpowers/launch-release-record.md) and the [acceptance matrix](docs/superpowers/launch-acceptance-matrix.md). Historical live-state notes below are not a fresh production audit.
+
 ## What is implemented
 
 - invitation-only passwordless sign-in in the browser;
@@ -9,18 +11,18 @@ ReturnWell is an early GP referral workflow for finding an eligible allied healt
 - an explicit, local-only demo workspace for product review;
 - Supabase Postgres tables for practices, memberships, practitioners, referrals, events and email delivery state;
 - row-level security that limits referral access to the referring practice or assigned practitioner;
-- a directory view that exposes only active, AHPRA-verified and provider-confirmed practitioners accepting referrals;
-- deterministic matching by profession, format, funding, language and known distance;
+- authority-aware independent professional verification, current credential reviews, provider-confirmed capabilities, intake pause and access suspension;
+- deterministic eligibility matching by profession, format, funding, language and capabilities; distance remains unknown without an approved licensed source;
 - generic transactional email jobs that exclude patient and clinical details;
-- deployed Supabase Edge Functions for authenticated sending and signature-verified Resend webhooks.
+- source-controlled Supabase Edge Functions for authenticated workflows, bounded delivery and signature-verified durable callbacks; the new branch functions/migrations are not deployed.
 
 No AI model is used. The first MVP does not need one: the matching rules are easier for doctors to understand, test and defend when each reason is visible.
 
 ## Current safety boundary
 
-- The live database starts empty. The private 200-practitioner candidate dataset has not been imported or activated.
+- Real scraped candidates remain outside this branch and are not activated by its migrations. Current live database contents have not been audited in this implementation run.
 - The demo button uses fictional browser-only records; those records are never written to Supabase.
-- Email delivery is disabled. The deployed functions fail closed until a verified sender domain and server-only Resend configuration are present.
+- Delivery defaults off and requires explicit exact-recipient restrictions. A pilot flag without reviewed evidence fails closed. Restore quarantine blocks queue claiming/starting even if copied worker flags enable delivery. Hosted settings remain unverified.
 - The public browser configuration contains only the Supabase project URL and publishable key. Never put a service-role key or Resend key in a `NEXT_PUBLIC_` variable.
 - The app is not yet integrated with AHPRA PIE, secure clinical messaging, a practice-management system, or a production identity/provisioning workflow.
 
@@ -34,7 +36,7 @@ datasets and generated candidate exports are deliberately excluded from Git.
 Use Node.js 24 LTS (the Vercel runtime). Local development also supports Node.js 22.13 or later.
 
 ```sh
-npm install
+npm ci
 cp .env.example .env.local
 npm run dev
 ```

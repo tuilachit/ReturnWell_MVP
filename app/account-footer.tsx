@@ -11,6 +11,7 @@ export default function AccountFooter() {
       <nav aria-label="Test information">
         <a href="/privacy">Privacy notice (draft)</a>
         <a href="/terms">Test terms (draft)</a>
+        <a href="/support">Support</a>
       </nav>
     </footer>
   );

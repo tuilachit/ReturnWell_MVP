@@ -1,5 +1,6 @@
 import { verifyWebhookSignature } from "./email.ts";
 import type { WorkflowRuntime } from "./workflow-http.ts";
+import { recordOperationalEvent } from "./observability.ts";
 const eventMap: Record<string, string> = {
   "email.sent": "sent",
   "email.delivered": "delivered",
@@ -24,6 +25,9 @@ export function webhookHandler(deps: Pick<WorkflowRuntime, "env" | "rpc">) {
       return json({ error: "Method not allowed" }, 405);
     if (!deps.env.RESEND_WEBHOOK_SECRET)
       return json({ error: "Webhook unavailable" }, 503);
+    let persistenceAttempted = false;
+    const started = Date.now(),
+      requestId = crypto.randomUUID();
     try {
       const reader = request.body?.getReader(),
         chunks: Uint8Array[] = [];
@@ -78,6 +82,7 @@ export function webhookHandler(deps: Pick<WorkflowRuntime, "env" | "rpc">) {
         return json({ error: "Invalid event" }, 400);
       // Persist the allowlisted metadata before acknowledging. Never forward or
       // log the raw body, subject, recipient list, HTML or provider diagnostics.
+      persistenceAttempted = true;
       await deps.rpc(null, "email.webhook", {
         eventId,
         providerId: event.data.email_id,
@@ -86,6 +91,22 @@ export function webhookHandler(deps: Pick<WorkflowRuntime, "env" | "rpc">) {
       });
       return json({ ok: true });
     } catch {
+      if (persistenceAttempted) {
+        try {
+          await deps.rpc(null, "operations.record", {
+            event: "webhook_persist_failed",
+          });
+        } catch {
+          /* Do not acknowledge an unpersisted event. */
+        }
+        recordOperationalEvent({
+          event: "webhook_persist_failed",
+          routeTemplate: "resend-webhook",
+          status: 503,
+          durationMs: Date.now() - started,
+          requestId,
+        });
+      }
       return json({ error: "Event could not be recorded" }, 503);
     }
   };

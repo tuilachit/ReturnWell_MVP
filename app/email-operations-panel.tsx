@@ -6,6 +6,7 @@ import PageState from "./components/page-state";
 import { emailOperations, type EmailHealthPage } from "./lib/email-operations";
 import { deliveryProgressLabel } from "./lib/invitation-progress";
 import { errorText } from "./lib/workflow";
+import { healthAlerts } from "../supabase/functions/_shared/observability";
 export default function EmailOperations({
   client,
 }: {
@@ -45,6 +46,37 @@ export default function EmailOperations({
   }, [client, cursor, refresh]);
   return (
     <WorkflowShell title="Email delivery">
+      {page?.health && (
+        <section className="workflow-card" aria-label="Queue health">
+          <h2>Queue health</h2>
+          <p>
+            Pending {page.health.pendingCount} · Oldest due{" "}
+            {Math.round(page.health.oldestPendingSeconds / 60)} minutes · Needs
+            review {page.health.needsReviewCount} · Paused{" "}
+            {page.health.pausedCount ?? 0}
+          </p>
+          <p>
+            Last completed dispatcher:{" "}
+            {page.health.lastDispatchAt
+              ? new Date(page.health.lastDispatchAt).toLocaleString("en-AU")
+              : "No heartbeat recorded"}
+          </p>
+          {healthAlerts(page.health).length > 0 && (
+            <p role="status">
+              Attention:{" "}
+              {healthAlerts(page.health)
+                .map((code) => code.replaceAll("_", " "))
+                .join("; ")}
+              .
+            </p>
+          )}
+          <p>
+            These are internal warning thresholds, not delivery guarantees.
+            External alerts and a named incident owner have not been configured
+            for the pilot.
+          </p>
+        </section>
+      )}
       <p>
         Read-only delivery diagnostics. Email delivery does not mean signup,
         professional approval or referral acceptance.

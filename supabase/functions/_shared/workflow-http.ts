@@ -12,6 +12,7 @@ import {
   type VerifiedIdentity,
 } from "./authorization.ts";
 import { verificationEmail } from "./email.ts";
+import { validateReleaseConfig } from "./release-mode.ts";
 export type Row = Record<string, unknown>;
 export type WorkflowRuntime = {
   env: Record<string, string | undefined>;
@@ -146,6 +147,10 @@ const mappings: Record<
     },
   },
   "manage-referral": {
+    "inbox.list": {
+      action: "referral.inbox",
+      fields: ["practitionerId", "status", "cursor", "limit"],
+    },
     "draft.invite": {
       action: "growth.invite",
       fields: [
@@ -336,6 +341,8 @@ export function workflowHandler(endpoint: string, runtime: WorkflowRuntime) {
       "content-type": "application/json",
       "cache-control": "no-store",
       "referrer-policy": "no-referrer",
+      "x-content-type-options": "nosniff",
+      "x-frame-options": "DENY",
       vary: "Origin",
     };
     const json = (value: unknown, status = 200) =>
@@ -354,6 +361,14 @@ export function workflowHandler(endpoint: string, runtime: WorkflowRuntime) {
     if (request.method !== "POST") {
       return json({ error: "Method not allowed" }, 405);
     }
+    if (!validateReleaseConfig(runtime.env).ready)
+      return json(
+        {
+          error: "This release is not approved for use.",
+          code: "release_unavailable",
+        },
+        503,
+      );
     try {
       const body = await boundedBody(request);
       if (endpoint === "invitation-entry") {

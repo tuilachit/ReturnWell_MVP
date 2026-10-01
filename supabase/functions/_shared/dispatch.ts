@@ -1,5 +1,6 @@
 import { buildNotification, type NotificationKind } from "./email.ts";
 import { providerRetryAfter } from "./provider-transport.ts";
+import { deliveryPermitted } from "./release-mode.ts";
 import {
   type Row,
   row,
@@ -28,7 +29,7 @@ export async function dispatchJobs(
     /* Missing trust configuration keeps delivery paused. */
   }
   const configured =
-    env.EMAIL_DELIVERY_ENABLED === "true" &&
+    deliveryPermitted(env) &&
     Boolean(
       config &&
       env.RESEND_API_KEY &&

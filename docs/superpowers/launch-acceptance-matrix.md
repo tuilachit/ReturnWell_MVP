@@ -1,0 +1,24 @@
+# Two-doctor pilot acceptance matrix — 2 October 2026
+
+This is an evidence map, not approval for clinical use. Current default: private_test, fictional referrals only.
+
+| Gate | Evidence layer | Current state |
+|---|---|---|
+| Reproducible source, pinned dependencies, both builds | Local; CI definition | Clean-install regression passed; remote CI not run |
+| Draft/create/invite/claim/review/release/respond/cancel/close | Real local Auth/PostgREST + fresh DB + browser | Implemented; fictional scenarios pass; human clinical journey unperformed |
+| Authority-aware credential freshness, policies and capabilities | Fresh DB/local browser | Implemented, fail closed; actual protocols/practitioner evidence require independent approval |
+| Bounded directory/inbox and matching | Fresh DB/browser | 5,000 fictional profiles tested, metadata pagination; no AI clinical scoring |
+| Distance | External licensed-data gate | Unknown; radius unavailable until approved source supplied |
+| Wrong account, cross-practice, current role, revoked access, MFA | Local API/DB/browser | Tested; hosted Auth endpoints/configuration and exposed-key rotation still require review |
+| Email timeout, frozen retries, exact expiry, suppression, durable callbacks | Local core handlers/DB/browser preview | Implemented; no real provider send in this run |
+| App email domain + Auth SMTP + new/returning mailbox | Hosted + human | Blocked on approved sender/support, SMTP and explicit acceptance sends |
+| UI mobile/keyboard/recovery | Local browser | Shared controls, long text, 320–1440px, lost reads/responses, multi-tab and module reload; manual screen reader/clinician checks open |
+| Production nonce CSP and hydration | Local built Vercel artifact | Passed; no hosted serving/edge acceptance inferred |
+| Notices, identity, consent, handover, retention | Founder + qualified legal/clinical | Draft/blocked; source-controlled evidence references are null |
+| Queue health, redacted signals and incident runbook | Local code/DB | Implemented; no approved external alert sink/owner/acknowledgement drill |
+| Expired credential cleanup, legal hold guard | Local DB/unit | Existing cleanup preserved; no unapproved clinical purge |
+| Restore | Disposable canonical Postgres | Counts preserved; quarantine prevents queued job replay; final 1.312 seconds locally, not hosted RTO |
+| Hosted backup/key recovery/rollback/RPO/RTO | Hosted + owner | Unverified; no paid capability purchased or hosted restore performed |
+| Exact deployment/pilot recipients/clinical sign-off | Hosted + human | Not authorised/executed; public launch is a separate decision |
+
+No P0 is waived by a screenshot, passing build, provider acceptance or dashboard Save. Missing approvals remain visible in the release gate. Final test counts and review disposition belong in the release record.

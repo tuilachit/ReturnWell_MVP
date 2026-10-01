@@ -440,3 +440,7 @@ verify_jwt = false
 
 [functions.manage-practice]
 verify_jwt = false
+
+# Uses the same verified-session boundary and current operator check.
+[functions.email-operations]
+verify_jwt = false

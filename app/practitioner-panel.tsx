@@ -10,6 +10,7 @@ import PractitionerProfile from "./practitioner-profile";
 import ReferralActivity from "./referral-activity";
 import HandoverPanel from "./handover-panel";
 import { errorText, invoke, requestId } from "./lib/workflow";
+import { WorkflowError } from "./lib/workflow-error";
 type Assigned = {
   id: string;
   reference: string;
@@ -37,7 +38,16 @@ export default function PractitionerInbox({
     acceptingNewReferrals: boolean;
   };
 }) {
-  const [rows, setRows] = useState<Assigned[]>([]);
+  const [rows, setRows] = useState<
+    Pick<
+      Assigned,
+      "id" | "reference" | "patient_reference" | "status" | "version"
+    >[]
+  >([]);
+  const [detail, setDetail] = useState<Assigned | null>(null);
+  const [cursor, setCursor] = useState<string | null>(null),
+    [nextCursor, setNextCursor] = useState<string | null>(null),
+    [total, setTotal] = useState(0);
   const [selected, setSelected] = useState<string | null>(() =>
     typeof window !== "undefined"
       ? window.location.pathname.match(
@@ -56,30 +66,76 @@ export default function PractitionerInbox({
   const [available, setAvailable] = useState(
     practitioner.acceptingNewReferrals,
   );
-  const pending = useRef<{
-    fingerprint: string;
-    id: string;
-  } | null>(null);
+  const pending = useRef<Record<string, unknown> | null>(null);
+  const [uncertain, setUncertain] = useState(false);
+  const responseVersion = useRef<number | null>(null),
+    submitting = useRef(false),
+    mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
+  useEffect(() => {
+    if (!declining && !uncertain) return;
+    const guard = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+      e.returnValue = "";
+    };
+    window.addEventListener("beforeunload", guard);
+    return () => window.removeEventListener("beforeunload", guard);
+  }, [declining, uncertain]);
   useEffect(() => {
     let active = true;
     let run = 0;
     async function load() {
       const version = ++run;
-      const { data, error } = await client
-        .from("referrals")
-        .select(
-          "id,reference,patient_reference,patient_postcode,clinical_summary,funding_path,appointment_format,language_or_access,preferred_language,access_notes,required_service_ids,patient_age_group_id,status,version",
-        )
-        .eq("selected_practitioner_id", practitioner.practitionerId)
-        .order("created_at", { ascending: false });
-      if (!active || version !== run) return;
-      setLoading(false);
-      if (error) {
-        setRows([]);
+      try {
+        if (selected) {
+          const { data, error } = await client
+            .from("referrals")
+            .select(
+              "id,reference,patient_reference,patient_postcode,clinical_summary,funding_path,appointment_format,language_or_access,preferred_language,access_notes,required_service_ids,patient_age_group_id,status,version",
+            )
+            .eq("id", selected)
+            .eq("selected_practitioner_id", practitioner.practitionerId)
+            .maybeSingle();
+          if (error) throw error;
+          if (active && version === run) setDetail(data as Assigned | null);
+        } else {
+          const result = await invoke<{
+            items: typeof rows;
+            total: number;
+            nextCursor: string | null;
+          }>(client, "manage-referral", {
+            operation: "inbox.list",
+            practitionerId: practitioner.practitionerId,
+            status: tab,
+            limit: 25,
+            ...(cursor ? { cursor } : {}),
+          });
+          if (active && version === run) {
+            setRows(result.items);
+            setTotal(result.total);
+            setNextCursor(result.nextCursor);
+          }
+        }
+      } catch (error) {
+        if (!active || version !== run) return;
+        if (
+          error instanceof WorkflowError &&
+          ["denied", "unauthorized"].includes(error.code)
+        ) {
+          setRows([]);
+          setDetail(null);
+        }
         setMessage(
-          "Referrals are unavailable. Please check your workspace access.",
+          "Referrals are unavailable. Saved data may be out of date. Retry when connected; response edits stay on this screen.",
         );
-      } else setRows((data || []) as Assigned[]);
+      } finally {
+        if (active && version === run) setLoading(false);
+      }
     }
     void load();
     const visible = () => {
@@ -92,23 +148,22 @@ export default function PractitionerInbox({
       clearInterval(timer);
       window.removeEventListener("focus", visible);
     };
-  }, [client, practitioner.practitionerId, refresh]);
-  const detail = rows.find((row) => row.id === selected);
+  }, [client, practitioner.practitionerId, refresh, selected, tab, cursor]);
   async function respond(decision: "accepted" | "declined") {
-    if (!detail) return;
+    if (!detail || submitting.current) return;
+    submitting.current = true;
     setBusy(true);
     setMessage("");
-    const payload = {
+    const payload = pending.current ?? {
       referralId: detail.id,
-      expectedVersion: detail.version,
+      expectedVersion: responseVersion.current ?? detail.version,
       decision,
+      requestId: requestId(),
       ...(decision === "declined"
         ? { reasonCode: reason, note: note.trim() }
         : {}),
     };
-    const fingerprint = JSON.stringify(payload);
-    if (pending.current?.fingerprint !== fingerprint)
-      pending.current = { fingerprint, id: requestId() };
+    pending.current = payload;
     try {
       const result = await invoke<{
         referralId: string;
@@ -117,8 +172,13 @@ export default function PractitionerInbox({
         notification: string;
       }>(client, "respond-to-referral", {
         ...payload,
-        requestId: pending.current.id,
       });
+      if (!mounted.current) return;
+      setDetail((current) =>
+        current && current.id === result.referralId
+          ? { ...current, status: result.status, version: result.version }
+          : current,
+      );
       setRows((current) =>
         current.map((row) =>
           row.id === result.referralId
@@ -132,10 +192,24 @@ export default function PractitionerInbox({
       setDeclining(false);
       setRefresh((value) => value + 1);
       pending.current = null;
+      responseVersion.current = null;
+      setUncertain(false);
+      setNote("");
+      setReason("");
     } catch (error) {
+      if (!mounted.current) return;
+      if (
+        error instanceof WorkflowError &&
+        error.status !== null &&
+        error.status < 500
+      ) {
+        pending.current = null;
+        setUncertain(false);
+      } else setUncertain(true);
       setMessage(errorText(error));
     } finally {
-      setBusy(false);
+      submitting.current = false;
+      if (mounted.current) setBusy(false);
     }
   }
   return (
@@ -149,7 +223,7 @@ export default function PractitionerInbox({
         <input
           type="checkbox"
           checked={available}
-          disabled={busy}
+          disabled={busy || uncertain || declining}
           onChange={async (event) => {
             const next = event.target.checked;
             setBusy(true);
@@ -187,15 +261,35 @@ export default function PractitionerInbox({
         Refresh referrals
       </button>
       {message && <p role="status">{message}</p>}
+      {uncertain && (
+        <div className="workflow-card">
+          <p>
+            Your response may already be saved. Check the original action before
+            making another change.
+          </p>
+          <button
+            className="button primary"
+            disabled={busy}
+            onClick={() =>
+              void respond(pending.current?.decision as "accepted" | "declined")
+            }
+          >
+            Check and retry response
+          </button>
+        </div>
+      )}
       {selected ? (
-        loading ? (
+        loading && !detail ? (
           <PageState kind="loading" title="Loading referral…" />
         ) : detail ? (
           <section className="workflow-card">
             <button
               className="button secondary"
+              disabled={busy || uncertain || declining}
               onClick={() => {
                 setSelected(null);
+                setDetail(null);
+                setLoading(true);
                 setDeclining(false);
                 setNote("");
                 setReason("");
@@ -253,7 +347,7 @@ export default function PractitionerInbox({
               referralId={detail.id}
               version={detail.version}
             />
-            {detail.status === "sent" && (
+            {(detail.status === "sent" || declining) && (
               <>
                 <p>
                   Accepting means you agree to handle this referral. It does not
@@ -262,15 +356,18 @@ export default function PractitionerInbox({
                 <div className="workflow-actions">
                   <button
                     className="button primary"
-                    disabled={busy}
+                    disabled={busy || uncertain || declining}
                     onClick={() => void respond("accepted")}
                   >
                     Accept referral
                   </button>
                   <button
                     className="button secondary"
-                    disabled={busy}
-                    onClick={() => setDeclining(true)}
+                    disabled={busy || uncertain || declining}
+                    onClick={() => {
+                      responseVersion.current = detail.version;
+                      setDeclining(true);
+                    }}
                   >
                     Decline referral
                   </button>
@@ -286,6 +383,7 @@ export default function PractitionerInbox({
                       Reason for declining
                       <select
                         required
+                        disabled={busy || uncertain}
                         value={reason}
                         onChange={(event) => setReason(event.target.value)}
                       >
@@ -305,6 +403,7 @@ export default function PractitionerInbox({
                     <label>
                       Note to the referring practice (optional)
                       <textarea
+                        disabled={busy || uncertain}
                         maxLength={500}
                         value={note}
                         onChange={(event) => setNote(event.target.value)}
@@ -314,8 +413,25 @@ export default function PractitionerInbox({
                       This note is visible to referral participants. It is not
                       included in email.
                     </p>
-                    <button className="button primary" disabled={busy}>
+                    <button
+                      className="button primary"
+                      disabled={busy || uncertain}
+                    >
                       Confirm decline
+                    </button>
+                    <button
+                      className="button secondary"
+                      type="button"
+                      disabled={busy || uncertain}
+                      onClick={() => {
+                        setDeclining(false);
+                        setReason("");
+                        setNote("");
+                        responseVersion.current = null;
+                        setRefresh((v) => v + 1);
+                      }}
+                    >
+                      Discard response edits
                     </button>
                   </form>
                 )}
@@ -340,16 +456,25 @@ export default function PractitionerInbox({
               ["declined", "Declined"],
               ["cancelled", "Cancelled"],
               ["closed", "Closed"],
+              ["booked", "Historical booked records"],
             ].map(([value, label]) => (
               <button
                 className={`button ${value === tab ? "primary" : "secondary"}`}
                 key={value}
-                onClick={() => setTab(value)}
+                onClick={() => {
+                  setTab(value);
+                  setCursor(null);
+                  setLoading(true);
+                }}
+                aria-pressed={value === tab}
               >
                 {label}
               </button>
             ))}
           </div>
+          <p>
+            {total} {tab === "sent" ? "awaiting response" : tab} referrals
+          </p>
           {loading ? (
             <p>Loading referrals…</p>
           ) : rows.filter((row) => row.status === tab).length === 0 ? (
@@ -364,6 +489,8 @@ export default function PractitionerInbox({
                       className="button secondary"
                       onClick={() => {
                         setSelected(row.id);
+                        setDetail(null);
+                        setLoading(true);
                         setMessage("");
                       }}
                     >
@@ -373,6 +500,28 @@ export default function PractitionerInbox({
                 ))}
             </ul>
           )}
+          <div className="workflow-actions">
+            <button
+              className="button secondary"
+              disabled={loading || !cursor}
+              onClick={() => {
+                setCursor(null);
+                setLoading(true);
+              }}
+            >
+              Newest inbox page
+            </button>
+            <button
+              className="button secondary"
+              disabled={loading || !nextCursor}
+              onClick={() => {
+                setCursor(nextCursor);
+                setLoading(true);
+              }}
+            >
+              Next inbox page
+            </button>
+          </div>
         </>
       )}
     </WorkflowShell>

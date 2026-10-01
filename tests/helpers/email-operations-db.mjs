@@ -169,4 +169,71 @@ export async function emailOperationsChecks(t, { rpc, sql, id: sourceId }) {
       assert.equal(select(true)[0].id, id(800));
     },
   );
+  await t.test(
+    "operator health includes queue age and durable heartbeat while reads and forged actors cannot send",
+    () => {
+      assert.throws(
+        () => rpc(id(1), "operations.record", { event: "dispatch_completed" }),
+        /denied/,
+      );
+      rpc(null, "operations.record", { event: "dispatch_completed" });
+      const before = sql("select sum(attempts) from private.email_jobs");
+      const health = rpc(id(1), "operations.email", {}).health;
+      assert.ok(health.lastDispatchAt);
+      assert.equal(typeof health.oldestPendingSeconds, "number");
+      assert.equal(typeof health.needsReviewCount, "number");
+      assert.equal(sql("select sum(attempts) from private.email_jobs"), before);
+      rpc(null, "operations.record", { event: "webhook_persist_failed" });
+      assert.equal(
+        rpc(id(1), "operations.email", {}).health.webhookFailureCount,
+        1,
+      );
+      assert.throws(
+        () => rpc(null, "operations.record", { event: "patient diagnosis" }),
+        /invalid_request/,
+      );
+      assert.throws(
+        () =>
+          sql(
+            "set role authenticated;select * from private.operational_signals",
+          ),
+        /permission denied/,
+      );
+    },
+  );
+  await t.test(
+    "expired invitation credentials are cleared while coordination and audit history remain",
+    () => {
+      const f = fixture();
+      sql(
+        `update public.workspace_invitations set expires_at=now()-interval '1 second' where id='${f.invite.id}'`,
+      );
+      rpc(null, "email.claim", { configured: false, limit: 1 });
+      assert.equal(
+        sql(
+          `select count(*) from private.invitation_secrets where invitation_id='${f.invite.id}'`,
+        ),
+        "0",
+      );
+      assert.equal(
+        sql(
+          `select count(*) from private.email_jobs where related_id='${f.invite.id}' and (payload is not null or prepared_payload is not null)`,
+        ),
+        "0",
+      );
+      assert.equal(
+        sql(
+          `select count(*) from public.workspace_invitations where id='${f.invite.id}'`,
+        ),
+        "1",
+      );
+      assert.ok(
+        Number(
+          sql(
+            `select count(*) from private.invitation_events where invitation_id='${f.invite.id}'`,
+          ),
+        ) > 0,
+      );
+    },
+  );
 }

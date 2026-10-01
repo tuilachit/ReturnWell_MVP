@@ -39,6 +39,7 @@ test("generic notification dispatch freezes one payload then records the provide
   assert.equal(typeof worker.dispatchJobs, "function");
   const env = {
     EMAIL_DELIVERY_ENABLED: "true",
+    EMAIL_TEST_ALLOWLIST: "practice@example.test",
     RESEND_API_KEY: "fake-key",
     RESEND_FROM: "ReturnWell <notifications@example.test>",
     INVITATION_KEY_ID: "test",

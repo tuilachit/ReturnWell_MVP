@@ -1,6 +1,54 @@
 import { test, expect } from "@playwright/test";
 import { randomUUID } from "node:crypto";
 import { doctorBrowser } from "../helpers/browser-context.mjs";
+import { workflowHandler } from "../../supabase/functions/_shared/workflow-http";
+
+test("signing out in another tab clears unsaved clinical controls from the first tab", async ({
+  page,
+}) => {
+  test.skip(!process.env.RW_LOCAL_STACK_DIR, "Requires isolated local stack");
+  const fixture = await doctorBrowser(page);
+  const context = page.context();
+  await context.route("**/functions/v1/*", async (route) => {
+    const request = route.request(),
+      endpoint = new URL(request.url()).pathname.split("/").at(-1)!;
+    const response = await workflowHandler(
+      endpoint,
+      fixture.runtime,
+    )(
+      new Request(request.url(), {
+        method: request.method(),
+        headers: request.headers(),
+        body: ["GET", "HEAD"].includes(request.method())
+          ? undefined
+          : request.postData()!,
+      }),
+    );
+    await route.fulfill({
+      status: response.status,
+      headers: Object.fromEntries(response.headers),
+      body: await response.text(),
+    });
+  });
+  await page.goto("/");
+  await page.getByRole("button", { name: "New referral", exact: true }).click();
+  await page
+    .getByPlaceholder("Describe the need, goals and relevant context…")
+    .fill("FICTIONAL TAB PRIVATE EDIT");
+  const other = await context.newPage();
+  await other.goto("/");
+  await other.getByRole("button", { name: "Sign out", exact: true }).click();
+  await expect(
+    page.getByRole("heading", { name: "Welcome to ReturnWell" }),
+  ).toBeVisible();
+  await expect(
+    page.getByPlaceholder("Describe the need, goals and relevant context…"),
+  ).toHaveCount(0);
+  expect(
+    await page.evaluate(() => JSON.stringify({ ...localStorage })),
+  ).not.toContain("FICTIONAL TAB PRIVATE EDIT");
+  await other.close();
+});
 
 async function invitation(fixture: Awaited<ReturnType<typeof doctorBrowser>>) {
   const { local, doctor, owner, organisationId: org } = fixture;

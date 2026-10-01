@@ -543,4 +543,26 @@ export async function referralGrowthChecks(
       );
     },
   );
+  await t.test(
+    "practice colleagues see growth progress but not an inviter-only mailbox",
+    () => {
+      sql(
+        `insert into public.organisation_memberships(organisation_id,user_id,role) values ('${id(10)}','${id(4)}','referrer')`,
+      );
+      try {
+        const progress = rpc(id(4), "growth.status", {
+          referralId: initial.referralId,
+        });
+        assert.equal(progress.recipientEmail, "g***@example.test");
+        assert.equal(
+          state(initial.referralId).recipientEmail,
+          "growth-practitioner@example.test",
+        );
+      } finally {
+        sql(
+          `delete from public.organisation_memberships where organisation_id='${id(10)}' and user_id='${id(4)}'`,
+        );
+      }
+    },
+  );
 }

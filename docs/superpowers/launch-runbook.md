@@ -1,5 +1,7 @@
 # Invitation and referral workflow: release runbook
 
+Historical September deployment notes follow. For the current, separately isolated pilot implementation and its unfulfilled hosted launch gates, start with the [2 October release record](launch-release-record.md). Do not treat the older function count or deployed-state statements below as current verification.
+
 The backend was deployed on 7 September 2026 with public signup disabled and email delivery explicitly off. See the [deployment evidence and remaining configuration](2026-09-07-backend-deployment.md). The frontend is not publicly released, no accounts were provisioned, and the private practitioner dataset was not imported. The application keeps its existing clean first-use state.
 
 ## What is implemented
