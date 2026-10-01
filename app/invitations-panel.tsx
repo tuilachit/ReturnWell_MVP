@@ -3,6 +3,12 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { useCallback, useEffect, useRef, useState } from "react";
 import WorkflowShell from "./workflow-shell";
 import PageState from "./components/page-state";
+import ConfirmDialog from "./components/confirm-dialog";
+import {
+  deliveryProgressLabel,
+  invitationProgressLabel,
+  type InvitationProgress,
+} from "./lib/invitation-progress";
 import { errorText, invoke, requestId } from "./lib/workflow";
 type Invitation = {
   id: string;
@@ -13,6 +19,8 @@ type Invitation = {
   expires_at: string;
   version: number;
   signup_completed_at: string | null;
+  updated_at: string;
+  progress: InvitationProgress;
 };
 type InvitationProps = {
   client: SupabaseClient;
@@ -83,7 +91,21 @@ function InvitationsForm({
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(true);
-  const [now] = useState(() => Date.now());
+  const [now, setNow] = useState(() => Date.now());
+  const [confirmation, setConfirmation] = useState<{
+    operation: "resend" | "revoke";
+    row: Invitation;
+  } | null>(null);
+  const alive = useRef(true);
+  const locked = useRef(false);
+  useEffect(() => {
+    alive.current = true;
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => {
+      alive.current = false;
+      clearInterval(timer);
+    };
+  }, []);
   const pending = useRef<{ fingerprint: string; id: string } | null>(null);
   const [preview, setPreview] = useState<{
     subject: string;
@@ -96,8 +118,11 @@ function InvitationsForm({
       invitations: Invitation[];
       inviter: typeof inviter;
     }>(client, "manage-invitations", { operation: "list", organisationId });
-    setRows(result.invitations);
-    setInviter(result.inviter);
+    if (alive.current) {
+      setRows(result.invitations);
+      setInviter(result.inviter);
+      setNow(Date.now());
+    }
   }, [client, organisationId]);
   useEffect(() => {
     let active = true;
@@ -122,6 +147,8 @@ function InvitationsForm({
     };
   }, [client, organisationId]);
   async function mutate(operation: string, row?: Invitation) {
+    if (locked.current) return;
+    locked.current = true;
     setBusy(true);
     setMessage("");
     try {
@@ -146,7 +173,9 @@ function InvitationsForm({
         ...payload,
         requestId: pending.current.id,
       });
+      if (!alive.current) return;
       pending.current = null;
+      setConfirmation(null);
       setMessage(
         operation === "revoke"
           ? "Invitation revoked."
@@ -159,9 +188,10 @@ function InvitationsForm({
       }
       await load();
     } catch (error) {
-      setMessage(errorText(error));
+      if (alive.current) setMessage(errorText(error));
     } finally {
-      setBusy(false);
+      locked.current = false;
+      if (alive.current) setBusy(false);
     }
   }
   return (
@@ -182,115 +212,120 @@ function InvitationsForm({
           void mutate("create");
         }}
       >
-        <label>
-          Invitation type
-          <select
-            value={kind}
-            onChange={(event) => setKind(event.target.value)}
-          >
-            <option value="practitioner">Practitioner</option>
-            {canInviteDoctor && organisationId && (
-              <option value="doctor">Doctor joining this practice</option>
-            )}
-          </select>
-        </label>
-        <label>
-          Recipient name
-          <input
-            required
-            maxLength={160}
-            value={name}
-            onChange={(event) => setName(event.target.value)}
-          />
-        </label>
-        <label>
-          Work email
-          <input
-            required
-            type="email"
-            value={email}
-            onChange={(event) => setEmail(event.target.value)}
-          />
-        </label>
-        <label className="workflow-check">
-          <input
-            type="checkbox"
-            required
-            checked={consent}
-            onChange={(event) => setConsent(event.target.checked)}
-          />
-          This recipient agreed to receive a ReturnWell invitation.
-        </label>
-        <aside className="workflow-card">
-          <h2>Invitation overview</h2>
-          <p>Hello {name || "[recipient name]"},</p>
-          <p>
-            {inviter?.displayName || "[reviewed inviter]"} at{" "}
-            {inviter?.practiceName || "[reviewed practice]"} invites you to{" "}
-            {kind === "doctor"
-              ? "join their practice on ReturnWell as a referrer"
-              : "create a practitioner profile on ReturnWell"}
-            .
-          </p>
-          <p>
-            Verify your mailbox
-            {kind === "practitioner"
-              ? ", confirm your profile and submit it for review before receiving referrals"
-              : " to complete signup"}
-            . This invitation expires in seven days.
-          </p>
-          <p>
-            The email includes the configured ReturnWell website, business
-            identity, support contact, terms, privacy policy and a decline
-            option. Sending remains paused if these are not configured.
-          </p>
-        </aside>
-        <button
-          type="button"
-          className="button secondary"
-          disabled={busy || !inviter || !name.trim() || !email.trim()}
-          onClick={async () => {
-            setBusy(true);
-            setMessage("");
-            try {
-              const result = await invoke<{
-                subject: string;
-                text: string;
-              }>(client, "manage-invitations", {
-                operation: "preview",
-                kind,
-                organisationId,
-                recipientName: name.trim(),
-                recipientEmail: email.trim(),
-              });
-              setPreview({ ...result, fingerprint });
-            } catch (error) {
-              setMessage(errorText(error));
-            } finally {
-              setBusy(false);
-            }
-          }}
-        >
-          Preview exact email
-        </button>
-        {preview?.fingerprint === fingerprint && (
+        <fieldset disabled={busy}>
+          <label>
+            Invitation type
+            <select
+              value={kind}
+              onChange={(event) => setKind(event.target.value)}
+            >
+              <option value="practitioner">Practitioner</option>
+              {canInviteDoctor && organisationId && (
+                <option value="doctor">Doctor joining this practice</option>
+              )}
+            </select>
+          </label>
+          <label>
+            Recipient name
+            <input
+              required
+              maxLength={160}
+              value={name}
+              onChange={(event) => setName(event.target.value)}
+            />
+          </label>
+          <label>
+            Work email
+            <input
+              required
+              type="email"
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+            />
+          </label>
+          <label className="workflow-check">
+            <input
+              type="checkbox"
+              required
+              checked={consent}
+              onChange={(event) => setConsent(event.target.checked)}
+            />
+            This recipient agreed to receive a ReturnWell invitation.
+          </label>
           <aside className="workflow-card">
-            <h2>{preview.subject}</h2>
-            <pre>{preview.text}</pre>
+            <h2>Invitation overview</h2>
+            <p>Hello {name || "[recipient name]"},</p>
             <p>
-              The unique invitation credential is represented by [secure
-              invitation link].
+              {inviter?.displayName || "[reviewed inviter]"} at{" "}
+              {inviter?.practiceName || "[reviewed practice]"} invites you to{" "}
+              {kind === "doctor"
+                ? "join their practice on ReturnWell as a referrer"
+                : "create a practitioner profile on ReturnWell"}
+              .
+            </p>
+            <p>
+              Verify your mailbox
+              {kind === "practitioner"
+                ? ", confirm your profile and submit it for review before receiving referrals"
+                : " to complete signup"}
+              . This invitation expires in seven days.
+            </p>
+            <p>
+              The email includes the configured ReturnWell website, business
+              identity, support contact, terms, privacy policy and a decline
+              option. Sending remains paused if these are not configured.
             </p>
           </aside>
-        )}
-        <button
-          className="button primary"
-          disabled={
-            busy || !inviter || !consent || preview?.fingerprint !== fingerprint
-          }
-        >
-          Create invitation
-        </button>
+          <button
+            type="button"
+            className="button secondary"
+            disabled={busy || !inviter || !name.trim() || !email.trim()}
+            onClick={async () => {
+              setBusy(true);
+              setMessage("");
+              try {
+                const result = await invoke<{
+                  subject: string;
+                  text: string;
+                }>(client, "manage-invitations", {
+                  operation: "preview",
+                  kind,
+                  organisationId,
+                  recipientName: name.trim(),
+                  recipientEmail: email.trim(),
+                });
+                setPreview({ ...result, fingerprint });
+              } catch (error) {
+                setMessage(errorText(error));
+              } finally {
+                setBusy(false);
+              }
+            }}
+          >
+            Preview exact email
+          </button>
+          {preview?.fingerprint === fingerprint && (
+            <aside className="workflow-card">
+              <h2>{preview.subject}</h2>
+              <pre>{preview.text}</pre>
+              <p>
+                The unique invitation credential is represented by [secure
+                invitation link].
+              </p>
+            </aside>
+          )}
+          <button
+            className="button primary"
+            disabled={
+              busy ||
+              !inviter ||
+              !consent ||
+              preview?.fingerprint !== fingerprint
+            }
+          >
+            Create invitation
+          </button>
+        </fieldset>
       </form>
       {message && <p role="status">{message}</p>}
       <h2>Invitation progress</h2>
@@ -306,7 +341,11 @@ function InvitationsForm({
       {loading ? (
         <PageState kind="loading" title="Loading invitations…" />
       ) : rows.length === 0 ? (
-        <PageState kind="empty" title="No invitations yet" description="Invitations you create will appear here with their delivery and signup progress." />
+        <PageState
+          kind="empty"
+          title="No invitations yet"
+          description="Invitations you create will appear here with their delivery and signup progress."
+        />
       ) : (
         <ul className="workflow-records">
           {rows.map((row) => (
@@ -315,38 +354,90 @@ function InvitationsForm({
               <p>
                 {row.recipient_email} · {row.kind}
               </p>
-              <p>
-                {row.status === "pending" &&
-                new Date(row.expires_at).getTime() < now
-                  ? "Expired"
-                  : row.status}{" "}
-                ·{" "}
-                {row.signup_completed_at
-                  ? `Signup completed ${new Date(row.signup_completed_at).toLocaleString("en-AU")}`
-                  : "Signup not completed"}
-              </p>
-              {row.status === "pending" && (
+              <p>{invitationProgressLabel(row.progress, now)}</p>
+              <p>{deliveryProgressLabel(row.progress.delivery)}</p>
+              {row.progress.signupCompletedAt && (
+                <p>
+                  Confirmed{" "}
+                  {new Date(row.progress.signupCompletedAt).toLocaleString(
+                    "en-AU",
+                  )}
+                  . Practitioner approval and referral acceptance are separate
+                  steps.
+                </p>
+              )}
+              {row.progress.delivery.nextRetryAt && (
+                <p>
+                  Next email retry no earlier than{" "}
+                  {new Date(row.progress.delivery.nextRetryAt).toLocaleString(
+                    "en-AU",
+                  )}
+                  .
+                </p>
+              )}
+              {row.status === "pending" && Date.parse(row.expires_at) > now && (
                 <div className="workflow-actions">
                   <button
                     className="button secondary"
-                    disabled={busy}
-                    onClick={() => void mutate("resend", row)}
+                    disabled={
+                      busy ||
+                      Date.parse(row.updated_at) + 60000 > now ||
+                      row.progress.delivery.state === "suppressed" ||
+                      row.progress.delivery.state === "needs_review"
+                    }
+                    onClick={() =>
+                      setConfirmation({ operation: "resend", row })
+                    }
                   >
                     Resend with new link
                   </button>
                   <button
                     className="button secondary"
                     disabled={busy}
-                    onClick={() => void mutate("revoke", row)}
+                    onClick={() =>
+                      setConfirmation({ operation: "revoke", row })
+                    }
                   >
                     Revoke
                   </button>
+                  {Date.parse(row.updated_at) + 60000 > now && (
+                    <p>
+                      Resend available in{" "}
+                      {Math.ceil(
+                        (Date.parse(row.updated_at) + 60000 - now) / 1000,
+                      )}{" "}
+                      seconds.
+                    </p>
+                  )}
                 </div>
               )}
             </li>
           ))}
         </ul>
       )}
+      <ConfirmDialog
+        open={confirmation !== null}
+        title={
+          confirmation?.operation === "resend"
+            ? "Replace the invitation link?"
+            : "Revoke this invitation?"
+        }
+        description={
+          confirmation?.operation === "resend"
+            ? "The previous link will stop working. A new email will be queued for the same recipient. Resending does not extend the original expiry or referral consent."
+            : "This link will stop working. Any referral waiting on this invitation will remain private and need attention."
+        }
+        confirmLabel={
+          confirmation?.operation === "resend"
+            ? "Replace link and queue email"
+            : "Revoke invitation"
+        }
+        busy={busy}
+        onCancel={() => setConfirmation(null)}
+        onConfirm={() =>
+          confirmation && void mutate(confirmation.operation, confirmation.row)
+        }
+      />
     </WorkflowShell>
   );
 }

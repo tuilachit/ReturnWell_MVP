@@ -6,6 +6,7 @@ import test from "node:test";
 import { directoryScaleFixtureSql } from "./helpers/directory-scale-fixture.mjs";
 import { matchPractitioners } from "../app/lib/matching.ts";
 import { referralGrowthChecks } from "./helpers/referral-growth-db.mjs";
+import {invitationProgressChecks} from './helpers/invitation-progress-db.mjs';
 
 // Opt-in, isolated Postgres. Never opens a URL or uses the application's hosted credentials.
 const enabled = process.env.RW_DATABASE_TEST === "1";
@@ -2754,6 +2755,7 @@ test(
           return result.stdout.trim();
         },
       });
+      await invitationProgressChecks(t,{rpc,sql,id});
     } finally {
       execFileSync("docker", ["stop", container], { stdio: "pipe" });
     }
