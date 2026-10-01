@@ -42,6 +42,7 @@ import ReferralDraftPanel from "./referral-draft-panel";
 import ConfirmDialog from "./components/confirm-dialog";
 import {
   saveReferralDraft,
+  validateDraft,
   finalizeReferralDraft,
   type DraftInput,
   type ReferralDraft,
@@ -146,23 +147,16 @@ export default function DoctorPortal({
   const dirtyDraft =
     view === "new" &&
     step < 4 &&
-    Boolean(
-      patientReference ||
-      clinicalSummary ||
-      postcode ||
-      languageOrAccess ||
-      accessNotes,
-    ) &&
-    (!draft ||
-      patientReference !== (draft.input.patientReference ?? "") ||
-      clinicalSummary !== (draft.input.clinicalSummary ?? "") ||
-      postcode !== (draft.input.patientPostcode ?? "") ||
-      profession !== draft.input.profession ||
-      fundingPath !== draft.input.fundingPath ||
-      appointmentFormat !== draft.input.appointmentFormat ||
-      accessNotes !== (draft.input.accessNotes ?? "") ||
+    (patientReference !== (draft?.input.patientReference ?? "") ||
+      clinicalSummary !== (draft?.input.clinicalSummary ?? "") ||
+      postcode !== (draft?.input.patientPostcode ?? "") ||
+      profession !== (draft?.input.profession ?? "physiotherapist") ||
+      fundingPath !== (draft?.input.fundingPath ?? "Medicare") ||
+      appointmentFormat !== (draft?.input.appointmentFormat ?? "either") ||
+      selectedPractitionerId !== (draft?.input.selectedPractitionerId ?? null) ||
+      accessNotes !== (draft?.input.accessNotes ?? "") ||
       languageOrAccess !==
-        (draft.input.preferredLanguage ?? draft.input.languageOrAccess ?? ""));
+        (draft?.input.preferredLanguage ?? draft?.input.languageOrAccess ?? ""));
   useEffect(() => {
     if (!submissionPending && !draftPending && !dirtyDraft) return;
     const warnBeforeLeaving = (event: BeforeUnloadEvent) => {
@@ -301,6 +295,7 @@ export default function DoctorPortal({
   };
 
   const requestLeave = (action: () => void) => {
+    setMobileNav(false);
     if (submissionPending || draftPending) {
       setError("Resolve the pending save before leaving this referral.");
       return;
@@ -430,11 +425,11 @@ export default function DoctorPortal({
   const proceedToShortlist = (event: React.FormEvent) => {
     event.preventDefault();
     if (draftPending || saving || submissionPending) return;
-    const errors = validateReferralInput({
+    const errors = [...validateDraft(draftInput()), ...validateReferralInput({
       ...formInput(),
       selectedPractitionerId: "pending",
       consentConfirmed: true,
-    });
+    })];
     if (errors.length > 0) {
       setError(errors[0]);
       return;
@@ -453,7 +448,9 @@ export default function DoctorPortal({
     if (submitting.current) return;
     const wasPending = pendingSubmission.current !== null;
     const input = pendingSubmission.current?.input ?? formInput();
-    const errors = validateReferralInput(input);
+    // Validate locally before a request can become ambiguous. Pending retries
+    // retain their original snapshot and idempotency keys.
+    const errors = [...(!wasPending ? validateDraft(draftInput()) : []), ...validateReferralInput(input)];
     if (errors.length > 0) {
       setError(errors[0]);
       return;

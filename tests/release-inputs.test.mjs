@@ -34,12 +34,13 @@ test('untracked source cannot silently escape the release manifest', async t => 
   assert.equal(run(root).status,0);
   assert.ok(JSON.parse(run(root).stdout).files['app/unreviewed.ts']);
 });
-for (const filename of ['.env.local', 'supabase/functions/.env', 'private-data/records.json', 'local-credentials.json']) {
+for (const filename of ['.env.local', 'supabase/functions/.env', 'private-data/records.json', 'local-credentials.json', '.env.production', 'public/test.key']) {
   test(`release input rejects ${filename} without printing contents`, async t => {
     const root = await fixture(t);
     await mkdir(join(root, filename, '..'), { recursive: true });
     await writeFile(join(root, filename), 'PRIVATE_TEST_VALUE_NEVER_PRINT');
-    spawnSync('git', ['add', filename], { cwd: root });
+    await writeFile(join(root, '.gitignore'), '.env*\n*.key\nprivate-data\nlocal-credentials.json\n');
+    spawnSync('git', ['add', '.gitignore'], { cwd: root });
     const result = run(root);
     assert.equal(result.status, 1);
     assert.match(result.stderr, /Unsafe release input/);
