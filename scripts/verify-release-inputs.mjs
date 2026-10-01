@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto';
 import { existsSync, lstatSync, readFileSync } from 'node:fs';
 
 const tracked = execFileSync('git', ['ls-files', '-z'], { encoding: 'utf8' }).split('\0').filter(Boolean);
+const untracked = execFileSync('git', ['ls-files', '--others', '--exclude-standard', '-z'], { encoding: 'utf8' }).split('\0').filter(Boolean);
 const unsafe = name => /(^|\/)(private-data|local-credentials\.json)(\/|$)/.test(name)
   || /(^|\/)\.env($|\.)/.test(name) && !name.endsWith('.env.example')
   || /\.(pem|key|p12|pfx)$/.test(name)
@@ -13,6 +14,9 @@ for (const name of ['private-data', 'research/private-data', '.env.local', 'supa
 }
 if (found.length) {
   console.error(`Unsafe release input: ${found.join(', ')}`);
+  process.exitCode = 1;
+} else if (untracked.length) {
+  console.error('Untracked files are not reviewed release inputs. Stage the intended source or use a clean checkout.');
   process.exitCode = 1;
 } else {
   const files = {};

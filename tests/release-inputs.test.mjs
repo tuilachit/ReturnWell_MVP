@@ -16,7 +16,7 @@ async function fixture(t) {
   return root;
 }
 const run = root => spawnSync(process.execPath, [script], { cwd: root, encoding: 'utf8' });
-test('release manifest hashes the actual staged source', async t => {
+test('release manifest hashes the current contents of tracked source', async t => {
   const root = await fixture(t);
   const first = run(root);
   assert.equal(first.status, 0, first.stderr);
@@ -24,6 +24,15 @@ test('release manifest hashes the actual staged source', async t => {
   assert.match(manifest.files['package.json'], /^[a-f0-9]{64}$/);
   await writeFile(join(root, 'package.json'), '{"private":false}');
   assert.notEqual(JSON.parse(run(root).stdout).files['package.json'], manifest.files['package.json']);
+});
+test('untracked source cannot silently escape the release manifest', async t => {
+  const root=await fixture(t);
+  await mkdir(join(root,'app'));
+  await writeFile(join(root,'app','unreviewed.ts'),'export const localChange = true;');
+  assert.equal(run(root).status,1);
+  spawnSync('git',['add','app/unreviewed.ts'],{cwd:root});
+  assert.equal(run(root).status,0);
+  assert.ok(JSON.parse(run(root).stdout).files['app/unreviewed.ts']);
 });
 for (const filename of ['.env.local', 'supabase/functions/.env', 'private-data/records.json', 'local-credentials.json']) {
   test(`release input rejects ${filename} without printing contents`, async t => {
