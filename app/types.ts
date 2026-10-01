@@ -31,6 +31,8 @@ export type Referral = {
 };
 
 export type Practitioner = {
+  credentials?: import("./lib/credentials").CredentialSummary[];
+  accessSuspended?: boolean;
   id: string;
   displayName: string;
   practiceName: string;

@@ -153,10 +153,13 @@ export default function DoctorPortal({
       profession !== (draft?.input.profession ?? "physiotherapist") ||
       fundingPath !== (draft?.input.fundingPath ?? "Medicare") ||
       appointmentFormat !== (draft?.input.appointmentFormat ?? "either") ||
-      selectedPractitionerId !== (draft?.input.selectedPractitionerId ?? null) ||
+      selectedPractitionerId !==
+        (draft?.input.selectedPractitionerId ?? null) ||
       accessNotes !== (draft?.input.accessNotes ?? "") ||
       languageOrAccess !==
-        (draft?.input.preferredLanguage ?? draft?.input.languageOrAccess ?? ""));
+        (draft?.input.preferredLanguage ??
+          draft?.input.languageOrAccess ??
+          ""));
   useEffect(() => {
     if (!submissionPending && !draftPending && !dirtyDraft) return;
     const warnBeforeLeaving = (event: BeforeUnloadEvent) => {
@@ -425,11 +428,14 @@ export default function DoctorPortal({
   const proceedToShortlist = (event: React.FormEvent) => {
     event.preventDefault();
     if (draftPending || saving || submissionPending) return;
-    const errors = [...validateDraft(draftInput()), ...validateReferralInput({
-      ...formInput(),
-      selectedPractitionerId: "pending",
-      consentConfirmed: true,
-    })];
+    const errors = [
+      ...validateDraft(draftInput()),
+      ...validateReferralInput({
+        ...formInput(),
+        selectedPractitionerId: "pending",
+        consentConfirmed: true,
+      }),
+    ];
     if (errors.length > 0) {
       setError(errors[0]);
       return;
@@ -450,7 +456,10 @@ export default function DoctorPortal({
     const input = pendingSubmission.current?.input ?? formInput();
     // Validate locally before a request can become ambiguous. Pending retries
     // retain their original snapshot and idempotency keys.
-    const errors = [...(!wasPending ? validateDraft(draftInput()) : []), ...validateReferralInput(input)];
+    const errors = [
+      ...(!wasPending ? validateDraft(draftInput()) : []),
+      ...validateReferralInput(input),
+    ];
     if (errors.length > 0) {
       setError(errors[0]);
       return;

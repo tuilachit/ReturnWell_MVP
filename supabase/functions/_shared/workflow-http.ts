@@ -14,9 +14,11 @@ export type WorkflowRuntime = {
   generateLink?: (
     email: string,
     type: "invite" | "magiclink",
-  ) => Promise<
-    { userId: string; hashedToken: string; type: "invite" | "magiclink" }
-  >;
+  ) => Promise<{
+    userId: string;
+    hashedToken: string;
+    type: "invite" | "magiclink";
+  }>;
 };
 export const row = (value: unknown): Row => {
   if (!value || typeof value !== "object" || Array.isArray(value)) {
@@ -77,10 +79,16 @@ const mappings: Record<
 > = {
   "workspace-access": { default: { action: "workspace.access", fields: [] } },
   "manage-referral": {
-    "draft.list": {action:"draft.list",fields:["organisationId"]},
-    "draft.load": {action:"draft.load",fields:["id"]},
-    "draft.save": {action:"draft.save",fields:["id","organisationId","expectedVersion","input","requestId"]},
-    "draft.finalize": {action:"draft.finalize",fields:["id","expectedVersion","consentConfirmed","requestId"]},
+    "draft.list": { action: "draft.list", fields: ["organisationId"] },
+    "draft.load": { action: "draft.load", fields: ["id"] },
+    "draft.save": {
+      action: "draft.save",
+      fields: ["id", "organisationId", "expectedVersion", "input", "requestId"],
+    },
+    "draft.finalize": {
+      action: "draft.finalize",
+      fields: ["id", "expectedVersion", "consentConfirmed", "requestId"],
+    },
   },
   "manage-invitations": {
     list: { action: "invitations.list", fields: ["organisationId"] },
@@ -115,6 +123,14 @@ const mappings: Record<
     },
   },
   "practitioner-onboarding": {
+    revision_start: {
+      action: "application.revision_start",
+      fields: ["practitionerId", "requestId"],
+    },
+    credentials: {
+      action: "application.credentials",
+      fields: ["practitionerId"],
+    },
     load: { action: "application.load", fields: ["applicationId"] },
     save: {
       action: "application.save",
@@ -137,6 +153,31 @@ const mappings: Record<
     },
   },
   "review-practitioner": {
+    due: { action: "review.due", fields: [] },
+    access_detail: {
+      action: "review.access_detail",
+      fields: ["practitionerId"],
+    },
+    suspend: {
+      action: "review.suspend",
+      fields: [
+        "practitionerId",
+        "expectedVersion",
+        "requestId",
+        "reason",
+        "evidenceReference",
+      ],
+    },
+    restore: {
+      action: "review.restore",
+      fields: [
+        "practitionerId",
+        "expectedVersion",
+        "requestId",
+        "reason",
+        "evidenceReference",
+      ],
+    },
     list: { action: "review.list", fields: [] },
     detail: { action: "review.detail", fields: ["applicationId"] },
     decide: {
@@ -173,12 +214,14 @@ export function workflowHandler(endpoint: string, runtime: WorkflowRuntime) {
   return async (request: Request): Promise<Response> => {
     const origin = request.headers.get("origin");
     const allowed = (runtime.env.ALLOWED_ORIGINS ?? runtime.env.APP_URL ?? "")
-      .split(",").map((x) => x.trim()).filter(Boolean);
+      .split(",")
+      .map((x) => x.trim())
+      .filter(Boolean);
     const headers: Record<string, string> = {
       "content-type": "application/json",
       "cache-control": "no-store",
       "referrer-policy": "no-referrer",
-      "vary": "Origin",
+      vary: "Origin",
     };
     const json = (value: unknown, status = 200) =>
       new Response(JSON.stringify(value), { status, headers });
@@ -201,7 +244,8 @@ export function workflowHandler(endpoint: string, runtime: WorkflowRuntime) {
         if (
           typeof body.token !== "string" ||
           !/^[A-Za-z0-9_-]{43}$/.test(body.token)
-        ) throw Error("invitation_unavailable");
+        )
+          throw Error("invitation_unavailable");
         const tokenHash = await hashToken(body.token);
         if (body.operation === "inspect") {
           return json({
@@ -221,11 +265,14 @@ export function workflowHandler(endpoint: string, runtime: WorkflowRuntime) {
         if (
           body.termsVersion !== config.termsVersion ||
           body.privacyVersion !== config.privacyVersion
-        ) throw Error("terms_changed");
+        )
+          throw Error("terms_changed");
         if (
           !runtime.env.INVITATION_ENCRYPTION_KEY ||
-          !runtime.env.INVITATION_KEY_ID || !runtime.generateLink
-        ) throw Error("sender_configuration");
+          !runtime.env.INVITATION_KEY_ID ||
+          !runtime.generateLink
+        )
+          throw Error("sender_configuration");
         // Deliberate POST only. Browser fields never determine the recipient,
         // actor, role, auth-link type or redirect destination.
         const attempt = row(
@@ -251,8 +298,7 @@ export function workflowHandler(endpoint: string, runtime: WorkflowRuntime) {
           invitationId: String(attempt.invitationId),
           attemptId: String(attempt.attemptId),
         }).toString();
-        const text =
-          `Verify your email for ReturnWell\n\nYou requested access to ReturnWell. Open this link, then choose Verify and continue. It expires in 15 minutes.\n\n${url}\n\nIf you did not request this, ignore this email.\n${config.businessName}\nSupport: ${config.supportEmail}\nWebsite: ${config.websiteUrl}`;
+        const text = `Verify your email for ReturnWell\n\nYou requested access to ReturnWell. Open this link, then choose Verify and continue. It expires in 15 minutes.\n\n${url}\n\nIf you did not request this, ignore this email.\n${config.businessName}\nSupport: ${config.supportEmail}\nWebsite: ${config.websiteUrl}`;
         const envelope = await seal(
           { subject: "Verify your email for ReturnWell", text },
           runtime.env.INVITATION_ENCRYPTION_KEY,
@@ -278,8 +324,10 @@ export function workflowHandler(endpoint: string, runtime: WorkflowRuntime) {
           401,
         );
       }
-      const mapping = mappings[endpoint]
-        ?.[typeof body.operation === "string" ? body.operation : "default"];
+      const mapping =
+        mappings[endpoint]?.[
+          typeof body.operation === "string" ? body.operation : "default"
+        ];
       if (!mapping) throw Error("invalid_request");
       const input = pick(body, mapping.fields);
       if (mapping.action === "invitations.preview") {
@@ -297,8 +345,10 @@ export function workflowHandler(endpoint: string, runtime: WorkflowRuntime) {
         return json({
           subject: message.subject,
           text: message.text.replaceAll(
-            new URL("/join#invite=INVITATION_LINK", runtime.env.APP_URL)
-              .toString(),
+            new URL(
+              "/join#invite=INVITATION_LINK",
+              runtime.env.APP_URL,
+            ).toString(),
             "[secure invitation link]",
           ),
         });
@@ -310,7 +360,8 @@ export function workflowHandler(endpoint: string, runtime: WorkflowRuntime) {
         if (
           !runtime.env.INVITATION_ENCRYPTION_KEY ||
           !runtime.env.INVITATION_KEY_ID
-        ) throw Error("sender_configuration");
+        )
+          throw Error("sender_configuration");
         const token = newInvitationToken();
         const tokenHash = await hashToken(token);
         Object.assign(input, {
@@ -329,7 +380,8 @@ export function workflowHandler(endpoint: string, runtime: WorkflowRuntime) {
         if (
           body.termsVersion !== config.termsVersion ||
           body.privacyVersion !== config.privacyVersion
-        ) throw Error("terms_changed");
+        )
+          throw Error("terms_changed");
       }
       const data = await runtime.rpc(user.id, mapping.action, input);
       if (mapping.action === "application.load") {
@@ -343,30 +395,36 @@ export function workflowHandler(endpoint: string, runtime: WorkflowRuntime) {
       }
       return json(data);
     } catch (error) {
-      const message = error instanceof Error
-        ? error.message
-        : typeof error === "object" && error && "message" in error
-        ? String(error.message)
-        : "request_failed";
-      const code = message.match(
-        /\b(denied|conflict|rate_limited|invitation_unavailable|recipient_suppressed|reviewed_identity_required|consent_required|evidence_required|invalid_profile|invalid_draft|recipient_ineligible|terms_changed|sender_configuration|body_too_large|invalid_request)\b/,
-      )?.[1] ?? "request_failed";
-      const status = code === "body_too_large"
-        ? 413
-        : code === "rate_limited"
-        ? 429
-        : code === "conflict" || code === "terms_changed"
-        ? 409
-        : code === "sender_configuration"
-        ? 503
-        : code === "denied" || code === "reviewed_identity_required" ||
-            code === "recipient_suppressed"
-        ? 403
-        : code === "invitation_unavailable"
-        ? 410
-        : 400;
+      const message =
+        error instanceof Error
+          ? error.message
+          : typeof error === "object" && error && "message" in error
+            ? String(error.message)
+            : "request_failed";
+      const code =
+        message.match(
+          /\b(denied|conflict|rate_limited|invitation_unavailable|recipient_suppressed|reviewed_identity_required|consent_required|credential_policy_required|evidence_required|invalid_profile|invalid_draft|recipient_ineligible|terms_changed|sender_configuration|body_too_large|invalid_request)\b/,
+        )?.[1] ?? "request_failed";
+      const status =
+        code === "body_too_large"
+          ? 413
+          : code === "rate_limited"
+            ? 429
+            : code === "conflict" || code === "terms_changed"
+              ? 409
+              : code === "sender_configuration"
+                ? 503
+                : code === "denied" ||
+                    code === "reviewed_identity_required" ||
+                    code === "recipient_suppressed"
+                  ? 403
+                  : code === "invitation_unavailable"
+                    ? 410
+                    : 400;
       if (status === 429) headers["retry-after"] = "60";
       const messages: Record<string, string> = {
+        credential_policy_required:
+          "This profession needs an approved verification and review policy before activation.",
         conflict: "This record changed. Refresh and review the latest version.",
         terms_changed:
           "The terms or privacy notice changed. Reload and review them before continuing.",
@@ -378,17 +436,23 @@ export function workflowHandler(endpoint: string, runtime: WorkflowRuntime) {
         evidence_required:
           "Complete the independent identity and registration checks.",
         invalid_profile: "Please check the profile details.",
-        invalid_draft: "Please check the referral fields. Your edits are retained.",
-        recipient_ineligible: "This practitioner no longer meets the referral requirements. Review your selection.",
+        invalid_draft:
+          "Please check the referral fields. Your edits are retained.",
+        recipient_ineligible:
+          "This practitioner no longer meets the referral requirements. Review your selection.",
         consent_required: "Please confirm the required consent.",
         recipient_suppressed:
           "Invitations to this address are paused. Contact ReturnWell support.",
       };
-      return json({
-        error: messages[code] ??
-          "The request could not be completed. Check your access and details.",
-        code,
-      }, status);
+      return json(
+        {
+          error:
+            messages[code] ??
+            "The request could not be completed. Check your access and details.",
+          code,
+        },
+        status,
+      );
     }
   };
 }

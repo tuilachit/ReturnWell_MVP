@@ -137,6 +137,7 @@ export default function PractitionerInbox({
       <PractitionerProfile
         client={client}
         practitionerId={practitioner.practitionerId}
+        refreshKey={refresh}
       />
       <label className="workflow-check">
         <input
@@ -153,9 +154,10 @@ export default function PractitionerInbox({
                 acceptingNewReferrals: next,
               });
               setAvailable(next);
+              setRefresh((value) => value + 1);
               setMessage(
                 next
-                  ? "New referrals enabled."
+                  ? "Intake preference saved. New referrals also require a current credential review."
                   : "New referrals paused. Existing assignments remain available.",
               );
             } catch (error) {
@@ -222,8 +224,16 @@ export default function PractitionerInbox({
                 <dt>Preferred language</dt>
                 <dd>{detail.preferred_language || "Not specified"}</dd>
               </div>
-              <div><dt>Accessibility notes</dt><dd>{detail.access_notes || "Not specified"}</dd></div>
-              {detail.language_or_access && <div><dt>Previously recorded language / access</dt><dd>{detail.language_or_access}</dd></div>}
+              <div>
+                <dt>Accessibility notes</dt>
+                <dd>{detail.access_notes || "Not specified"}</dd>
+              </div>
+              {detail.language_or_access && (
+                <div>
+                  <dt>Previously recorded language / access</dt>
+                  <dd>{detail.language_or_access}</dd>
+                </div>
+              )}
             </dl>
             {detail.status === "sent" && (
               <>

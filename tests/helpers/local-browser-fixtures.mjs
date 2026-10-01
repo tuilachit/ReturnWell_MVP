@@ -3,6 +3,7 @@ import { writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { localRuntime } from "./local-runtime.mjs";
 import { createReferral } from "../../app/lib/referrals.ts";
+import { credentialFixtureSql } from './credential-fixture.mjs';
 
 const local = localRuntime();
 const suffix = randomUUID().slice(0, 8);
@@ -26,6 +27,7 @@ local.sql(`insert into public.organisations(id,name,notification_email) values (
   (${literal(practitionerId)},'Browser Practitioner','physiotherapist','Fictional Browser Movement','${users.practitioner.email}','active','BROWSER${suffix}','verified',now(),'confirmed',now(),true,false,array['Physiotherapy'],array['Private'],array['English']);
   insert into public.practitioner_locations(practitioner_id,suburb,postcode,state,is_primary) values (${literal(practitionerId)},'Sydney','2000','NSW',true);
   insert into public.practitioner_users(practitioner_id,user_id) values (${literal(practitionerId)},${literal(users.practitioner.userId)});`);
+local.sql(credentialFixtureSql({practitionerId,ownerId:users.practitioner.userId,reviewerId:users.operator.userId,organisationId:org}));
 const invitationResponse = await local.call("manage-invitations", { operation: "create", kind: "practitioner", organisationId: org, recipientName: "Browser Applicant", recipientEmail: users.applicant.email, consentConfirmed: true, requestId: randomUUID() }, users.operator.client);
 if (invitationResponse.status !== 200) throw new Error(`Local fixture invitation failed (${invitationResponse.status}).`);
 const profile = { displayName: "Browser Applicant", profession: "physiotherapist", registrationNumber: `BAPP${suffix}`, practiceName: "Fictional Applicant Practice", services: ["Physiotherapy"], funding: ["Private"], languages: ["English"], telehealth: false, acceptingNewReferrals: true, locations: [{ suburb: "Sydney", postcode: "2000", state: "NSW", isPrimary: true }] };

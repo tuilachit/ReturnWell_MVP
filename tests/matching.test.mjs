@@ -17,6 +17,18 @@ const candidate = (overrides = {}) => ({
   profession: "physiotherapist",
   lifecycleStatus: "active",
   ahpraVerificationStatus: "verified",
+  credentials: [
+    {
+      professionId: "physiotherapist",
+      authorityId: "ahpra_physiotherapy",
+      route: "ahpra",
+      status: "verified",
+      policyEnabled: true,
+      checkedAt: new Date(Date.now() - 1000).toISOString(),
+      expiresAt: null,
+      reviewDueAt: new Date(Date.now() + 86400000).toISOString(),
+    },
+  ],
   providerConfirmationStatus: "confirmed",
   acceptingNewReferrals: true,
   telehealth: true,
@@ -29,38 +41,59 @@ const candidate = (overrides = {}) => ({
 });
 
 test("returns only active, verified, confirmed practitioners accepting referrals", () => {
-  const result = matchPractitioners([
-    candidate(),
-    candidate({ id: "inactive", lifecycleStatus: "inactive" }),
-    candidate({ id: "unchecked", ahpraVerificationStatus: "not_checked" }),
-    candidate({ id: "unconfirmed", providerConfirmationStatus: "not_contacted" }),
-    candidate({ id: "closed", acceptingNewReferrals: false }),
-  ], needs);
+  const result = matchPractitioners(
+    [
+      candidate(),
+      candidate({ id: "inactive", lifecycleStatus: "inactive" }),
+      candidate({ id: "unchecked", credentials: [] }),
+      candidate({
+        id: "unconfirmed",
+        providerConfirmationStatus: "not_contacted",
+      }),
+      candidate({ id: "closed", acceptingNewReferrals: false }),
+    ],
+    needs,
+  );
 
-  assert.deepEqual(result.map((item) => item.practitioner.id), ["p-1"]);
+  assert.deepEqual(
+    result.map((item) => item.practitioner.id),
+    ["p-1"],
+  );
 });
 
 test("applies profession, format, funding and language as literal eligibility rules", () => {
-  const result = matchPractitioners([
-    candidate(),
-    candidate({ id: "wrong-profession", profession: "psychologist" }),
-    candidate({ id: "no-telehealth", telehealth: false }),
-    candidate({ id: "wrong-funding", funding: ["Self funded"] }),
-    candidate({ id: "wrong-language", languages: ["English"] }),
-  ], needs);
+  const result = matchPractitioners(
+    [
+      candidate(),
+      candidate({ id: "wrong-profession", profession: "psychologist" }),
+      candidate({ id: "no-telehealth", telehealth: false }),
+      candidate({ id: "wrong-funding", funding: ["Self funded"] }),
+      candidate({ id: "wrong-language", languages: ["English"] }),
+    ],
+    needs,
+  );
 
-  assert.deepEqual(result.map((item) => item.practitioner.id), ["p-1"]);
+  assert.deepEqual(
+    result.map((item) => item.practitioner.id),
+    ["p-1"],
+  );
 });
 
 test("sorts by known distance then name and explains the order without a score", () => {
-  const result = matchPractitioners([
-    candidate({ id: "far", displayName: "Alex Lee", distanceKm: 8.1 }),
-    candidate({ id: "unknown", displayName: "Bri Nguyen", distanceKm: null }),
-    candidate({ id: "near-z", displayName: "Zara Cole", distanceKm: 2.3 }),
-    candidate({ id: "near-a", displayName: "Ari Cole", distanceKm: 2.3 }),
-  ], needs);
+  const result = matchPractitioners(
+    [
+      candidate({ id: "far", displayName: "Alex Lee", distanceKm: 8.1 }),
+      candidate({ id: "unknown", displayName: "Bri Nguyen", distanceKm: null }),
+      candidate({ id: "near-z", displayName: "Zara Cole", distanceKm: 2.3 }),
+      candidate({ id: "near-a", displayName: "Ari Cole", distanceKm: 2.3 }),
+    ],
+    needs,
+  );
 
-  assert.deepEqual(result.map((item) => item.practitioner.id), ["near-a", "near-z", "far", "unknown"]);
+  assert.deepEqual(
+    result.map((item) => item.practitioner.id),
+    ["near-a", "near-z", "far", "unknown"],
+  );
   assert.deepEqual(result[0].reasons, [
     "Registration verified",
     "Provider details confirmed",

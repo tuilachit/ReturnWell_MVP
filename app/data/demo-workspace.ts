@@ -1,4 +1,21 @@
 import type { Practitioner, Referral } from "../types";
+import type { CredentialSummary } from "../lib/credentials";
+// Fictional preview only. These records are never imported to the backend.
+const demoCredential = (
+  professionId: string,
+  authorityId: string,
+): CredentialSummary[] => [
+  {
+    professionId,
+    authorityId,
+    route: "ahpra",
+    status: "verified",
+    policyEnabled: true,
+    checkedAt: "2026-09-01T00:00:00Z",
+    expiresAt: null,
+    reviewDueAt: "2099-01-01T00:00:00Z",
+  },
+];
 
 export const demoReferrals: Referral[] = [
   {
@@ -24,6 +41,7 @@ export const demoPractitioners: Practitioner[] = [
   {
     id: "00000000-0000-4000-8000-000000000201",
     displayName: "Taylor Example",
+    credentials: demoCredential("physiotherapist", "ahpra_physiotherapy"),
     practiceName: "Demo Movement Practice",
     profession: "physiotherapist",
     lifecycleStatus: "active",
@@ -40,6 +58,7 @@ export const demoPractitioners: Practitioner[] = [
   {
     id: "00000000-0000-4000-8000-000000000202",
     displayName: "Jordan Example",
+    credentials: demoCredential("psychologist", "ahpra_psychology"),
     practiceName: "Demo Psychology Practice",
     profession: "psychologist",
     lifecycleStatus: "active",

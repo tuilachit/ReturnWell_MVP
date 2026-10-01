@@ -3,15 +3,27 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { useEffect, useRef, useState } from "react";
 import WorkflowShell from "./workflow-shell";
 import PageState from "./components/page-state";
+import ProfileAccessReview from "./profile-access-review";
+import { getProfession } from "./lib/professions";
 import { errorText, invoke, requestId, type Application } from "./lib/workflow";
 export default function Reviews({ client }: { client: SupabaseClient }) {
   const pending = useRef<{ fingerprint: string; id: string } | null>(null);
   const [rows, setRows] = useState<Application[]>([]);
+  const [due, setDue] = useState<
+    {
+      practitionerId: string;
+      displayName: string;
+      professionId: string;
+      applicationId: string;
+      reason: string;
+    }[]
+  >([]);
   const [selected, setSelected] = useState<Application | null>(null);
   const [reviews, setReviews] = useState<unknown[]>([]);
   const [identity, setIdentity] = useState("");
   const [registration, setRegistration] = useState("");
   const [checkedAt, setCheckedAt] = useState("");
+  const [expiresAt, setExpiresAt] = useState("");
   const [matched, setMatched] = useState(false);
   const [registered, setRegistered] = useState(false);
   const [feedback, setFeedback] = useState("");
@@ -21,11 +33,19 @@ export default function Reviews({ client }: { client: SupabaseClient }) {
   const [loading, setLoading] = useState(true);
   useEffect(() => {
     let active = true;
-    void invoke<{
-      applications: Application[];
-    }>(client, "review-practitioner", { operation: "list" })
-      .then((result) => {
-        if (active) setRows(result.applications);
+    void Promise.all([
+      invoke<{
+        applications: Application[];
+      }>(client, "review-practitioner", { operation: "list" }),
+      invoke<{ items: typeof due }>(client, "review-practitioner", {
+        operation: "due",
+      }),
+    ])
+      .then(([result, dueResult]) => {
+        if (active) {
+          setRows(result.applications);
+          setDue(dueResult.items);
+        }
       })
       .catch((error) => {
         if (active) setMessage(errorText(error));
@@ -54,6 +74,7 @@ export default function Reviews({ client }: { client: SupabaseClient }) {
       setIdentity("");
       setRegistration("");
       setCheckedAt("");
+      setExpiresAt("");
       setMatched(false);
       setRegistered(false);
       setFeedback("");
@@ -67,10 +88,37 @@ export default function Reviews({ client }: { client: SupabaseClient }) {
     <WorkflowShell title="Practitioner application reviews">
       <a href="/invitations">Manage invitations</a>
       {message && <p role="status">{message}</p>}
+      {!loading && due.length > 0 && (
+        <section className="workflow-card">
+          <h2>Credentials needing review</h2>
+          <p>
+            Up to 50 outstanding reviews. These practitioners cannot receive new
+            referrals until independently re-reviewed. Their existing referral
+            history is retained unless access is suspended.
+          </p>
+          <ul className="workflow-records">
+            {due.map((item) => (
+              <li key={item.practitionerId}>
+                <button
+                  className="button secondary"
+                  disabled={busy}
+                  onClick={() => void open(item.applicationId)}
+                >
+                  {item.displayName} · {item.reason.replaceAll("_", " ")}
+                </button>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
       {loading ? (
         <PageState kind="loading" title="Loading applications…" />
       ) : rows.length === 0 ? (
-        <PageState kind="empty" title="No applications to review" description="Submitted applications will appear here." />
+        <PageState
+          kind="empty"
+          title="No applications to review"
+          description="Submitted applications will appear here."
+        />
       ) : (
         <ul className="workflow-records">
           {rows.map((row) => (
@@ -131,10 +179,17 @@ export default function Reviews({ client }: { client: SupabaseClient }) {
                     },
                     registrationEvidence: {
                       ...evidence,
-                      method: "manual_register",
+                      method:
+                        getProfession(selected.profile.profession ?? "")
+                          ?.route === "professional_body"
+                          ? "professional_body_register"
+                          : "manual_register",
                       matched: registered,
                       reference: registration,
                       registrationNumber: selected.profile.registrationNumber,
+                      expiresAt: expiresAt
+                        ? new Date(expiresAt).toISOString()
+                        : null,
                     },
                     applicantFeedback: feedback,
                   };
@@ -217,6 +272,18 @@ export default function Reviews({ client }: { client: SupabaseClient }) {
                 />
               </label>
               <label>
+                Credential expiry (if stated by the authority)
+                <input
+                  type="datetime-local"
+                  value={expiresAt}
+                  onChange={(event) => setExpiresAt(event.target.value)}
+                />
+              </label>
+              <p>
+                The approved profession policy sets the next review deadline. An
+                unknown expiry does not remove that deadline.
+              </p>
+              <label>
                 Applicant-visible feedback
                 <textarea
                   required={decision !== "approved"}
@@ -234,6 +301,13 @@ export default function Reviews({ client }: { client: SupabaseClient }) {
             <summary>Review history ({reviews.length})</summary>
             <pre>{JSON.stringify(reviews, null, 2)}</pre>
           </details>
+          {selected.practitioner_id && (
+            <ProfileAccessReview
+              key={selected.practitioner_id}
+              client={client}
+              practitionerId={selected.practitioner_id}
+            />
+          )}
         </section>
       )}
     </WorkflowShell>

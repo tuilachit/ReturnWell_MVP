@@ -74,31 +74,44 @@ test("leaving an unsaved referral requires a keyboard-operable confirmation", as
     page.getByRole("heading", { name: "Referrals", exact: true }),
   ).toBeVisible();
 });
-test("mobile navigation hands keyboard focus to the discard dialog", async ({ page }) => {
-  await page.setViewportSize({width:375,height:900});
+test("mobile navigation hands keyboard focus to the discard dialog", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 375, height: 900 });
   await page.goto("/");
-  await page.getByRole("button",{name:"Preview empty workspace"}).click();
-  await page.getByRole("button",{name:"New referral",exact:true}).click();
+  await page.getByRole("button", { name: "Preview empty workspace" }).click();
+  await page.getByRole("button", { name: "New referral", exact: true }).click();
   await page.getByPlaceholder("e.g. Practice record ID").fill("MOBILE-DIRTY");
-  await page.getByRole("button",{name:"Open navigation"}).click();
-  await page.getByRole("navigation",{name:"Main navigation"}).getByRole("button",{name:/^Referrals/}).click();
-  const dialog=page.getByRole("dialog",{name:"Leave this draft?"});
+  await page.getByRole("button", { name: "Open navigation" }).click();
+  await page
+    .getByRole("navigation", { name: "Main navigation" })
+    .getByRole("button", { name: /^Referrals/ })
+    .click();
+  const dialog = page.getByRole("dialog", { name: "Leave this draft?" });
   await expect(dialog).toBeVisible();
-  await dialog.getByRole("button",{name:"Keep editing"}).focus();
+  await dialog.getByRole("button", { name: "Keep editing" }).focus();
   await page.keyboard.press("Tab");
-  await expect(dialog.getByRole("button",{name:"Discard unsaved changes"})).toBeFocused();
+  await expect(
+    dialog.getByRole("button", { name: "Discard unsaved changes" }),
+  ).toBeFocused();
 });
-test("oversized referral input can be corrected without entering uncertain submission", async ({page}) => {
+test("oversized referral input can be corrected without entering uncertain submission", async ({
+  page,
+}) => {
   await page.goto("/");
-  await page.getByRole("button",{name:"Preview empty workspace"}).click();
-  await page.getByRole("button",{name:"New referral",exact:true}).click();
+  await page.getByRole("button", { name: "Preview empty workspace" }).click();
+  await page.getByRole("button", { name: "New referral", exact: true }).click();
   await page.getByPlaceholder("e.g. Practice record ID").fill("X".repeat(121));
   await page.getByPlaceholder("e.g. 2000").fill("2000");
-  await page.getByPlaceholder("Describe the need, goals and relevant context…").fill("Fictional context");
-  await page.getByRole("button",{name:"Find practitioners"}).click();
+  await page
+    .getByPlaceholder("Describe the need, goals and relevant context…")
+    .fill("Fictional context");
+  await page.getByRole("button", { name: "Find practitioners" }).click();
   await expect(page.getByRole("alert")).toContainText("patientReference");
   await page.getByPlaceholder("e.g. Practice record ID").fill("CORRECTED");
-  await page.getByRole("button",{name:"Find practitioners"}).click();
+  await page.getByRole("button", { name: "Find practitioners" }).click();
   await expect(page.getByRole("alert")).toHaveCount(0);
-  await expect(page.getByRole("button",{name:"Check and retry"})).toHaveCount(0);
+  await expect(
+    page.getByRole("button", { name: "Check and retry" }),
+  ).toHaveCount(0);
 });

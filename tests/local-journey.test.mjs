@@ -41,6 +41,8 @@ test(
     (${local.uuidSql(operator.userId)},${local.uuidSql(org)},'Fictional Operator','Fictional Journey Practice',${local.uuidSql(operator.userId)}),
     (${local.uuidSql(operator.userId)},null,'Fictional Operator','ReturnWell Test Administration',${local.uuidSql(operator.userId)});`);
 
+    // Explicitly fictional policy, confined to this disposable stack.
+    local.sql(`update private.profession_policies set enabled=true,review_interval_days=7,identifier_pattern='^[A-Z0-9-]{3,80}$',approved_by='${operator.userId}',approved_at=now(),evidence_reference='Fictional local test policy' where profession_id='physiotherapist'`);
     const doctorEmail = `doctor-${suffix}@example.test`;
     const existingDoctor = await local.verifiedFixtureUser(doctorEmail);
     const doctorInvitation = ok(

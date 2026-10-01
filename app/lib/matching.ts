@@ -1,4 +1,5 @@
 import type { AppointmentFormat, Practitioner, Profession } from "../types";
+import { isEligibleForNewReferral } from "./credentials.ts";
 
 export type MatchNeeds = {
   profession: Profession;
@@ -14,7 +15,9 @@ export type MatchedPractitioner = {
 
 const includesIgnoreCase = (values: string[], wanted: string) => {
   const normalized = wanted.trim().toLocaleLowerCase("en-AU");
-  return values.some((value) => value.trim().toLocaleLowerCase("en-AU") === normalized);
+  return values.some(
+    (value) => value.trim().toLocaleLowerCase("en-AU") === normalized,
+  );
 };
 
 export function matchPractitioners(
@@ -26,17 +29,19 @@ export function matchPractitioners(
   return practitioners
     .filter((practitioner) => {
       if (
-        practitioner.lifecycleStatus !== "active"
-        || practitioner.ahpraVerificationStatus !== "verified"
-        || practitioner.providerConfirmationStatus !== "confirmed"
-        || !practitioner.acceptingNewReferrals
-        || practitioner.profession !== needs.profession
-      ) return false;
+        !isEligibleForNewReferral(practitioner, needs.profession) ||
+        practitioner.profession !== needs.profession
+      )
+        return false;
 
-      if (needs.appointmentFormat === "telehealth" && !practitioner.telehealth) return false;
-      if (needs.appointmentFormat === "in_person" && !practitioner.location) return false;
-      if (!includesIgnoreCase(practitioner.funding, needs.fundingPath)) return false;
-      if (language && !includesIgnoreCase(practitioner.languages, language)) return false;
+      if (needs.appointmentFormat === "telehealth" && !practitioner.telehealth)
+        return false;
+      if (needs.appointmentFormat === "in_person" && !practitioner.location)
+        return false;
+      if (!includesIgnoreCase(practitioner.funding, needs.fundingPath))
+        return false;
+      if (language && !includesIgnoreCase(practitioner.languages, language))
+        return false;
       return true;
     })
     .map((practitioner) => {
@@ -45,18 +50,29 @@ export function matchPractitioners(
         "Provider details confirmed",
         "Accepting new referrals",
       ];
-      if (needs.appointmentFormat === "telehealth") reasons.push("Offers telehealth");
+      if (needs.appointmentFormat === "telehealth")
+        reasons.push("Offers telehealth");
       reasons.push(`Supports ${needs.fundingPath}`);
       if (language) reasons.push(`Speaks ${language}`);
       if (practitioner.distanceKm !== null) {
-        reasons.push(`${practitioner.distanceKm.toFixed(1)} km from the patient postcode`);
+        reasons.push(
+          `${practitioner.distanceKm.toFixed(1)} km from the patient postcode`,
+        );
       }
       return { practitioner, reasons };
     })
     .sort((left, right) => {
-      const leftDistance = left.practitioner.distanceKm ?? Number.POSITIVE_INFINITY;
-      const rightDistance = right.practitioner.distanceKm ?? Number.POSITIVE_INFINITY;
-      return leftDistance - rightDistance
-        || left.practitioner.displayName.localeCompare(right.practitioner.displayName, "en-AU");
+      const leftDistance =
+        left.practitioner.distanceKm ?? Number.POSITIVE_INFINITY;
+      const rightDistance =
+        right.practitioner.distanceKm ?? Number.POSITIVE_INFINITY;
+      return (
+        leftDistance - rightDistance ||
+        left.practitioner.displayName.localeCompare(
+          right.practitioner.displayName,
+          "en-AU",
+        ) ||
+        left.practitioner.id.localeCompare(right.practitioner.id)
+      );
     });
 }
