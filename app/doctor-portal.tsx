@@ -42,6 +42,7 @@ import { usePractitionerSearch } from "./lib/use-practitioner-search";
 import DirectoryPages from "./components/directory-pages";
 import LocationControls from "./components/location-controls";
 import { usePostcodeLocalities } from "./lib/use-postcode-localities";
+import { needsGeographyRefresh } from "./lib/workflow-error";
 import ReferralActions from "./referral-actions";
 import HandoverPanel from "./handover-panel";
 import InviteReferralPanel from "./invite-referral-panel";
@@ -155,6 +156,7 @@ export default function DoctorPortal({
   const pendingSubmission = useRef<{
     id: string;
     input: ReferralInput;
+    draftSnapshot: DraftInput;
     organisationId: string;
     userId: string;
     draftVersion: number;
@@ -614,6 +616,7 @@ export default function DoctorPortal({
         const submission = pendingSubmission.current ?? {
           id: draft?.id ?? crypto.randomUUID(),
           input: { ...input },
+          draftSnapshot: { ...draftInput(), requiredServiceIds: [...requiredServiceIds] },
           organisationId: workspace.organisationId,
           userId,
           draftVersion: draft?.version ?? -1,
@@ -628,28 +631,12 @@ export default function DoctorPortal({
         ) {
           throw new ReferralSubmissionError("unconfirmed");
         }
-        const workingCopy: DraftInput = {
-          patientReference: submission.input.patientReference,
-          patientPostcode: submission.input.patientPostcode,
-          profession: submission.input.profession,
-          clinicalSummary: submission.input.clinicalSummary,
-          fundingPath: submission.input.fundingPath,
-          appointmentFormat: submission.input.appointmentFormat,
-          languageOrAccess: "",
-          preferredLanguage:
-            submission.input.preferredLanguage ??
-            submission.input.languageOrAccess,
-          accessNotes: submission.input.accessNotes ?? "",
-          requiredServiceIds: submission.input.requiredServiceIds ?? [],
-          patientAgeGroupId: submission.input.patientAgeGroupId ?? "",
-          selectedPractitionerId: submission.input.selectedPractitionerId,
-        };
         const savedDraft = await saveReferralDraft(client, {
           id: submission.id,
           organisationId: workspace.organisationId,
           expectedVersion: submission.draftVersion,
           requestId: submission.saveRequestId,
-          input: workingCopy,
+          input: submission.draftSnapshot,
         });
         setDraft(savedDraft);
         const result = await finalizeReferralDraft(client, {
@@ -1543,7 +1530,18 @@ export default function DoctorPortal({
                           {remoteMatches.error}{" "}
                           <button
                             className="button secondary"
-                            onClick={() => setRefresh((value) => value + 1)}
+                            onClick={() => {
+                              if (needsGeographyRefresh(remoteMatches.errorCode)) {
+                                location.retry();
+                                setLocalityId("");
+                                setRadius("");
+                                setMatchCursor(null);
+                                setMatchGroup(null);
+                                setSelectedPractitionerId(null);
+                                setConsentConfirmed(false);
+                              }
+                              setRefresh((value) => value + 1);
+                            }}
                           >
                             Try again
                           </button>
@@ -1565,9 +1563,8 @@ export default function DoctorPortal({
                           <p>
                             Matches your funding, format, language and selected
                             capability requirements. Confirm fees and rebate
-                            eligibility directly. Distance ranking is not
-                            available yet. Check the practice location before
-                            choosing.
+                            eligibility directly. Check the practice location before
+                            choosing; any displayed distance is approximate.
                           </p>
                         </div>
                       </div>

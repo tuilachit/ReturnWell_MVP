@@ -5,6 +5,14 @@ const recovery = await import("../app/lib/account-recovery.ts").catch(
   () => ({}),
 );
 const errors = await import("../app/lib/workflow-error.ts").catch(() => ({}));
+test("geography rejections retain safe actionable codes, not a connection error", async () => {
+  for (const code of ["invalid_location", "invalid_radius", "location_required"]) {
+    const error = await errors.parseWorkflowFailure(new Response(JSON.stringify({ code, error: "SECRET" }), { status: 400 }));
+    assert.equal(error.code, code);
+    assert.equal(errors.isDefinitiveWorkflowFailure(error), true);
+    assert.doesNotMatch(error.message, /SECRET|connection/);
+  }
+});
 test("only known server rejections may discard a first-attempt command", () => {
   assert.equal(typeof errors.isDefinitiveWorkflowFailure, "function");
   for (const status of [null, 400, 408, 500, 503]) {

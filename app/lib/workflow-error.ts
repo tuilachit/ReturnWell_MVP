@@ -29,6 +29,12 @@ const messages: Record<string, string> = {
     "This page no longer matches your filters. Return to the first page.",
   geography_unavailable:
     "Distance filtering is not configured. Browse by suburb or appointment format.",
+  invalid_location:
+    "This suburb no longer matches the postcode reference. Refresh the location options and choose again.",
+  invalid_radius:
+    "Choose a valid radius between 0 and 500 km, excluding zero.",
+  location_required:
+    "This suburb has no usable reference coordinates. Refresh the location options or browse without distance.",
   credential_policy_required:
     "This profession needs an approved verification and review policy before activation.",
   evidence_required:
@@ -77,6 +83,9 @@ const definitiveCodes = new Set([
   "last_owner",
   "invalid_cursor",
   "geography_unavailable",
+  "invalid_location",
+  "invalid_radius",
+  "location_required",
   "credential_policy_required",
   "evidence_required",
   "invalid_profile",
@@ -87,6 +96,10 @@ const definitiveCodes = new Set([
   "invalid_request",
   "origin_denied",
 ]);
+// A stale cursor can also be caused by a newly activated reference edition.
+export function needsGeographyRefresh(code: string): boolean {
+  return ["invalid_location", "invalid_radius", "location_required", "geography_unavailable", "invalid_cursor"].includes(code);
+}
 // An unfamiliar 4xx can be an intermediary/older server's ambiguous failure.
 // Only explicit known pre-commit rejections may release a first-attempt ID.
 export function isDefinitiveWorkflowFailure(

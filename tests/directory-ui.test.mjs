@@ -21,6 +21,23 @@ after(async () => {
   await rm(cacheDir, { recursive: true, force: true });
 });
 const { default: Directory } = await server.ssrLoadModule("/app/practitioner-directory.tsx");
+const { default: DirectoryPages } = await server.ssrLoadModule("/app/components/directory-pages.tsx");
+test("radius claims apply only to the nearby group, never unknown or telehealth", () => {
+  const page = {
+    items: [], totalEligible: 0, nextCursor: null,
+    groupCounts: { local: 0, unknown: 0, remote: 0 },
+    geography: { origin: { suburb: "Fictional Origin", postcode: "2000", hasCoordinates: true }, radiusKm: 10 },
+  };
+  const renderGroup = (group) => renderToStaticMarkup(createElement(DirectoryPages, {
+    page, group, busy: false, hasCursor: false, onGroup() {}, onNext() {}, onFirst() {},
+  }));
+  assert.match(renderGroup("local"), /within 10 km/);
+  for (const group of ["unknown", "remote"]) {
+    const html = renderGroup(group);
+    assert.doesNotMatch(html, /within 10 km/);
+    assert.match(html, /not limited by the selected radius/);
+  }
+});
 const render = (error = "") => renderToStaticMarkup(createElement(Directory, {
   practitioners: [], loading: false, preview: false, demo: false, error,
   onDemo() {}, onRefer() {}, onRetry() {},

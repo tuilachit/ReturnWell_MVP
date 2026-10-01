@@ -56,7 +56,9 @@ export default function DirectoryPages({
         {busy
           ? "Loading this page…"
           : `${page.items.length} shown · ${page.totalEligible} eligible in this group`}
-        . {telehealthOnly ? "Distance does not affect telehealth ordering." : page.geography?.origin?.hasCoordinates
+        . {telehealthOnly || group === "remote" ? "Telehealth options are not limited by the selected radius. Distance does not affect telehealth ordering." : group === "unknown"
+          ? "These options have no usable distance and are not limited by the selected radius. Confirm the practice location directly."
+          : page.geography?.origin?.hasCoordinates
           ? `Approximate straight-line distance from ${page.geography.origin.suburb} ${page.geography.origin.postcode}${page.geography.radiusKm ? `, within ${page.geography.radiusKm} km` : ""}. Not driving distance.`
           : "Choose a supported patient suburb to sort by distance; otherwise browse by suburb/postcode."}
       </p>

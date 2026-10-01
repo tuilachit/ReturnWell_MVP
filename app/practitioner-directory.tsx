@@ -7,6 +7,7 @@ import type { DistanceGroup } from "./lib/directory";
 import DirectoryPages from "./components/directory-pages";
 import LocationControls from "./components/location-controls";
 import { usePostcodeLocalities } from "./lib/use-postcode-localities";
+import { needsGeographyRefresh } from "./lib/workflow-error";
 import {
   ArrowRight,
   Check,
@@ -161,6 +162,13 @@ export default function PractitionerDirectory({
             <button
               className="button secondary"
               onClick={() => {
+                if (needsGeographyRefresh(remote.errorCode)) {
+                  location.retry();
+                  setLocalityId("");
+                  setRadius("");
+                  setCursor(null);
+                  setGroup(null);
+                }
                 setRefresh((value) => value + 1);
                 onRetry();
               }}

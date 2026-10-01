@@ -7,6 +7,7 @@ import {
   type DistanceGroup,
 } from "./directory";
 import type { MatchNeeds } from "./matching";
+import { WorkflowError } from "./workflow-error";
 const empty: DirectoryPage = {
   items: [],
   nextCursor: null,
@@ -33,8 +34,9 @@ export function usePractitionerSearch(
     page: DirectoryPage;
     group: DistanceGroup;
     error: string;
+    errorCode: string;
     loading: boolean;
-  }>({ key: "", page: empty, group: "unknown", error: "", loading: false });
+  }>({ key: "", page: empty, group: "unknown", error: "", errorCode: "", loading: false });
   useEffect(() => {
     if (!client) return;
     let active = true;
@@ -45,6 +47,7 @@ export function usePractitionerSearch(
         page: empty,
         group: request.distanceGroup ?? "unknown",
         error: "",
+        errorCode: "",
         loading: true,
       });
       void (async () => {
@@ -69,7 +72,7 @@ export function usePractitionerSearch(
             distanceGroup: group,
           });
         }
-        if (active) setState({ key, page, group, error: "", loading: false });
+        if (active) setState({ key, page, group, error: "", errorCode: "", loading: false });
       })().catch((error: unknown) => {
         if (active)
           setState({
@@ -77,6 +80,7 @@ export function usePractitionerSearch(
             page: empty,
             group: request.distanceGroup ?? "unknown",
             error: error instanceof Error ? error.message : "Could not load this directory page. Try again.",
+            errorCode: error instanceof WorkflowError ? error.code : "request_failed",
             loading: false,
           });
       });
@@ -93,6 +97,7 @@ export function usePractitionerSearch(
         page: empty,
         group: "unknown" as DistanceGroup,
         error: "",
+        errorCode: "",
         loading: Boolean(client),
       };
 }
