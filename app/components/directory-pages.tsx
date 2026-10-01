@@ -25,6 +25,11 @@ export default function DirectoryPages({
         role="group"
         aria-label="Appointment options"
       >
+        {!telehealthOnly && page.geography?.origin?.hasCoordinates && (
+          <button type="button" className="button secondary" aria-pressed={group === "local"} disabled={busy} onClick={() => onGroup("local")}>
+            Nearby options ({page.groupCounts.local})
+          </button>
+        )}
         {!telehealthOnly && (
           <button
             type="button"
@@ -33,7 +38,7 @@ export default function DirectoryPages({
             disabled={busy}
             onClick={() => onGroup("unknown")}
           >
-            In-person options ({page.groupCounts.unknown})
+            {page.geography?.origin?.hasCoordinates ? "Distance unavailable" : "In-person options"} ({page.groupCounts.unknown})
           </button>
         )}
         <button
@@ -51,9 +56,14 @@ export default function DirectoryPages({
         {busy
           ? "Loading this page…"
           : `${page.items.length} shown · ${page.totalEligible} eligible in this group`}
-        . Distance and radius filtering are unavailable until approved reference
-        data is configured.
+        . {telehealthOnly ? "Distance does not affect telehealth ordering." : page.geography?.origin?.hasCoordinates
+          ? `Approximate straight-line distance from ${page.geography.origin.suburb} ${page.geography.origin.postcode}${page.geography.radiusKm ? `, within ${page.geography.radiusKm} km` : ""}. Not driving distance.`
+          : "Choose a supported patient suburb to sort by distance; otherwise browse by suburb/postcode."}
       </p>
+      {page.geography?.origin?.hasCoordinates && page.geography.source && !telehealthOnly && (
+        <p className="location-note">Reference: <a href={page.geography.source.url} target="_blank" rel="noreferrer">{page.geography.source.attribution}</a> · {page.geography.source.version} · {page.geography.source.license}</p>
+      )}
+      {!busy && group === "local" && page.totalEligible === 0 && <p>No eligible practices within this search. Widen the radius, or check distance-unavailable and telehealth options. The radius has not been widened automatically.</p>}
       <div className="form-actions">
         <button
           type="button"

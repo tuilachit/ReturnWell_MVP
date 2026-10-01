@@ -129,7 +129,7 @@ test("claim recovery takes actor from verified session and accepts no recipient 
   assert.deepEqual(calls, [["trusted-user", "invitation.recovery", {}]]);
 });
 test("directory failures expose safe actionable codes, never SQL details", async () => {
-  for (const code of ["invalid_cursor", "geography_unavailable"]) {
+  for (const code of ["invalid_cursor", "geography_unavailable", "invalid_location", "invalid_radius", "location_required"]) {
     const handle = api.workflowHandler("search-practitioners", {
       ...base,
       getUser: async () => ({ id: "trusted-user" }),

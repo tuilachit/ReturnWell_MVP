@@ -40,6 +40,8 @@ import { matchPractitioners, normaliseMatchNeeds } from "./lib/matching";
 import { listReferralPage, type DistanceGroup } from "./lib/directory";
 import { usePractitionerSearch } from "./lib/use-practitioner-search";
 import DirectoryPages from "./components/directory-pages";
+import LocationControls from "./components/location-controls";
+import { usePostcodeLocalities } from "./lib/use-postcode-localities";
 import ReferralActions from "./referral-actions";
 import HandoverPanel from "./handover-panel";
 import InviteReferralPanel from "./invite-referral-panel";
@@ -123,6 +125,9 @@ export default function DoctorPortal({
   const [matchGroup, setMatchGroup] = useState<DistanceGroup | null>(null);
   const [patientReference, setPatientReference] = useState("");
   const [postcode, setPostcode] = useState("");
+  const [localityId, setLocalityId] = useState("");
+  const [radius, setRadius] = useState("");
+  const location = usePostcodeLocalities(mode === "authenticated" && view === "new" ? client ?? null : null, postcode, localityId);
   const [profession, setProfession] = useState<Profession>("physiotherapist");
   const [clinicalSummary, setClinicalSummary] = useState("");
   const [fundingPath, setFundingPath] = useState("Medicare");
@@ -174,6 +179,8 @@ export default function DoctorPortal({
     (patientReference !== (draft?.input.patientReference ?? "") ||
       clinicalSummary !== (draft?.input.clinicalSummary ?? "") ||
       postcode !== (draft?.input.patientPostcode ?? "") ||
+      localityId !== (draft?.input.patientLocalityId ?? "") ||
+      radius !== String(draft?.input.searchRadiusKm ?? "") ||
       profession !== (draft?.input.profession ?? "physiotherapist") ||
       (normalizeTerm("funding", fundingPath)?.id ?? fundingPath) !==
         (normalizeTerm("funding", draft?.input.fundingPath ?? "Medicare")?.id ??
@@ -357,6 +364,10 @@ export default function DoctorPortal({
     setStep(1);
     setPatientReference("");
     setPostcode("");
+    setLocalityId("");
+    setRadius("");
+    setMatchCursor(null);
+    setMatchGroup(null);
     setProfession("physiotherapist");
     setClinicalSummary("");
     setFundingPath("Medicare");
@@ -430,7 +441,7 @@ export default function DoctorPortal({
 
   const localMatches = useMemo(
     () =>
-      matchPractitioners(practitioners, {
+      matchPractitioners(practitioners.map(p => ({ ...p, distanceKm: null, locationPrecision: null })), {
         profession,
         appointmentFormat,
         fundingPath,
@@ -457,11 +468,14 @@ export default function DoctorPortal({
     patientAgeGroupId,
   });
   const remoteMatches = usePractitionerSearch(
-    mode === "authenticated" && view === "new" && step >= 2 && matchNeeds
+    mode === "authenticated" && view === "new" && step >= 2 && matchNeeds && !location.loading
       ? (client ?? null)
       : null,
     {
       needs: matchNeeds ?? undefined,
+      postcode: postcode || undefined,
+      localityId: appointmentFormat !== "telehealth" && location.selected?.hasCoordinates ? location.selected.id : undefined,
+      radiusKm: appointmentFormat !== "telehealth" && location.selected?.hasCoordinates && radius ? Number(radius) : undefined,
       cursor: matchCursor,
       distanceGroup: matchGroup,
       refresh,
@@ -510,6 +524,7 @@ export default function DoctorPortal({
   const draftInput = (): DraftInput => ({
     patientReference,
     patientPostcode: postcode,
+    ...(appointmentFormat !== "telehealth" && localityId ? { patientLocalityId: localityId, ...(radius ? { searchRadiusKm: Number(radius) } : {}) } : {}),
     profession,
     clinicalSummary,
     fundingPath,
@@ -525,6 +540,10 @@ export default function DoctorPortal({
     setDraft(saved);
     setPatientReference(saved.input.patientReference ?? "");
     setPostcode(saved.input.patientPostcode ?? "");
+    setLocalityId(saved.input.patientLocalityId ?? "");
+    setRadius(String(saved.input.searchRadiusKm ?? ""));
+    setMatchCursor(null);
+    setMatchGroup(null);
     setProfession(saved.input.profession ?? "physiotherapist");
     setClinicalSummary(saved.input.clinicalSummary ?? "");
     setFundingPath(
@@ -1191,13 +1210,18 @@ export default function DoctorPortal({
                             pattern="[0-9]{4}"
                             maxLength={4}
                             value={postcode}
-                            onChange={(event) =>
-                              setPostcode(event.target.value.replace(/\D/g, ""))
-                            }
+                            onChange={(event) => {
+                              setPostcode(event.target.value.replace(/\D/g, ""));
+                              setLocalityId(""); setRadius(""); setMatchCursor(null); setMatchGroup(null);
+                              setSelectedPractitionerId(null); setConsentConfirmed(false);
+                            }}
                             placeholder="e.g. 2000"
                           />
                         </label>
                       </div>
+                      {mode === "authenticated" && <LocationControls postcode={postcode} localityId={localityId} radius={radius} location={location} telehealth={appointmentFormat === "telehealth"}
+                        onLocality={value => { setLocalityId(value); setRadius(""); setMatchCursor(null); setMatchGroup(null); setSelectedPractitionerId(null); setConsentConfirmed(false); }}
+                        onRadius={value => { setRadius(value); setMatchCursor(null); setMatchGroup(null); setSelectedPractitionerId(null); setConsentConfirmed(false); }} />}
                     </fieldset>
                     <fieldset>
                       <legend>Clinical need</legend>
@@ -1230,6 +1254,12 @@ export default function DoctorPortal({
                               setAppointmentFormat(
                                 event.target.value as AppointmentFormat,
                               );
+                              if (event.target.value === "telehealth") {
+                                setLocalityId("");
+                                setRadius("");
+                              }
+                              setMatchCursor(null);
+                              setMatchGroup(null);
                               setSelectedPractitionerId(null);
                             }}
                           >
@@ -1482,11 +1512,14 @@ export default function DoctorPortal({
                       <legend className="sr-only">
                         Choose an existing practitioner
                       </legend>
+                      {mode === "authenticated" && <LocationControls postcode={postcode} localityId={localityId} radius={radius} location={location} telehealth={appointmentFormat === "telehealth"}
+                        onLocality={value => { setLocalityId(value); setRadius(""); setMatchCursor(null); setMatchGroup(null); setSelectedPractitionerId(null); setConsentConfirmed(false); }}
+                        onRadius={value => { setRadius(value); setMatchCursor(null); setMatchGroup(null); setSelectedPractitionerId(null); setConsentConfirmed(false); }} />}
                       {mode === "authenticated" && (
                         <DirectoryPages
                           page={remoteMatches.page}
                           group={remoteMatches.group}
-                          busy={remoteMatches.loading}
+                          busy={remoteMatches.loading || location.loading}
                           hasCursor={Boolean(matchCursor)}
                           telehealthOnly={appointmentFormat === "telehealth"}
                           onGroup={(value) => {

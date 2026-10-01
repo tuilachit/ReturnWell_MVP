@@ -5,7 +5,7 @@ import { isSupportedProfession } from "./professions.ts";
 import { normalizeTerm } from "./terminology.ts";
 export type DraftInput = Partial<
   Omit<ReferralInput, "selectionMode" | "consentConfirmed">
-> & { preferredLanguage?: string; accessNotes?: string };
+> & { preferredLanguage?: string; accessNotes?: string; patientLocalityId?: string; searchRadiusKm?: number };
 export type ReferralDraft = {
   id: string;
   organisationId: string;
@@ -35,9 +35,15 @@ export function validateDraft(input: DraftInput): string[] {
     accessNotes: 500,
     selectedPractitionerId: 36,
     patientAgeGroupId: 120,
+    patientLocalityId: 200,
   };
   const errors: string[] = [];
   for (const [key, value] of Object.entries(input)) {
+    if (key === "searchRadiusKm") {
+      if (typeof value !== "number" || !Number.isFinite(value) || value <= 0 || value > 500 || !input.patientLocalityId)
+        errors.push("Choose a suburb before a radius between 1 and 500 km.");
+      continue;
+    }
     if (key === "requiredServiceIds") {
       if (
         !Array.isArray(value) ||
@@ -62,6 +68,8 @@ export function validateDraft(input: DraftInput): string[] {
     !/^[0-9]{4}$/.test(String(input.patientPostcode))
   )
     errors.push("Enter a four-digit postcode or leave it blank.");
+  if (input.patientLocalityId && (!input.patientPostcode || !input.patientLocalityId.startsWith(`NSW:${input.patientPostcode}:`) || !input.patientLocalityId.split(":")[2]))
+    errors.push("Choose a suburb within the patient postcode.");
   if (input.profession && !isSupportedProfession(input.profession))
     errors.push("Choose a supported profession.");
   if (

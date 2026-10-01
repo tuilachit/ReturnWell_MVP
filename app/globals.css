@@ -2831,6 +2831,12 @@ dd small {
   }
 }
 .profile-summary { display: grid; gap: 0.75rem; }
+.directory-location { padding: 1rem 1.25rem; border-bottom: 1px solid var(--border); display: grid; grid-template-columns: minmax(8rem, 12rem) minmax(0, 1fr); gap: 1rem; }
+.directory-location > label { display: grid; align-content: start; gap: .5rem; }
+.directory-location input, .location-controls select { width: 100%; min-width: 0; }
+.location-controls { min-width: 0; }
+.location-note { color: var(--muted); font-size: .8125rem; line-height: 1.6; margin: .75rem 0; }
+@media (max-width: 640px) { .directory-location { grid-template-columns: 1fr; padding: 1rem; } }
 .profile-summary > div { display: grid; grid-template-columns: minmax(8rem, 1fr) minmax(0, 2fr); gap: 1rem; }
 .profile-summary dt { color: var(--muted); }
 .profile-summary dd { margin: 0; overflow-wrap: anywhere; }

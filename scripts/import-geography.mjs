@@ -14,7 +14,7 @@ export function geographyImportSql(document) {
   if (!Array.isArray(localities) || localities.length === 0 || localities.length > 50000) throw new Error('Expected 1–50000 localities');
   const keys = new Set();
   const rows = localities.map(row => {
-    if (typeof row.suburb !== 'string' || !row.suburb.trim() || row.suburb.length > 160 || /[\x00-\x1f]/.test(row.suburb)
+    if (typeof row.suburb !== 'string' || !row.suburb.trim() || row.suburb.length > 160 || [...row.suburb].some(char => char.charCodeAt(0) < 32)
       || !/^\d{4}$/.test(row.postcode) || row.state !== 'NSW') throw new Error('Invalid NSW locality');
     const suburb = row.suburb.trim().replace(/\s+/g, ' ');
     const id = `NSW:${row.postcode}:${suburb.toLowerCase()}`;

@@ -22,6 +22,9 @@ export function usePractitionerSearch(
     distanceGroup: DistanceGroup | null;
     cursor: string | null;
     refresh?: number;
+    postcode?: string;
+    localityId?: string;
+    radiusKm?: number;
   },
 ) {
   const key = JSON.stringify(filters);
@@ -48,7 +51,7 @@ export function usePractitionerSearch(
         let group: DistanceGroup =
           request.needs?.appointmentFormat === "telehealth"
             ? "remote"
-            : (request.distanceGroup ?? "unknown");
+            : (request.distanceGroup ?? (request.localityId ? "local" : "unknown"));
         let page = await searchPractitioners(client, {
           ...request,
           distanceGroup: group,
@@ -67,13 +70,13 @@ export function usePractitionerSearch(
           });
         }
         if (active) setState({ key, page, group, error: "", loading: false });
-      })().catch(() => {
+      })().catch((error: unknown) => {
         if (active)
           setState({
             key,
             page: empty,
             group: request.distanceGroup ?? "unknown",
-            error: "Could not load this directory page. Try again.",
+            error: error instanceof Error ? error.message : "Could not load this directory page. Try again.",
             loading: false,
           });
       });

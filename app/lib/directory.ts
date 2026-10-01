@@ -2,7 +2,9 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { MatchNeeds, MatchResult } from "./matching.ts";
 import { invoke } from "./workflow.ts";
 import { rowToReferral, type ReferralRow } from "./referrals.ts";
+import type { GeographySource, Locality, LocalityLookup } from "./geography.ts";
 export type DirectoryPage = {
+  geography?: { source: GeographySource | null; origin: Locality | null; radiusKm: number | null };
   items: MatchResult[];
   nextCursor: string | null;
   totalEligible: number;
@@ -16,6 +18,7 @@ export function searchPractitioners(
   {
     needs,
     postcode,
+    localityId,
     radiusKm,
     distanceGroup,
     cursor,
@@ -25,6 +28,7 @@ export function searchPractitioners(
   }: {
     needs?: MatchNeeds;
     postcode?: string;
+    localityId?: string;
     radiusKm?: number;
     distanceGroup: DistanceGroup;
     cursor?: string | null;
@@ -36,6 +40,7 @@ export function searchPractitioners(
   return invoke(client, "search-practitioners", {
     needs,
     postcode,
+    localityId,
     radiusKm,
     distanceGroup,
     cursor: cursor ?? null,
@@ -43,6 +48,9 @@ export function searchPractitioners(
     query,
     professionId,
   });
+}
+export function lookupLocalities(client: SupabaseClient, postcode: string): Promise<LocalityLookup> {
+  return invoke(client, "search-practitioners", { lookup: true, postcode });
 }
 export async function listReferralPage(
   client: SupabaseClient,

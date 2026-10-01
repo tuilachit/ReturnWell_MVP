@@ -5,6 +5,15 @@ import {
   saveReferralDraft,
   finalizeReferralDraft,
 } from "../app/lib/referral-drafts.ts";
+test('draft search preferences persist locality but reject radius without locality and malformed values', () => {
+  assert.deepEqual(validateDraft({ patientPostcode: '2000', patientLocalityId: 'NSW:2000:test', searchRadiusKm: 10 }), []);
+  for (const input of [
+    { patientPostcode: '2001', patientLocalityId: 'NSW:2000:test' },
+    { searchRadiusKm: 10 },
+    { patientPostcode: '2000', patientLocalityId: 'NSW:2000:test', searchRadiusKm: -1 },
+    { patientPostcode: '2000', patientLocalityId: 'NSW:2000:test', searchRadiusKm: '10' },
+  ]) assert.ok(validateDraft(input).length);
+});
 test("partial drafts are valid but unknown clinical identity fields are rejected", () => {
   assert.deepEqual(
     validateDraft({ clinicalSummary: "Unsent fictional notes" }),

@@ -5,6 +5,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { usePractitionerSearch } from "./lib/use-practitioner-search";
 import type { DistanceGroup } from "./lib/directory";
 import DirectoryPages from "./components/directory-pages";
+import LocationControls from "./components/location-controls";
+import { usePostcodeLocalities } from "./lib/use-postcode-localities";
 import {
   ArrowRight,
   Check,
@@ -45,14 +47,21 @@ export default function PractitionerDirectory({
   const [cursor, setCursor] = useState<string | null>(null);
   const [group, setGroup] = useState<DistanceGroup | null>(null);
   const [refresh, setRefresh] = useState(0);
-  const remote = usePractitionerSearch(client, {
+  const [postcode, setPostcode] = useState("");
+  const [localityId, setLocalityId] = useState("");
+  const [radius, setRadius] = useState("");
+  const location = usePostcodeLocalities(client, postcode, localityId);
+  const remote = usePractitionerSearch(location.loading ? null : client, {
     query,
     professionId: profession === "all" ? undefined : profession,
     cursor,
     distanceGroup: group,
     refresh,
+    postcode: /^[0-9]{4}$/.test(postcode) ? postcode : undefined,
+    localityId: location.selected?.hasCoordinates ? localityId : undefined,
+    radiusKm: location.selected?.hasCoordinates && radius ? Number(radius) : undefined,
   });
-  const shownLoading = client ? remote.loading : loading;
+  const shownLoading = client ? remote.loading || location.loading : loading;
   const shownError = client ? remote.error : error;
   const directory = useMemo(
     () =>
@@ -117,11 +126,17 @@ export default function PractitionerDirectory({
             ))}
           </select>
         </div>
+        {client && <div className="directory-location">
+          <label><span>Near postcode (optional)</span><input aria-label="Near postcode" inputMode="numeric" maxLength={4} value={postcode} placeholder="e.g. 2000" onChange={e => { setPostcode(e.target.value.replace(/\D/g, "")); setLocalityId(""); setRadius(""); setCursor(null); setGroup(null); }} /></label>
+          <LocationControls postcode={postcode} localityId={localityId} radius={radius} location={location}
+            onLocality={value => { setLocalityId(value); setRadius(""); setCursor(null); setGroup(null); }}
+            onRadius={value => { setRadius(value); setCursor(null); setGroup(null); }} />
+        </div>}
         {client && (
           <DirectoryPages
             page={remote.page}
             group={remote.group}
-            busy={remote.loading}
+            busy={shownLoading}
             hasCursor={Boolean(cursor)}
             onGroup={(value) => {
               setGroup(value);
@@ -196,6 +211,7 @@ export default function PractitionerDirectory({
                       <span>
                         <MapPin size={14} />
                         {p.location.suburb} {p.location.postcode}
+                        {client && p.distanceKm !== null && <> · Approx. {p.distanceKm.toFixed(1)} km</>}
                       </span>
                     )}
                     {p.telehealth && (

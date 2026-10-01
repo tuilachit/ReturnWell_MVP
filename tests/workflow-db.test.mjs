@@ -2796,6 +2796,24 @@ test(
             p95 < 500,
             `Local p95 exceeded proposed 500ms budget: ${p95}ms`,
           );
+          sql(geographyImportSql({
+            source: { version: 'fictional-scale', url: 'https://example.org/fictional', license: 'Test only', attribution: 'Fictional reference', sha256: 'c'.repeat(64), publishedAt: '2026-10-01' },
+            localities: [{ state: 'NSW', postcode: '2000', suburb: 'Fictional Suburb', latitude: -33, longitude: 151 }],
+          }));
+          try {
+            const nearbyQuery = { ...query, postcode: '2000', localityId: 'NSW:2000:fictional suburb', radiusKm: 5, distanceGroup: 'local' };
+            const nearby = rpc(id(2), 'directory.search', nearbyQuery);
+            assert.equal(nearby.totalEligible, 2500);
+            assert.equal(nearby.items.length, 50);
+            assert.equal(nearby.items[0].distanceKm, 0);
+            const second = rpc(id(2), 'directory.search', { ...nearbyQuery, cursor: nearby.nextCursor });
+            assert.equal(new Set([...nearby.items, ...second.items].map(x => x.practitioner.id)).size, 100);
+            const geoTimings = JSON.parse(sql(`do $test$ declare started timestamptz; elapsed jsonb:='[]'; begin for n in 1..30 loop started:=clock_timestamp(); perform private.directory_page('${id(2)}','${JSON.stringify(nearbyQuery)}'); elapsed:=elapsed||to_jsonb(extract(epoch from clock_timestamp()-started)*1000); end loop; perform set_config('returnwell.fixture_geo_timings',elapsed::text,false); end $test$; select current_setting('returnwell.fixture_geo_timings');`)).sort((a,b) => a-b);
+            console.log(JSON.stringify({ geographicProfiles: 5000, queryRuns: 30, p50Ms: geoTimings[14], p95Ms: geoTimings[28] }));
+            assert.ok(geoTimings[28] < 500, `Geographic p95 exceeded 500ms: ${geoTimings[28]}`);
+          } finally {
+            sql(`delete from private.geography_active; delete from private.postcode_localities; delete from private.geography_sources;`);
+          }
         },
       );
       // Growth fixtures have their own notifications; keep them after the legacy
