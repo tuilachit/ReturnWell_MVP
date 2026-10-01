@@ -7,7 +7,7 @@ import {
   growthReasons,
   type ReferralGrowth,
 } from "./lib/referral-growth";
-import { errorText, invoke, WorkflowError } from "./lib/workflow";
+import { errorText, invoke, isDefinitiveWorkflowFailure } from "./lib/workflow";
 import ConfirmDialog from "./components/confirm-dialog";
 export default function ReferralGrowthPanel({
   client,
@@ -80,12 +80,7 @@ export default function ReferralGrowthPanel({
       setRefresh((n) => n + 1);
       onChanged();
     } catch (error) {
-      if (
-        !wasPending &&
-        error instanceof WorkflowError &&
-        error.status !== null &&
-        error.status < 500
-      )
+      if (!wasPending && isDefinitiveWorkflowFailure(error))
         request.current = null;
       if (alive.current) setMessage(errorText(error));
     } finally {

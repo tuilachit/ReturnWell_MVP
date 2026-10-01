@@ -5,6 +5,41 @@ const recovery = await import("../app/lib/account-recovery.ts").catch(
   () => ({}),
 );
 const errors = await import("../app/lib/workflow-error.ts").catch(() => ({}));
+test("only known server rejections may discard a first-attempt command", () => {
+  assert.equal(typeof errors.isDefinitiveWorkflowFailure, "function");
+  for (const status of [null, 400, 408, 500, 503]) {
+    for (const code of [
+      "request_failed",
+      "network_error",
+      "unknown_proxy_error",
+    ]) {
+      assert.equal(
+        errors.isDefinitiveWorkflowFailure(
+          errors.workflowFailure(code, status),
+        ),
+        false,
+      );
+    }
+  }
+  assert.equal(
+    errors.isDefinitiveWorkflowFailure(errors.workflowFailure("conflict", 409)),
+    true,
+  );
+  assert.equal(
+    errors.isDefinitiveWorkflowFailure(errors.workflowFailure("denied", 403)),
+    true,
+  );
+  assert.equal(
+    errors.isDefinitiveWorkflowFailure(
+      errors.workflowFailure("invalid_draft", 400),
+    ),
+    true,
+  );
+  assert.equal(
+    errors.isDefinitiveWorkflowFailure(errors.workflowFailure("conflict", 503)),
+    false,
+  );
+});
 test("typed failures preserve Retry-After but never show server bodies", async () => {
   assert.equal(typeof errors.parseWorkflowFailure, "function");
   for (const header of ["120", new Date(Date.now() + 90000).toUTCString()]) {

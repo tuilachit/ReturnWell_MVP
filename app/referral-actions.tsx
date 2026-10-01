@@ -1,5 +1,5 @@
 "use client";
-import { useId, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Referral } from "./types";
 import type { ReferralDraft } from "./lib/referral-drafts";
@@ -10,7 +10,11 @@ import {
   startReplacementDraft,
   transitionReferral,
 } from "./lib/referral-actions";
-import { WorkflowError, errorText, requestId } from "./lib/workflow";
+import {
+  isDefinitiveWorkflowFailure,
+  errorText,
+  requestId,
+} from "./lib/workflow";
 import Field from "./components/field";
 import ConfirmDialog from "./components/confirm-dialog";
 type Action = "cancel" | "close" | "replace";
@@ -29,12 +33,16 @@ export default function ReferralActions({
   onChanged,
   onReplacement,
   onRefresh,
+  onDirtyChange,
+  onPendingChange,
 }: {
   client: SupabaseClient;
   referral: Referral;
   onChanged: (referral: Referral) => void;
   onReplacement: (draft: ReferralDraft) => void;
   onRefresh: () => void;
+  onDirtyChange: (dirty: boolean) => void;
+  onPendingChange: (pending: boolean) => void;
 }) {
   const id = useId();
   const [action, setAction] = useState<Action | null>(null);
@@ -48,8 +56,21 @@ export default function ReferralActions({
   const [message, setMessage] = useState("");
   const pending = useRef<Attempt | null>(null);
   const running = useRef(false);
+  const alive = useRef(true);
   const [actionVersion, setActionVersion] = useState<number>();
   const actions = allowedReferralActions(referral.status);
+  useEffect(() => {
+    alive.current = true;
+    return () => {
+      alive.current = false;
+      onDirtyChange(false);
+      onPendingChange(false);
+    };
+  }, [onDirtyChange, onPendingChange]);
+  useEffect(() => {
+    onDirtyChange(action !== null);
+    onPendingChange(busy || uncertain);
+  }, [action, busy, uncertain, onDirtyChange, onPendingChange]);
   async function submit(selected: Action) {
     if (running.current || referral.version === undefined) return;
     const version = selected === "replace" ? referral.version : actionVersion;
@@ -75,6 +96,7 @@ export default function ReferralActions({
           expectedVersion: attempt.expectedVersion,
           requestId: attempt.requestId,
         });
+        if (!alive.current) return;
         pending.current = null;
         setUncertain(false);
         onReplacement(draft);
@@ -83,6 +105,7 @@ export default function ReferralActions({
           ...attempt,
           action: attempt.action,
         });
+        if (!alive.current) return;
         pending.current = null;
         setUncertain(false);
         setAction(null);
@@ -90,12 +113,8 @@ export default function ReferralActions({
         onChanged(result.referral);
       }
     } catch (failure) {
-      if (
-        !uncertain &&
-        failure instanceof WorkflowError &&
-        failure.status !== null &&
-        failure.status < 500
-      ) {
+      if (!alive.current) return;
+      if (!uncertain && isDefinitiveWorkflowFailure(failure)) {
         pending.current = null;
         setError(errorText(failure));
         if (failure.status === 409) setAction(null);
@@ -106,8 +125,10 @@ export default function ReferralActions({
         );
       }
     } finally {
-      setBusy(false);
-      setDialog(false);
+      if (alive.current) {
+        setBusy(false);
+        setDialog(false);
+      }
       running.current = false;
     }
   }

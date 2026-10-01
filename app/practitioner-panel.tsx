@@ -10,7 +10,10 @@ import PractitionerProfile from "./practitioner-profile";
 import ReferralActivity from "./referral-activity";
 import HandoverPanel from "./handover-panel";
 import { errorText, invoke, requestId } from "./lib/workflow";
-import { WorkflowError } from "./lib/workflow-error";
+import {
+  WorkflowError,
+  isDefinitiveWorkflowFailure,
+} from "./lib/workflow-error";
 type Assigned = {
   id: string;
   reference: string;
@@ -198,11 +201,7 @@ export default function PractitionerInbox({
       setReason("");
     } catch (error) {
       if (!mounted.current) return;
-      if (
-        error instanceof WorkflowError &&
-        error.status !== null &&
-        error.status < 500
-      ) {
+      if (isDefinitiveWorkflowFailure(error)) {
         pending.current = null;
         setUncertain(false);
       } else setUncertain(true);

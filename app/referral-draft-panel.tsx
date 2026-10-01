@@ -10,7 +10,7 @@ import {
   type DraftSummary,
   type ReferralDraft,
 } from "./lib/referral-drafts";
-import { errorText, WorkflowError } from "./lib/workflow";
+import { errorText, isDefinitiveWorkflowFailure } from "./lib/workflow";
 import ConfirmDialog from "./components/confirm-dialog";
 export default function ReferralDraftPanel({
   client,
@@ -89,12 +89,7 @@ export default function ReferralDraftPanel({
       onSaved(saved);
       setMessage("Draft saved privately. No email was sent.");
     } catch (error) {
-      if (
-        !retrying &&
-        error instanceof WorkflowError &&
-        error.status !== null &&
-        error.status < 500
-      )
+      if (!retrying && isDefinitiveWorkflowFailure(error))
         pending.current = null;
       onPendingChange(Boolean(pending.current));
       if (mounted.current) setUncertain(Boolean(pending.current));

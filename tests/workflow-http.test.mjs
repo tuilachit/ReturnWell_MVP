@@ -14,6 +14,34 @@ const base = {
     throw Error("RPC should not be reached");
   },
 };
+test("a lost RPC response after commit is ambiguous, not a definite rejection", async () => {
+  let committed = false;
+  const handle = api.workflowHandler("manage-referral", {
+    ...base,
+    getUser: async () => ({ id: "trusted-user" }),
+    rpc: async () => {
+      committed = true;
+      throw new TypeError("fetch failed SECRET");
+    },
+  });
+  const response = await handle(
+    new Request("https://api.example.test", {
+      method: "POST",
+      headers: { authorization: "Bearer verified" },
+      body: JSON.stringify({
+        operation: "replace",
+        referralId: "00000000-0000-4000-8000-000000000001",
+        expectedVersion: 1,
+        requestId: "00000000-0000-4000-8000-000000000002",
+      }),
+    }),
+  );
+  assert.equal(committed, true);
+  assert.equal(response.status, 503);
+  const body = await response.json();
+  assert.equal(body.code, "request_failed");
+  assert.doesNotMatch(JSON.stringify(body), /SECRET|fetch failed/);
+});
 test("email diagnostics use current authenticated actor and cannot dispatch transport actions", async () => {
   const calls = [];
   const handle = api.workflowHandler("email-operations", {

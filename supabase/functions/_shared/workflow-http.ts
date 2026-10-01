@@ -558,7 +558,7 @@ export function workflowHandler(endpoint: string, runtime: WorkflowRuntime) {
             ? 429
             : code === "conflict" || code === "terms_changed"
               ? 409
-              : code === "sender_configuration"
+              : code === "sender_configuration" || code === "request_failed"
                 ? 503
                 : code === "denied" ||
                     code === "step_up_required" ||

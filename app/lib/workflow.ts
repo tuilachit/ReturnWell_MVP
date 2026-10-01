@@ -1,7 +1,10 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Workspace } from "../types";
 import { parseWorkflowFailure, workflowFailure } from "./workflow-error.ts";
-export { WorkflowError } from "./workflow-error.ts";
+export {
+  WorkflowError,
+  isDefinitiveWorkflowFailure,
+} from "./workflow-error.ts";
 export type Access = {
   doctors: (Workspace & {
     role: string;

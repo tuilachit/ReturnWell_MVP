@@ -63,6 +63,43 @@ export class WorkflowError extends Error {
     this.fieldErrors = fieldErrors;
   }
 }
+const definitiveCodes = new Set([
+  "unauthorized",
+  "denied",
+  "rate_limited",
+  "conflict",
+  "terms_changed",
+  "invitation_unavailable",
+  "reviewed_identity_required",
+  "recipient_suppressed",
+  "step_up_required",
+  "verified_owner_required",
+  "last_owner",
+  "invalid_cursor",
+  "geography_unavailable",
+  "credential_policy_required",
+  "evidence_required",
+  "invalid_profile",
+  "invalid_draft",
+  "recipient_ineligible",
+  "consent_required",
+  "body_too_large",
+  "invalid_request",
+  "origin_denied",
+]);
+// An unfamiliar 4xx can be an intermediary/older server's ambiguous failure.
+// Only explicit known pre-commit rejections may release a first-attempt ID.
+export function isDefinitiveWorkflowFailure(
+  error: unknown,
+): error is WorkflowError {
+  return (
+    error instanceof WorkflowError &&
+    error.status !== null &&
+    error.status >= 400 &&
+    error.status < 500 &&
+    definitiveCodes.has(error.code)
+  );
+}
 export function workflowFailure(
   code: string,
   status: number | null = null,

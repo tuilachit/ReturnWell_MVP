@@ -10,6 +10,7 @@ import {
   requestId,
   type InvitationInfo,
   WorkflowError,
+  isDefinitiveWorkflowFailure,
 } from "../lib/workflow";
 export default function JoinPage() {
   const [info, setInfo] = useState<InvitationInfo | null>(null);
@@ -85,12 +86,7 @@ export default function JoinPage() {
       );
     } catch (error) {
       if (alive.current) {
-        if (
-          !retrying &&
-          error instanceof WorkflowError &&
-          error.status !== null &&
-          error.status < 500
-        )
+        if (!retrying && isDefinitiveWorkflowFailure(error))
           signupRequest.current = null;
         setUncertain(Boolean(signupRequest.current));
         if (error instanceof WorkflowError && error.code === "terms_changed")

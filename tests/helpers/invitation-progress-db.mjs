@@ -92,9 +92,17 @@ export async function invitationProgressChecks(t, { rpc, sql, id: sourceId }) {
         consentAccepted: true,
         requestId: next(),
       });
-      const deadline=JSON.parse(sql(`select jsonb_build_object('expected',least(a.expires_at,i.expires_at),'live',least(a.expires_at,i.expires_at)>now(),'duration',extract(epoch from a.expires_at-a.created_at)) from private.invitation_auth_attempts a join public.workspace_invitations i on i.id=a.invitation_id where a.id='${attempt.attemptId}'`));
-      assert.equal(Date.parse(attempt.expiresAt),Date.parse(deadline.expected));
-      assert.equal(deadline.live,true);assert.equal(deadline.duration,900);
+      const deadline = JSON.parse(
+        sql(
+          `select jsonb_build_object('expected',least(a.expires_at,i.expires_at),'live',least(a.expires_at,i.expires_at)>now(),'duration',extract(epoch from a.expires_at-a.created_at)) from private.invitation_auth_attempts a join public.workspace_invitations i on i.id=a.invitation_id where a.id='${attempt.attemptId}'`,
+        ),
+      );
+      assert.equal(
+        Date.parse(attempt.expiresAt),
+        Date.parse(deadline.expected),
+      );
+      assert.equal(deadline.live, true);
+      assert.equal(deadline.duration, 900);
       rpc(null, "invitation.attach_auth", {
         attemptId: attempt.attemptId,
         authLeaseId: attempt.authLeaseId,
@@ -140,6 +148,48 @@ export async function invitationProgressChecks(t, { rpc, sql, id: sourceId }) {
           .attempts[0].claimed,
         true,
       );
+    },
+  );
+  await t.test(
+    "current membership gates invitation reads and replay without removing current admin or operator scope",
+    () => {
+      const input = {
+        kind: "practitioner",
+        organisationId: id(10),
+        recipientName: "Fictional Revocation",
+        recipientEmail: "progress-revoked@example.test",
+        consentConfirmed: true,
+        requestId: next(),
+        tokenHash: (++n).toString(16).padStart(64, "d"),
+        keyId: "test",
+        envelope: { test: "encrypted" },
+      };
+      const invite = rpc(id(2), "invitations.create", input);
+      const read = (actor) =>
+        sql(
+          `set role authenticated;set request.jwt.claim.sub='${actor}';select count(*) from public.workspace_invitations where id='${invite.id}'`,
+        );
+      assert.equal(read(id(2)), "1");
+      sql(
+        `update public.organisation_memberships set active=false where user_id='${id(2)}' and organisation_id='${id(10)}';update private.inviter_identities set active=false where user_id='${id(2)}' and organisation_id='${id(10)}'`,
+      );
+      assert.equal(read(id(2)), "0");
+      assert.throws(
+        () => rpc(id(2), "invitations.create", input),
+        /denied|reviewed_identity_required/,
+      );
+      sql(
+        `insert into public.organisation_memberships(organisation_id,user_id,role) values ('${id(10)}','${id(4)}','admin')`,
+      );
+      assert.equal(read(id(4)), "1");
+      sql(
+        `insert into private.platform_operators(user_id) values ('${id(2)}')`,
+      );
+      assert.equal(read(id(2)), "1");
+      sql(
+        `update private.platform_operators set active=false where user_id='${id(2)}'`,
+      );
+      assert.equal(read(id(2)), "0");
     },
   );
 }

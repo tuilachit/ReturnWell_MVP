@@ -44,6 +44,8 @@ export async function doctorBrowser(
     dropReconfirmResponseOnce = false,
     dropClaimResponseOnce = false,
     dropPractitionerResponseOnce = false,
+    loseRpcResponseOnceFor = null,
+    holdReplacementResponse = false,
     seedSession = true,
     actor = "doctor",
   } = {},
@@ -90,7 +92,19 @@ export async function doctorBrowser(
       ALLOWED_ORIGINS: "http://127.0.0.1:3101",
       EMAIL_DELIVERY_ENABLED: "false",
     },
+    rpc: async (...args) => {
+      const result = await local.runtime.rpc(...args);
+      if (args[1] === loseRpcResponseOnceFor) {
+        loseRpcResponseOnceFor = null;
+        throw new TypeError("Fictional lost RPC response after commit");
+      }
+      return result;
+    },
   };
+  let releaseReplacement;
+  const replacementHold = new Promise((resolve) => {
+    releaseReplacement = resolve;
+  });
   await page.route("**/*", async (route) => {
     const request = route.request();
     const url = new URL(request.url());
@@ -110,6 +124,13 @@ export async function doctorBrowser(
           : request.postData(),
       }),
     );
+    if (
+      holdReplacementResponse &&
+      endpoint === "manage-referral" &&
+      request.postDataJSON()?.operation === "replace"
+    ) {
+      await replacementHold;
+    }
     if (
       dropPractitionerResponseOnce &&
       endpoint === "respond-to-referral" &&
@@ -177,5 +198,6 @@ export async function doctorBrowser(
     organisationId: org,
     practitionerId: practitioner,
     clinic,
+    releaseReplacement,
   };
 }

@@ -31,6 +31,7 @@ import { Brand } from "./brand";
 import {
   invoke,
   WorkflowError,
+  isDefinitiveWorkflowFailure,
   notificationLabel,
   type ReferralNotifications,
 } from "./lib/workflow";
@@ -138,6 +139,8 @@ export default function DoctorPortal({
   const [consentConfirmed, setConsentConfirmed] = useState(false);
   const [draft, setDraft] = useState<ReferralDraft | null>(null);
   const [draftPending, setDraftPending] = useState(false);
+  const [lifecycleDirty, setLifecycleDirty] = useState(false);
+  const [lifecyclePending, setLifecyclePending] = useState(false);
   const [inviteOpen, setInviteOpen] = useState(false);
   const [leaving, setLeaving] = useState(false);
   const leaveAction = useRef<(() => void) | null>(null);
@@ -184,14 +187,27 @@ export default function DoctorPortal({
         JSON.stringify(draft?.input.requiredServiceIds ?? []) ||
       languageOrAccess !== (draft?.input.preferredLanguage ?? ""));
   useEffect(() => {
-    if (!submissionPending && !draftPending && !dirtyDraft) return;
+    if (
+      !submissionPending &&
+      !draftPending &&
+      !dirtyDraft &&
+      !lifecycleDirty &&
+      !lifecyclePending
+    )
+      return;
     const warnBeforeLeaving = (event: BeforeUnloadEvent) => {
       event.preventDefault();
       event.returnValue = "";
     };
     window.addEventListener("beforeunload", warnBeforeLeaving);
     return () => window.removeEventListener("beforeunload", warnBeforeLeaving);
-  }, [submissionPending, draftPending, dirtyDraft]);
+  }, [
+    submissionPending,
+    draftPending,
+    dirtyDraft,
+    lifecycleDirty,
+    lifecyclePending,
+  ]);
 
   useEffect(() => {
     const heading = pageHeading.current?.querySelector<HTMLElement>("h1");
@@ -261,7 +277,7 @@ export default function DoctorPortal({
               client,
               workspace.organisationId,
               (view === "detail" ? detailReferral?.id : requestedReferralId)!,
-            ).catch(() => null)
+            )
           : Promise.resolve(null),
       ])
         .then(([page, detail]) => {
@@ -288,14 +304,22 @@ export default function DoctorPortal({
             }
           }
         })
-        .catch(() => {
+        .catch((failure) => {
           if (active && request === sequence) {
-            setReferrals([]);
-            setPractitioners([]);
-            setDetailReferral(null);
-            setLoadError(
-              "We could not load the referral workspace. Please refresh and try again.",
-            );
+            if (
+              isDefinitiveWorkflowFailure(failure) &&
+              ["denied", "unauthorized"].includes(failure.code)
+            ) {
+              setReferrals([]);
+              setPractitioners([]);
+              setDetailReferral(null);
+              setView("referrals");
+              setLoadError("That referral is not available in this workspace.");
+            } else {
+              setLoadError(
+                "We could not refresh the referral workspace. Your current work is retained. Try refreshing again.",
+              );
+            }
           }
         })
         .finally(() => {
@@ -349,11 +373,17 @@ export default function DoctorPortal({
 
   const requestLeave = (action: () => void) => {
     setMobileNav(false);
+    if (lifecyclePending) {
+      setError(
+        "Resolve the pending referral action before leaving this referral.",
+      );
+      return;
+    }
     if (submissionPending || draftPending) {
       setError("Resolve the pending save before leaving this referral.");
       return;
     }
-    if (dirtyDraft) {
+    if (dirtyDraft || lifecycleDirty) {
       leaveAction.current = action;
       setLeaving(true);
       return;
@@ -678,9 +708,7 @@ export default function DoctorPortal({
         !wasPending &&
         ((failure instanceof ReferralSubmissionError &&
           failure.outcome === "rejected") ||
-          (failure instanceof WorkflowError &&
-            failure.status !== null &&
-            failure.status < 500))
+          isDefinitiveWorkflowFailure(failure))
       ) {
         pendingSubmission.current = null;
         setSubmissionPending(false);
@@ -719,8 +747,14 @@ export default function DoctorPortal({
     <main className={`gp-shell ${mobileNav ? "nav-open" : ""}`}>
       <ConfirmDialog
         open={leaving}
-        title="Leave this draft?"
-        description="Unsaved changes will be discarded. A draft you have already saved stays in your private draft list."
+        title={
+          lifecycleDirty ? "Leave this referral action?" : "Leave this draft?"
+        }
+        description={
+          lifecycleDirty
+            ? "Your unsaved referral action and note will be discarded. The saved referral will not change."
+            : "Unsaved changes will be discarded. A draft you have already saved stays in your private draft list."
+        }
         confirmLabel="Discard unsaved changes"
         onConfirm={() => {
           resetForm();
@@ -1715,6 +1749,11 @@ export default function DoctorPortal({
 
           {view === "detail" && detailReferral && (
             <section className="gp-page detail-page">
+              {(error || loadError) && (
+                <p className="inline-alert" role="alert">
+                  {error || loadError}
+                </p>
+              )}
               <button className="back-link" onClick={goHome}>
                 <ArrowLeft size={15} />
                 Referrals
@@ -1803,6 +1842,8 @@ export default function DoctorPortal({
                       key={detailReferral.id}
                       client={client}
                       referral={detailReferral}
+                      onDirtyChange={setLifecycleDirty}
+                      onPendingChange={setLifecyclePending}
                       onChanged={(value) => {
                         setDetailReferral(value);
                         setRefresh((current) => current + 1);

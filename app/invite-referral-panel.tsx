@@ -9,7 +9,7 @@ import {
 } from "./lib/referral-drafts";
 import { inviteReferral, type InviteReferral } from "./lib/referral-growth";
 import { validateReferralInput } from "./lib/referrals";
-import { errorText, WorkflowError } from "./lib/workflow";
+import { errorText, isDefinitiveWorkflowFailure } from "./lib/workflow";
 import type { ReferralInput } from "./types";
 import Field from "./components/field";
 export default function InviteReferralPanel({
@@ -118,12 +118,7 @@ export default function InviteReferralPanel({
       onPendingChange(false);
     } catch (error) {
       if (!alive.current) return;
-      if (
-        !wasPending &&
-        error instanceof WorkflowError &&
-        error.status !== null &&
-        error.status < 500
-      )
+      if (!wasPending && isDefinitiveWorkflowFailure(error))
         pending.current = null;
       setUncertain(Boolean(pending.current));
       onPendingChange(Boolean(pending.current));

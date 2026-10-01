@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Referral, ReferralInput, Workspace } from "../types";
+import { workflowFailure } from "./workflow-error.ts";
 
 export type ReferralRow = {
   id: string;
@@ -111,16 +112,23 @@ export async function getReferral(
   organisationId: string,
   id: string,
 ): Promise<Referral> {
-  const { data, error } = await client
+  const { data, error, status } = await client
     .from("referrals")
     .select(
       "*, practitioners:practitioners!referrals_selected_practitioner_id_fkey(practice_name)",
     )
     .eq("organisation_id", organisationId)
     .eq("id", id)
-    .single();
-  if (error || !data)
-    throw new Error("This referral is not available in this workspace.");
+    .maybeSingle();
+  if (error) {
+    if (status === 401 || status === 403 || error.code === "42501")
+      throw workflowFailure(
+        status === 401 ? "unauthorized" : "denied",
+        status === 401 ? 401 : 403,
+      );
+    throw workflowFailure("request_failed", status || null);
+  }
+  if (!data) throw workflowFailure("denied", 403);
   return rowToReferral(data as ReferralRow);
 }
 

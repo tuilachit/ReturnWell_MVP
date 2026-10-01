@@ -9,7 +9,13 @@ import {
   invitationProgressLabel,
   type InvitationProgress,
 } from "./lib/invitation-progress";
-import { errorText, invoke, requestId, WorkflowError } from "./lib/workflow";
+import {
+  errorText,
+  invoke,
+  requestId,
+  WorkflowError,
+  isDefinitiveWorkflowFailure,
+} from "./lib/workflow";
 type Invitation = {
   id: string;
   kind: string;
@@ -194,12 +200,7 @@ function InvitationsForm({
       }
       await load();
     } catch (error) {
-      if (
-        !retrying &&
-        error instanceof WorkflowError &&
-        error.status !== null &&
-        error.status < 500
-      )
+      if (!retrying && isDefinitiveWorkflowFailure(error))
         pending.current = null;
       if (alive.current) {
         setUncertain(Boolean(pending.current));

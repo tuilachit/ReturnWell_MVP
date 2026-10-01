@@ -16,7 +16,7 @@ import {
   type PracticeRecord,
   type PracticeMember,
 } from "./lib/practice-admin";
-import { errorText, WorkflowError } from "./lib/workflow";
+import { errorText, isDefinitiveWorkflowFailure } from "./lib/workflow";
 type WriteCommand = Exclude<PracticeCommand, { operation: "list" }>;
 const emptyContact = { phone: "", email: "", instructions: "", evidence: "" };
 export default function PracticeAdmin({ client }: { client: SupabaseClient }) {
@@ -167,15 +167,7 @@ export default function PracticeAdmin({ client }: { client: SupabaseClient }) {
             ? "The change was saved, but the refreshed view could not load. Reload the saved practice."
             : errorText(e),
         );
-        if (
-          !committed &&
-          !(
-            e instanceof WorkflowError &&
-            e.status !== null &&
-            e.status >= 400 &&
-            e.status < 500
-          )
-        )
+        if (!committed && !isDefinitiveWorkflowFailure(e))
           setUncertain(command);
         setConfirmation(null);
       }
