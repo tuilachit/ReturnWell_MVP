@@ -27,6 +27,22 @@ export type MatchResult = {
 };
 export type MatchedPractitioner = MatchResult;
 
+// Match PostgreSQL's C collation after ASCII case-folding, independent of the
+// browser's locale/ICU version. Compare codepoints, including non-BMP names.
+function compareName(a: string, b: string): number {
+  const fold = (s: string) =>
+    Array.from(
+      s.replace(/[A-Z]/g, (c) => c.toLowerCase()),
+      (c) => c.codePointAt(0)!,
+    );
+  const left = fold(a),
+    right = fold(b);
+  for (let i = 0; i < Math.min(left.length, right.length); i++) {
+    if (left[i] !== right[i]) return left[i] - right[i];
+  }
+  return left.length - right.length;
+}
+
 // Only known catalogue aliases are adapted. Old mixed language/access notes
 // are deliberately not a field here, and unknown funding cannot pass a match.
 export function normaliseMatchNeeds(
@@ -152,10 +168,7 @@ export function matchPractitioners(
     .sort(
       (a, b) =>
         (a.distanceKm ?? Infinity) - (b.distanceKm ?? Infinity) ||
-        a.practitioner.displayName.localeCompare(
-          b.practitioner.displayName,
-          "en-AU",
-        ) ||
-        a.practitioner.id.localeCompare(b.practitioner.id),
+        compareName(a.practitioner.displayName, b.practitioner.displayName) ||
+        compareName(a.practitioner.id, b.practitioner.id),
     );
 }

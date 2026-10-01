@@ -35,7 +35,10 @@ import {
   type ReferralNotifications,
 } from "./lib/workflow";
 import { demoPractitioners, demoReferrals } from "./data/demo-workspace";
-import { matchPractitioners } from "./lib/matching";
+import { matchPractitioners, normaliseMatchNeeds } from "./lib/matching";
+import { listReferralPage, type DistanceGroup } from "./lib/directory";
+import { usePractitionerSearch } from "./lib/use-practitioner-search";
+import DirectoryPages from "./components/directory-pages";
 import terminology from "../shared/terminology.json";
 import CapabilityRequirements from "./components/capability-requirements";
 import { normalizeTerm } from "./lib/terminology";
@@ -54,8 +57,7 @@ import {
   rowToReferral,
   type ReferralRow,
   ReferralSubmissionError,
-  listPractitioners,
-  listReferrals,
+  getReferral,
   validateReferralInput,
 } from "./lib/referrals";
 import type {
@@ -105,6 +107,15 @@ export default function DoctorPortal({
   const [detailReferral, setDetailReferral] = useState<Referral | null>(null);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [referralCursor, setReferralCursor] = useState<string | null>(null);
+  const [nextReferralCursor, setNextReferralCursor] = useState<string | null>(
+    null,
+  );
+  const [referralCounts, setReferralCounts] = useState<Record<string, number>>({
+    all: 0,
+  });
+  const [matchCursor, setMatchCursor] = useState<string | null>(null);
+  const [matchGroup, setMatchGroup] = useState<DistanceGroup | null>(null);
   const [patientReference, setPatientReference] = useState("");
   const [postcode, setPostcode] = useState("");
   const [profession, setProfession] = useState<Profession>("physiotherapist");
@@ -233,23 +244,36 @@ export default function DoctorPortal({
     const load = () => {
       const request = ++sequence;
       Promise.all([
-        listReferrals(client, workspace.organisationId),
-        listPractitioners(client),
+        listReferralPage(client, {
+          organisationId: workspace.organisationId,
+          status: statusFilter,
+          search,
+          cursor: referralCursor,
+        }),
+        (view === "detail" && detailReferral?.id) ||
+        (requestedReferralId && !openedRequestedReferral.current)
+          ? getReferral(
+              client,
+              workspace.organisationId,
+              (view === "detail" ? detailReferral?.id : requestedReferralId)!,
+            ).catch(() => null)
+          : Promise.resolve(null),
       ])
-        .then(([nextReferrals, nextPractitioners]) => {
+        .then(([page, detail]) => {
           if (!active || request !== sequence) return;
           setLoadError("");
-          setDetailReferral((current) =>
-            current
-              ? (nextReferrals.find((row) => row.id === current.id) ?? null)
-              : null,
-          );
-          setReferrals(nextReferrals);
-          setPractitioners(nextPractitioners);
+          setReferrals(page.items);
+          setReferralCounts(page.counts);
+          setNextReferralCursor(page.nextCursor);
+          if (view === "detail") {
+            setDetailReferral(detail);
+            if (!detail) {
+              setView("referrals");
+              setError("That referral is not available in this workspace.");
+            }
+          }
           if (requestedReferralId && !openedRequestedReferral.current) {
-            const requestedReferral = nextReferrals.find(
-              (referral) => referral.id === requestedReferralId,
-            );
+            const requestedReferral = detail;
             if (requestedReferral) {
               setDetailReferral(requestedReferral);
               setView("detail");
@@ -284,7 +308,18 @@ export default function DoctorPortal({
       clearInterval(timer);
       window.removeEventListener("focus", visible);
     };
-  }, [client, mode, requestedReferralId, workspace, refresh]);
+  }, [
+    client,
+    mode,
+    requestedReferralId,
+    workspace,
+    refresh,
+    search,
+    statusFilter,
+    referralCursor,
+    view,
+    detailReferral?.id,
+  ]);
 
   const resetForm = () => {
     setDraft(null);
@@ -357,7 +392,7 @@ export default function DoctorPortal({
     goHome();
   };
 
-  const matches = useMemo(
+  const localMatches = useMemo(
     () =>
       matchPractitioners(practitioners, {
         profession,
@@ -377,10 +412,35 @@ export default function DoctorPortal({
       patientAgeGroupId,
     ],
   );
+  const matchNeeds = normaliseMatchNeeds({
+    profession,
+    appointmentFormat,
+    fundingPath,
+    language: languageOrAccess,
+    requiredServiceIds,
+    patientAgeGroupId,
+  });
+  const remoteMatches = usePractitionerSearch(
+    mode === "authenticated" && view === "new" && step >= 2 && matchNeeds
+      ? (client ?? null)
+      : null,
+    {
+      needs: matchNeeds ?? undefined,
+      cursor: matchCursor,
+      distanceGroup: matchGroup,
+      refresh,
+    },
+  );
+  const matches =
+    mode === "authenticated" ? remoteMatches.page.items : localMatches;
 
   const selectedPractitioner =
-    practitioners.find((item) => item.id === selectedPractitionerId) ?? null;
+    matches.find((item) => item.practitioner.id === selectedPractitionerId)
+      ?.practitioner ??
+    practitioners.find((item) => item.id === selectedPractitionerId) ??
+    null;
   const filteredReferrals = useMemo(() => {
+    if (mode === "authenticated") return referrals;
     const needle = search.trim().toLocaleLowerCase("en-AU");
     return referrals.filter((referral) => {
       const searchable =
@@ -392,7 +452,7 @@ export default function DoctorPortal({
         (statusFilter === "all" || referral.status === statusFilter)
       );
     });
-  }, [referrals, search, statusFilter]);
+  }, [mode, referrals, search, statusFilter]);
 
   const formInput = (): ReferralInput => ({
     patientReference,
@@ -464,6 +524,8 @@ export default function DoctorPortal({
       return;
     }
     setError("");
+    setMatchCursor(null);
+    setMatchGroup(null);
     setSelectedPractitionerId((current) =>
       matches.some(({ practitioner }) => practitioner.id === current)
         ? current
@@ -592,10 +654,15 @@ export default function DoctorPortal({
       }
       pendingSubmission.current = null;
       setSubmissionPending(false);
-      setReferrals((current) => [
-        saved,
-        ...current.filter((row) => row.id !== saved.id),
-      ]);
+      if (mode === "preview") {
+        setReferrals((current) => [
+          saved,
+          ...current.filter((row) => row.id !== saved.id),
+        ]);
+      } else {
+        setReferralCursor(null);
+        setRefresh((value) => value + 1);
+      }
       setDetailReferral(saved);
       setStep(4);
     } catch (failure) {
@@ -724,7 +791,10 @@ export default function DoctorPortal({
             <span className="nav-symbol">
               <ClipboardList size={22} />
             </span>
-            Referrals<span className="nav-count">{referrals.length}</span>
+            Referrals
+            <span className="nav-count">
+              {mode === "authenticated" ? referralCounts.all : referrals.length}
+            </span>
           </button>
           <button
             className={view === "directory" ? "active" : ""}
@@ -879,9 +949,18 @@ export default function DoctorPortal({
                 preview={mode === "preview"}
                 demo={demoMode}
                 search={search}
-                setSearch={setSearch}
+                setSearch={(value) => {
+                  setSearch(value);
+                  setReferralCursor(null);
+                  if (mode === "authenticated") setLoading(true);
+                }}
                 status={statusFilter}
-                setStatus={setStatusFilter}
+                setStatus={(value) => {
+                  setStatusFilter(value);
+                  setReferralCursor(null);
+                  if (mode === "authenticated") setLoading(true);
+                }}
+                counts={mode === "authenticated" ? referralCounts : undefined}
                 onNew={startReferral}
                 onOpen={(referral) => {
                   setDetailReferral(referral);
@@ -890,12 +969,37 @@ export default function DoctorPortal({
                 onDemo={loadDemoWorkspace}
                 onGuide={() => navigate("guide")}
               />
+              {mode === "authenticated" && (
+                <div className="form-actions" aria-label="Referral pages">
+                  <button
+                    className="button secondary"
+                    disabled={loading || !referralCursor}
+                    onClick={() => {
+                      setReferralCursor(null);
+                      setLoading(true);
+                    }}
+                  >
+                    First page
+                  </button>
+                  <button
+                    className="button secondary"
+                    disabled={loading || !nextReferralCursor}
+                    onClick={() => {
+                      setReferralCursor(nextReferralCursor);
+                      setLoading(true);
+                    }}
+                  >
+                    Next page
+                  </button>
+                </div>
+              )}
             </section>
           )}
 
           {view === "directory" && (
             <section className="gp-page">
               <PractitionerDirectory
+                client={mode === "authenticated" ? client : null}
                 practitioners={practitioners}
                 loading={loading}
                 error={loadError}
@@ -1280,11 +1384,50 @@ export default function DoctorPortal({
                     </button>
                   </aside>
                   <section className="shortlist-main">
+                    {mode === "authenticated" && (
+                      <DirectoryPages
+                        page={remoteMatches.page}
+                        group={remoteMatches.group}
+                        busy={remoteMatches.loading}
+                        hasCursor={Boolean(matchCursor)}
+                        telehealthOnly={appointmentFormat === "telehealth"}
+                        onGroup={(value) => {
+                          setMatchGroup(value);
+                          setMatchCursor(null);
+                          setSelectedPractitionerId(null);
+                        }}
+                        onFirst={() => {
+                          setMatchCursor(null);
+                          setSelectedPractitionerId(null);
+                        }}
+                        onNext={() => {
+                          setMatchGroup(remoteMatches.group);
+                          setMatchCursor(remoteMatches.page.nextCursor);
+                          setSelectedPractitionerId(null);
+                        }}
+                      />
+                    )}
+                    {remoteMatches.error && (
+                      <p role="alert">
+                        {remoteMatches.error}{" "}
+                        <button
+                          className="button secondary"
+                          onClick={() => setRefresh((value) => value + 1)}
+                        >
+                          Try again
+                        </button>
+                      </p>
+                    )}
                     <div className="section-heading">
                       <div>
                         <h2>
-                          {matches.length} eligible{" "}
-                          {matches.length === 1
+                          {mode === "authenticated"
+                            ? remoteMatches.page.totalEligible
+                            : matches.length}{" "}
+                          eligible{" "}
+                          {(mode === "authenticated"
+                            ? remoteMatches.page.totalEligible
+                            : matches.length) === 1
                             ? "practitioner"
                             : "practitioners"}
                         </h2>
@@ -1297,7 +1440,9 @@ export default function DoctorPortal({
                         </p>
                       </div>
                     </div>
-                    {matches.length === 0 ? (
+                    {mode === "authenticated" && remoteMatches.loading ? (
+                      <p role="status">Loading eligible practitioners…</p>
+                    ) : matches.length === 0 ? (
                       <div className="no-matches">
                         <h3>No eligible practitioners found</h3>
                         <p>

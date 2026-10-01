@@ -1,5 +1,8 @@
 import { test, expect } from "@playwright/test";
-import { doctorBrowser } from "../helpers/browser-context.mjs";
+import {
+  doctorBrowser,
+  selectFixturePractitioner,
+} from "../helpers/browser-context.mjs";
 test("a real local doctor saves and reloads a private draft without sending mail", async ({
   page,
 }) => {
@@ -77,7 +80,7 @@ test("lost finalisation response retries the same draft and queues exactly one n
     .getByPlaceholder("Describe the need, goals and relevant context…")
     .fill("Fictional browser referral.");
   await page.getByRole("button", { name: "Find practitioners" }).click();
-  await page.getByRole("radio", { name: new RegExp(clinic) }).check();
+  await selectFixturePractitioner(page, clinic);
   await page.getByRole("button", { name: "Review referral" }).click();
   await page
     .getByRole("checkbox", {

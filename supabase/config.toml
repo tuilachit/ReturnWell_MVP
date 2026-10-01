@@ -435,3 +435,5 @@ verify_jwt = false
 # format_options = "{\"keywordCase\":\"upper\",\"indent\":2,\"maxWidth\":80,\"commaStyle\":\"trailing\"}"
 [functions.manage-referral]
 verify_jwt = false
+[functions.search-practitioners]
+verify_jwt = false

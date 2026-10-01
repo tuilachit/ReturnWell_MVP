@@ -3,6 +3,19 @@ import test from "node:test";
 
 import { matchPractitioners } from "../app/lib/matching.ts";
 
+test("name order uses the same ASCII-folded codepoint key as database cursors", () => {
+  const result = matchPractitioners(
+    ["Zara", "ábaco", "Alex", "alex", "😀", "\uE000"].map((displayName, i) =>
+      candidate({ id: String(i), displayName }),
+    ),
+    needs,
+  );
+  assert.deepEqual(
+    result.map((x) => x.practitioner.id),
+    ["2", "3", "0", "1", "5", "4"],
+  );
+});
+
 const needs = {
   profession: "physiotherapist",
   appointmentFormat: "telehealth",

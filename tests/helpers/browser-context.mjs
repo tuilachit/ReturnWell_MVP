@@ -1,7 +1,30 @@
 import { randomUUID } from "node:crypto";
+import { expect } from "@playwright/test";
 import { localRuntime } from "./local-runtime.mjs";
 import { workflowHandler } from "../../supabase/functions/_shared/workflow-http.ts";
 import { credentialFixtureSql } from "./credential-fixture.mjs";
+
+// The shared directory is now paginated. Find the fictional recipient through
+// real controls instead of assuming every prior test's record fits on page one.
+export async function selectFixturePractitioner(page, clinic) {
+  const choice = page.getByRole("radio", { name: new RegExp(clinic) });
+  for (let n = 0; n < 100; n++) {
+    await page.getByRole("radio").first().waitFor({ state: "visible" });
+    if (await choice.count()) {
+      await choice.check();
+      return;
+    }
+    const next = page.getByRole("button", { name: "Next page", exact: true });
+    if (!(await next.isEnabled()))
+      throw Error("Fictional recipient absent from directory");
+    const previous = await page.getByRole("radio").first().inputValue();
+    await next.click();
+    await expect
+      .poll(async () => page.getByRole("radio").first().inputValue())
+      .not.toBe(previous);
+  }
+  throw Error("Fictional directory exceeded bounded test search");
+}
 
 // Real local Auth + PostgREST + workflow handler; no hosted APIs or mail provider.
 export async function doctorBrowser(

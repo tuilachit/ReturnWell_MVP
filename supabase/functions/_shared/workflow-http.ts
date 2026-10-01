@@ -78,7 +78,26 @@ const mappings: Record<
   Record<string, { action: string; fields: string[] }>
 > = {
   "workspace-access": { default: { action: "workspace.access", fields: [] } },
+  "search-practitioners": {
+    default: {
+      action: "directory.search",
+      fields: [
+        "needs",
+        "postcode",
+        "radiusKm",
+        "distanceGroup",
+        "cursor",
+        "limit",
+        "query",
+        "professionId",
+      ],
+    },
+  },
   "manage-referral": {
+    list: {
+      action: "referral.list",
+      fields: ["organisationId", "status", "search", "cursor", "limit"],
+    },
     "draft.list": { action: "draft.list", fields: ["organisationId"] },
     "draft.load": { action: "draft.load", fields: ["id"] },
     "draft.save": {
@@ -403,7 +422,7 @@ export function workflowHandler(endpoint: string, runtime: WorkflowRuntime) {
             : "request_failed";
       const code =
         message.match(
-          /\b(denied|conflict|rate_limited|invitation_unavailable|recipient_suppressed|reviewed_identity_required|consent_required|credential_policy_required|evidence_required|invalid_profile|invalid_draft|recipient_ineligible|terms_changed|sender_configuration|body_too_large|invalid_request)\b/,
+          /\b(denied|conflict|rate_limited|invitation_unavailable|recipient_suppressed|reviewed_identity_required|consent_required|credential_policy_required|evidence_required|invalid_profile|invalid_draft|recipient_ineligible|terms_changed|sender_configuration|body_too_large|invalid_request|invalid_cursor|geography_unavailable)\b/,
         )?.[1] ?? "request_failed";
       const status =
         code === "body_too_large"
@@ -423,6 +442,10 @@ export function workflowHandler(endpoint: string, runtime: WorkflowRuntime) {
                     : 400;
       if (status === 429) headers["retry-after"] = "60";
       const messages: Record<string, string> = {
+        invalid_cursor:
+          "This page no longer matches your filters. Return to the first page.",
+        geography_unavailable:
+          "Distance filtering is not configured. Browse by suburb or appointment format.",
         credential_policy_required:
           "This profession needs an approved verification and review policy before activation.",
         conflict: "This record changed. Refresh and review the latest version.",

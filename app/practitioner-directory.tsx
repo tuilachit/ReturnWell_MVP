@@ -1,6 +1,10 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import { usePractitionerSearch } from "./lib/use-practitioner-search";
+import type { DistanceGroup } from "./lib/directory";
+import DirectoryPages from "./components/directory-pages";
 import {
   ArrowRight,
   Check,
@@ -24,6 +28,7 @@ export default function PractitionerDirectory({
   onDemo,
   onRefer,
   onRetry,
+  client = null,
 }: {
   practitioners: Practitioner[];
   loading: boolean;
@@ -33,21 +38,36 @@ export default function PractitionerDirectory({
   onDemo: () => void;
   onRefer: (practitioner: Practitioner) => void;
   onRetry: () => void;
+  client?: SupabaseClient | null;
 }) {
   const [query, setQuery] = useState("");
   const [profession, setProfession] = useState("all");
+  const [cursor, setCursor] = useState<string | null>(null);
+  const [group, setGroup] = useState<DistanceGroup | null>(null);
+  const [refresh, setRefresh] = useState(0);
+  const remote = usePractitionerSearch(client, {
+    query,
+    professionId: profession === "all" ? undefined : profession,
+    cursor,
+    distanceGroup: group,
+    refresh,
+  });
+  const shownLoading = client ? remote.loading : loading;
+  const shownError = client ? remote.error : error;
   const directory = useMemo(
     () =>
-      practitioners
-        .filter((p) => isEligibleForNewReferral(p, p.profession))
-        .filter(
-          (p) =>
-            (profession === "all" || p.profession === profession) &&
-            `${p.displayName} ${p.practiceName} ${p.location?.suburb ?? ""} ${p.location?.postcode ?? ""}`
-              .toLowerCase()
-              .includes(query.toLowerCase().trim()),
-        ),
-    [practitioners, profession, query],
+      client
+        ? remote.page.items.map((item) => item.practitioner)
+        : practitioners
+            .filter((p) => isEligibleForNewReferral(p, p.profession))
+            .filter(
+              (p) =>
+                (profession === "all" || p.profession === profession) &&
+                `${p.displayName} ${p.practiceName} ${p.location?.suburb ?? ""} ${p.location?.postcode ?? ""}`
+                  .toLowerCase()
+                  .includes(query.toLowerCase().trim()),
+            ),
+    [client, remote.page, practitioners, profession, query],
   );
   return (
     <>
@@ -58,11 +78,11 @@ export default function PractitionerDirectory({
         </div>
         <span className="directory-count">
           <Users size={16} />
-          {loading
+          {shownLoading
             ? "Checking availability…"
-            : error
+            : shownError
               ? "Availability unavailable"
-              : `${directory.length} available`}
+              : `${client ? remote.page.totalEligible : directory.length} available`}
         </span>
       </div>
       <section className="directory-panel">
@@ -73,13 +93,21 @@ export default function PractitionerDirectory({
               aria-label="Search practitioners"
               placeholder="Name, practice or suburb"
               value={query}
-              onChange={(e) => setQuery(e.target.value)}
+              onChange={(e) => {
+                setQuery(e.target.value);
+                setCursor(null);
+                setGroup(null);
+              }}
             />
           </label>
           <select
             aria-label="Filter practitioner profession"
             value={profession}
-            onChange={(e) => setProfession(e.target.value)}
+            onChange={(e) => {
+              setProfession(e.target.value);
+              setCursor(null);
+              setGroup(null);
+            }}
           >
             <option value="all">All professions</option>
             {supportedProfessions.map((p) => (
@@ -89,16 +117,39 @@ export default function PractitionerDirectory({
             ))}
           </select>
         </div>
-        {loading ? (
+        {client && (
+          <DirectoryPages
+            page={remote.page}
+            group={remote.group}
+            busy={remote.loading}
+            hasCursor={Boolean(cursor)}
+            onGroup={(value) => {
+              setGroup(value);
+              setCursor(null);
+            }}
+            onFirst={() => setCursor(null)}
+            onNext={() => {
+              setGroup(remote.group);
+              setCursor(remote.page.nextCursor);
+            }}
+          />
+        )}
+        {shownLoading ? (
           <div className="loading-state" role="status">
             Loading practitioners…
           </div>
-        ) : error ? (
+        ) : shownError ? (
           <div className="empty-state">
             <CircleAlert size={27} />
             <h2>Couldn’t load practitioners</h2>
-            <p role="alert">{error}</p>
-            <button className="button secondary" onClick={onRetry}>
+            <p role="alert">{shownError}</p>
+            <button
+              className="button secondary"
+              onClick={() => {
+                setRefresh((value) => value + 1);
+                onRetry();
+              }}
+            >
               Try again
             </button>
           </div>

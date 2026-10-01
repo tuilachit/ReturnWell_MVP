@@ -20,6 +20,7 @@ import { referralStatusLabel } from "./lib/referral-status";
 export { referralStatusLabel } from "./lib/referral-status";
 
 type Props = {
+  counts?: Record<string, number>;
   referrals: Referral[];
   filtered: Referral[];
   loading: boolean;
@@ -36,6 +37,7 @@ type Props = {
 };
 
 export default function ReferralOverview({
+  counts,
   referrals,
   filtered,
   loading,
@@ -50,26 +52,46 @@ export default function ReferralOverview({
   onDemo,
   onGuide,
 }: Props) {
-  const open = referrals.filter(
-    (r) => !["booked", "cancelled"].includes(r.status),
-  ).length;
-  const attention = referrals.filter((r) => r.status === "declined").length;
-  const awaiting = referrals.filter((r) => r.status === "sent").length;
-  const accepted = referrals.filter((r) => r.status === "accepted").length;
+  const open = counts
+    ? (counts.all ?? 0) -
+      (counts.booked ?? 0) -
+      (counts.cancelled ?? 0) -
+      (counts.closed ?? 0)
+    : referrals.filter((r) => !["booked", "cancelled"].includes(r.status))
+        .length;
+  const attention =
+    counts?.declined ??
+    (counts ? 0 : referrals.filter((r) => r.status === "declined").length);
+  const awaiting =
+    counts?.sent ??
+    (counts ? 0 : referrals.filter((r) => r.status === "sent").length);
+  const accepted =
+    counts?.accepted ??
+    (counts ? 0 : referrals.filter((r) => r.status === "accepted").length);
   const filters = [
-    { value: "all", label: "All referrals", count: referrals.length },
+    {
+      value: "all",
+      label: "All referrals",
+      count: counts?.all ?? referrals.length,
+    },
     {
       value: "sent",
       label: "Awaiting response",
-      count: referrals.filter((r) => r.status === "sent").length,
+      count: awaiting,
     },
     {
       value: "accepted",
       label: "Accepted",
-      count: referrals.filter((r) => r.status === "accepted").length,
+      count: accepted,
     },
     { value: "declined", label: "Needs attention", count: attention },
-    { value: "cancelled", label: "Cancelled", count: referrals.filter(r => r.status === "cancelled").length },
+    {
+      value: "cancelled",
+      label: "Cancelled",
+      count:
+        counts?.cancelled ??
+        (counts ? 0 : referrals.filter((r) => r.status === "cancelled").length),
+    },
   ];
 
   return (
@@ -138,7 +160,7 @@ export default function ReferralOverview({
       <section className="activity-section">
         <div className="activity-title">
           <h2>
-            All referrals <span>{referrals.length}</span>
+            All referrals <span>{counts?.all ?? referrals.length}</span>
           </h2>
           <span className="quiet-label">
             {preview ? "Preview workspace" : "Your practice"}
@@ -195,7 +217,7 @@ export default function ReferralOverview({
               <span className="loading-ring" />
               Opening your referrals…
             </div>
-          ) : referrals.length === 0 ? (
+          ) : (counts?.all ?? referrals.length) === 0 ? (
             <div className="empty-state">
               <div className="empty-icon" aria-hidden="true">
                 <Inbox size={42} />
@@ -247,9 +269,7 @@ export default function ReferralOverview({
                   </span>
                 </span>
                 <span>
-                  <strong>
-                    {professionLabel(referral.profession)}
-                  </strong>
+                  <strong>{professionLabel(referral.profession)}</strong>
                   <small>{referral.clinicalSummary}</small>
                 </span>
                 <span>
@@ -283,8 +303,8 @@ export default function ReferralOverview({
           <span>
             {demo
               ? "Fictional records · this tab only"
-              : referrals.length
-                ? `${filtered.length} of ${referrals.length} referrals`
+              : (counts?.all ?? referrals.length)
+                ? `${filtered.length} shown · ${counts?.[status] ?? (counts ? 0 : referrals.length)} referrals in this view`
                 : "Your referrals will appear here as you create them."}
           </span>
         </footer>

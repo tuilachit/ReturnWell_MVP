@@ -3,6 +3,8 @@ import { execFile, execFileSync } from "node:child_process";
 import { promisify } from "node:util";
 import { readdirSync, readFileSync } from "node:fs";
 import test from "node:test";
+import { directoryScaleFixtureSql } from "./helpers/directory-scale-fixture.mjs";
+import { matchPractitioners } from "../app/lib/matching.ts";
 
 // Opt-in, isolated Postgres. Never opens a URL or uses the application's hosted credentials.
 const enabled = process.env.RW_DATABASE_TEST === "1";
@@ -1808,6 +1810,284 @@ test(
                 `select private.validate_practitioner_profile('${JSON.stringify({ ...profile, serviceIds: ["made_up"] })}',false)`,
               ),
             /invalid_profile/,
+          );
+        },
+      );
+      await t.test(
+        "bounded directory pages separate format groups and reject forged scope or cursor",
+        () => {
+          const query = {
+            needs: {
+              professionId: "physiotherapist",
+              fundingId: "self_funded",
+              appointmentFormat: "either",
+              requiredServiceIds: [],
+            },
+            distanceGroup: "unknown",
+            limit: 1,
+          };
+          assert.throws(() => rpc(id(4), "directory.search", query), /denied/);
+          assert.throws(() => rpc(id(1), "directory.search", query), /denied/);
+          const page = rpc(id(2), "directory.search", query);
+          assert.equal(page.items.length, 1);
+          assert.equal(page.items[0].practitioner.id, practitionerId);
+          assert.equal(page.groupCounts.unknown, 1);
+          assert.equal(page.groupCounts.local, 0);
+          assert.equal(page.items[0].distanceKm, null);
+          assert.equal(
+            JSON.stringify(page).includes("identifier_normalized"),
+            false,
+          );
+          assert.throws(
+            () =>
+              rpc(id(2), "directory.search", {
+                ...query,
+                cursor: "not-base64",
+              }),
+            /invalid_cursor/,
+          );
+          assert.throws(
+            () => rpc(id(2), "directory.search", { ...query, radiusKm: 10 }),
+            /geography_unavailable/,
+          );
+          assert.equal(
+            rpc(id(2), "directory.search", {
+              ...query,
+              needs: { ...query.needs, requiredServiceIds: ["unknown"] },
+            }).items.length,
+            0,
+          );
+        },
+      );
+      await t.test(
+        "referral pages use current membership, bounded metadata and whole-filter counts",
+        () => {
+          const page = rpc(id(2), "referral.list", {
+            organisationId: id(10),
+            limit: 1,
+          });
+          assert.equal(page.items.length, 1);
+          assert.ok(page.counts.all > 1);
+          assert.ok(page.nextCursor);
+          assert.equal(Object.hasOwn(page.items[0], "clinical_summary"), false);
+          const next = rpc(id(2), "referral.list", {
+            organisationId: id(10),
+            limit: 1,
+            cursor: page.nextCursor,
+          });
+          assert.notEqual(next.items[0].id, page.items[0].id);
+          assert.throws(
+            () => rpc(id(4), "referral.list", { organisationId: id(10) }),
+            /denied/,
+          );
+          assert.throws(
+            () =>
+              rpc(id(2), "referral.list", {
+                organisationId: id(11),
+                cursor: page.nextCursor,
+              }),
+            /denied/,
+          );
+          assert.throws(
+            () =>
+              rpc(id(2), "referral.list", {
+                organisationId: id(10),
+                search: "different",
+                cursor: page.nextCursor,
+              }),
+            /invalid_cursor/,
+          );
+        },
+      );
+      await t.test(
+        "SQL and pure matching agree on golden requirements, reasons and ordering",
+        () => {
+          sql(
+            directoryScaleFixtureSql({
+              ownerId: id(3),
+              reviewerId: id(1),
+              tag: "GOLDEN",
+              count: 12,
+            }),
+          );
+          sql(
+            `update public.practitioners set display_name=case right(display_name,3) when '002' then 'ábaco' when '004' then 'Zara' when '006' then 'Alex' else 'alex' end where practice_name='GOLDEN';`,
+          );
+          const base = {
+            professionId: "physiotherapist",
+            fundingId: "Medicare",
+            appointmentFormat: "either",
+            requiredServiceIds: [],
+          };
+          const candidates = rpc(id(2), "directory.search", {
+            query: "GOLDEN",
+            distanceGroup: "remote",
+            needs: { ...base, appointmentFormat: "telehealth" },
+          }).items.map((x) => x.practitioner);
+          assert.equal(candidates.length, 12);
+          const selected = candidates[0].id;
+          for (const change of [
+            `update public.practitioners set access_suspended_at=now() where id='${selected}'`,
+            `update public.practitioners set accepting_new_referrals=false where id='${selected}'`,
+            `update public.practitioners set profile_revision_pending=true where id='${selected}'`,
+            `update public.practitioners set contact_email=null where id='${selected}'`,
+            `update private.professional_credentials set review_due_at=now()-interval '1 second',checked_at=now()-interval '1 day' where practitioner_id='${selected}'`,
+            `update private.professional_credentials set checked_at=now()-interval '2 days' where practitioner_id='${selected}'; update private.profession_policies set review_interval_days=1 where profession_id='physiotherapist'`,
+            `update public.practitioner_users set active=false where practitioner_id='${selected}'`,
+            `update auth.users set email_confirmed_at=null where id='${id(3)}'`,
+            `update private.profession_policies set enabled=false where profession_id='physiotherapist'`,
+          ]) {
+            const result = JSON.parse(
+              sql(
+                `begin;${change};select jsonb_build_object('eligible',private.practitioner_is_eligible('${selected}','physiotherapist',now()),'page',private.directory_page('${id(2)}','${JSON.stringify({ query: "GOLDEN", needs: { ...base, appointmentFormat: "telehealth" }, distanceGroup: "remote" })}'));rollback;`,
+              ),
+            );
+            assert.equal(result.eligible, false);
+            assert.equal(
+              result.page.items.some((x) => x.practitioner.id === selected),
+              false,
+            );
+          }
+          for (const needs of [
+            base,
+            { ...base, appointmentFormat: "telehealth" },
+            {
+              ...base,
+              preferredLanguageId: "ENGLISH",
+              requiredServiceIds: ["Persistent pain"],
+              patientAgeGroupId: "adult",
+            },
+            { ...base, fundingId: "Private" },
+            { ...base, preferredLanguageId: "Chinese" },
+            { ...base, requiredServiceIds: ["unknown"] },
+            { ...base, patientAgeGroupId: "child" },
+          ]) {
+            for (const distanceGroup of ["unknown", "remote"]) {
+              const expected = matchPractitioners(candidates, needs).filter(
+                (x) =>
+                  needs.appointmentFormat === "telehealth"
+                    ? distanceGroup === "remote"
+                    : (x.practitioner.location ? "unknown" : "remote") ===
+                      distanceGroup,
+              );
+              const actual = rpc(id(2), "directory.search", {
+                query: "GOLDEN",
+                needs,
+                distanceGroup,
+              });
+              assert.equal(actual.totalEligible, expected.length);
+              assert.deepEqual(
+                actual.items.map((x) => ({
+                  id: x.practitioner.id,
+                  reasons: x.reasons,
+                  warnings: x.warnings,
+                })),
+                expected.map((x) => ({
+                  id: x.practitioner.id,
+                  reasons: x.reasons,
+                  warnings: x.warnings,
+                })),
+              );
+            }
+          }
+        },
+      );
+      await t.test(
+        "5000 synthetic profiles have stable bounded pages, disjoint groups and measured query timing",
+        () => {
+          sql(directoryScaleFixtureSql({ ownerId: id(3), reviewerId: id(1) }));
+          const query = {
+            needs: {
+              professionId: "physiotherapist",
+              fundingId: "medicare",
+              appointmentFormat: "either",
+              requiredServiceIds: ["persistent_pain"],
+              patientAgeGroupId: "adult",
+            },
+            query: "SYNTHETIC-SCALE",
+            distanceGroup: "unknown",
+            limit: 5000,
+          };
+          const first = rpc(id(2), "directory.search", query);
+          assert.equal(first.items.length, 50);
+          assert.equal(first.totalEligible, 2500);
+          assert.deepEqual(first.groupCounts, {
+            local: 0,
+            unknown: 2500,
+            remote: 2500,
+          });
+          assert.deepEqual(rpc(id(2), "directory.search", query), first);
+          const next = rpc(id(2), "directory.search", {
+            ...query,
+            cursor: first.nextCursor,
+          });
+          assert.equal(next.items.length, 50);
+          assert.equal(
+            new Set(
+              [...first.items, ...next.items].map((x) => x.practitioner.id),
+            ).size,
+            100,
+          );
+          assert.throws(
+            () =>
+              rpc(id(2), "directory.search", {
+                ...query,
+                query: "changed",
+                cursor: first.nextCursor,
+              }),
+            /invalid_cursor/,
+          );
+          const malformed = JSON.parse(
+            Buffer.from(first.nextCursor, "base64").toString(),
+          );
+          delete malformed.v;
+          assert.throws(
+            () =>
+              rpc(id(2), "directory.search", {
+                ...query,
+                cursor: Buffer.from(JSON.stringify(malformed)).toString(
+                  "base64",
+                ),
+              }),
+            /invalid_cursor/,
+          );
+          const remote = rpc(id(2), "directory.search", {
+            ...query,
+            distanceGroup: "remote",
+          });
+          assert.equal(remote.totalEligible, 2500);
+          assert.equal(
+            remote.items.some((x) => x.practitioner.location !== null),
+            false,
+          );
+          assert.equal(
+            rpc(id(2), "directory.search", {
+              ...query,
+              distanceGroup: "remote",
+              needs: { ...query.needs, appointmentFormat: "telehealth" },
+            }).totalEligible,
+            5000,
+          );
+          const timings = JSON.parse(
+            sql(
+              `do $test$ declare started timestamptz; elapsed jsonb:='[]'; begin for n in 1..30 loop started:=clock_timestamp(); perform private.directory_page('${id(2)}','${JSON.stringify(query)}'); elapsed:=elapsed||to_jsonb(extract(epoch from clock_timestamp()-started)*1000); end loop; perform set_config('returnwell.fixture_timings',elapsed::text,false); end $test$; select current_setting('returnwell.fixture_timings');`,
+            ),
+          ).sort((a, b) => a - b);
+          const p50 = timings[14],
+            p95 = timings[28],
+            bytes = Buffer.byteLength(JSON.stringify(first));
+          console.log(
+            JSON.stringify({
+              fixtureProfiles: 5000,
+              queryRuns: 30,
+              p50Ms: p50,
+              p95Ms: p95,
+              firstPageBytes: bytes,
+            }),
+          );
+          assert.ok(
+            p95 < 500,
+            `Local p95 exceeded proposed 500ms budget: ${p95}ms`,
           );
         },
       );

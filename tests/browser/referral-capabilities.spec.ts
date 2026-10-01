@@ -1,5 +1,8 @@
 import { test, expect } from "@playwright/test";
-import { doctorBrowser } from "../helpers/browser-context.mjs";
+import {
+  doctorBrowser,
+  selectFixturePractitioner,
+} from "../helpers/browser-context.mjs";
 test("a doctor keeps explicit capabilities in a saved draft and cannot reuse an incompatible selection", async ({
   page,
 }) => {
@@ -18,7 +21,7 @@ test("a doctor keeps explicit capabilities in a saved draft and cannot reuse an 
     .getByPlaceholder("Describe the need, goals and relevant context…")
     .fill("Fictional capability check.");
   await page.getByRole("button", { name: "Find practitioners" }).click();
-  await page.getByRole("radio", { name: new RegExp(clinic) }).check();
+  await selectFixturePractitioner(page, clinic);
   await page.getByRole("button", { name: "Back", exact: true }).last().click();
   await page
     .getByRole("checkbox", { name: "Persistent pain", exact: true })

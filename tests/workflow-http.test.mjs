@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-const api = await import("../supabase/functions/_shared/workflow-http.ts")
-  .catch(() => ({}));
+const api =
+  await import("../supabase/functions/_shared/workflow-http.ts").catch(
+    () => ({}),
+  );
 const base = {
   env: {
     APP_URL: "https://returnwell.example.test",
@@ -12,6 +14,28 @@ const base = {
     throw Error("RPC should not be reached");
   },
 };
+test("directory failures expose safe actionable codes, never SQL details", async () => {
+  for (const code of ["invalid_cursor", "geography_unavailable"]) {
+    const handle = api.workflowHandler("search-practitioners", {
+      ...base,
+      getUser: async () => ({ id: "trusted-user" }),
+      rpc: async () => {
+        throw Error(code + " SECRET SQL details");
+      },
+    });
+    const response = await handle(
+      new Request("https://api.example.test", {
+        method: "POST",
+        headers: { authorization: "Bearer verified" },
+        body: "{}",
+      }),
+    );
+    const body = await response.json();
+    assert.equal(body.code, code);
+    assert.equal(response.status, 400);
+    assert.equal(JSON.stringify(body).includes("SECRET"), false);
+  }
+});
 test("HTTP origin, method, session and size checks fail before database actions", async () => {
   assert.equal(
     typeof api.workflowHandler,
@@ -25,28 +49,34 @@ test("HTTP origin, method, session and size checks fail before database actions"
     405,
   );
   assert.equal(
-    (await handle(
-      new Request("https://api.example.test", {
-        method: "POST",
-        headers: { origin: "https://evil.test" },
-        body: "{}",
-      }),
-    )).status,
+    (
+      await handle(
+        new Request("https://api.example.test", {
+          method: "POST",
+          headers: { origin: "https://evil.test" },
+          body: "{}",
+        }),
+      )
+    ).status,
     403,
   );
   assert.equal(
-    (await handle(
-      new Request("https://api.example.test", { method: "POST", body: "{}" }),
-    )).status,
+    (
+      await handle(
+        new Request("https://api.example.test", { method: "POST", body: "{}" }),
+      )
+    ).status,
     401,
   );
   assert.equal(
-    (await handle(
-      new Request("https://api.example.test", {
-        method: "POST",
-        body: JSON.stringify({ large: "x".repeat(17000) }),
-      }),
-    )).status,
+    (
+      await handle(
+        new Request("https://api.example.test", {
+          method: "POST",
+          body: JSON.stringify({ large: "x".repeat(17000) }),
+        }),
+      )
+    ).status,
     413,
   );
   const options = await handle(
@@ -85,17 +115,25 @@ test("authenticated endpoint cannot dispatch arbitrary service-only actions or t
     }),
   );
   assert.equal(response.status, 200);
-  assert.deepEqual(calls, [["trusted-user", "invitations.list", {
-    organisationId: null,
-  }]]);
+  assert.deepEqual(calls, [
+    [
+      "trusted-user",
+      "invitations.list",
+      {
+        organisationId: null,
+      },
+    ],
+  ]);
   assert.equal(
-    (await handle(
-      new Request("https://api.example.test", {
-        method: "POST",
-        headers: { authorization: "Bearer verified" },
-        body: '{"operation":"email.claim"}',
-      }),
-    )).status,
+    (
+      await handle(
+        new Request("https://api.example.test", {
+          method: "POST",
+          headers: { authorization: "Bearer verified" },
+          body: '{"operation":"email.claim"}',
+        }),
+      )
+    ).status,
     400,
   );
 });

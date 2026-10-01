@@ -1,10 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type {
-  Practitioner,
-  Referral,
-  ReferralInput,
-  Workspace,
-} from "../types";
+import type { Referral, ReferralInput, Workspace } from "../types";
 
 export type ReferralRow = {
   id: string;
@@ -12,7 +7,7 @@ export type ReferralRow = {
   patient_reference: string;
   patient_postcode: string;
   profession: Referral["profession"];
-  clinical_summary: string;
+  clinical_summary?: string;
   funding_path: string;
   appointment_format: Referral["appointmentFormat"];
   language_or_access: string | null;
@@ -34,7 +29,7 @@ export const rowToReferral = (row: ReferralRow): Referral => ({
   patientReference: row.patient_reference,
   patientPostcode: row.patient_postcode,
   profession: row.profession,
-  clinicalSummary: row.clinical_summary,
+  clinicalSummary: row.clinical_summary ?? "",
   fundingPath: row.funding_path,
   appointmentFormat: row.appointment_format,
   languageOrAccess: row.language_or_access ?? "",
@@ -107,67 +102,22 @@ export async function loadWorkspace(
   };
 }
 
-export async function listReferrals(
+export async function getReferral(
   client: SupabaseClient,
   organisationId: string,
-): Promise<Referral[]> {
+  id: string,
+): Promise<Referral> {
   const { data, error } = await client
     .from("referrals")
     .select(
       "*, practitioners:practitioners!referrals_selected_practitioner_id_fkey(practice_name)",
     )
     .eq("organisation_id", organisationId)
-    .order("created_at", { ascending: false });
-  if (error) throw error;
-  return (data as ReferralRow[]).map(rowToReferral);
-}
-
-export async function listPractitioners(
-  client: SupabaseClient,
-): Promise<Practitioner[]> {
-  const { data, error } = await client
-    .from("verified_practitioners")
-    .select("*")
-    .order("display_name");
-  if (error) throw error;
-  const rows = data ?? [];
-  if (rows.length === 0) return [];
-
-  const ids = rows.map((row) => row.id);
-  const { data: locations, error: locationError } = await client
-    .from("practitioner_locations")
-    .select("practitioner_id, suburb, postcode")
-    .in("practitioner_id", ids)
-    .eq("is_primary", true);
-  if (locationError) throw locationError;
-
-  const locationByPractitioner = new Map(
-    (locations ?? []).map((location) => [location.practitioner_id, location]),
-  );
-  return rows.map((row) => {
-    const location = locationByPractitioner.get(row.id);
-    return {
-      id: row.id,
-      displayName: row.display_name,
-      practiceName: row.practice_name,
-      profession: row.profession,
-      lifecycleStatus: "active",
-      ahpraVerificationStatus: "verified",
-      providerConfirmationStatus: "confirmed",
-      acceptingNewReferrals: true,
-      credentials: row.credentials ?? [],
-      telehealth: Boolean(row.telehealth),
-      funding: row.funding ?? [],
-      languages: row.languages ?? [],
-      services: row.services ?? [],
-      serviceIds: row.service_ids ?? [],
-      ageGroupIds: row.age_group_ids ?? [],
-      location: location
-        ? { suburb: location.suburb, postcode: location.postcode }
-        : null,
-      distanceKm: null,
-    } satisfies Practitioner;
-  });
+    .eq("id", id)
+    .single();
+  if (error || !data)
+    throw new Error("This referral is not available in this workspace.");
+  return rowToReferral(data as ReferralRow);
 }
 
 export class ReferralSubmissionError extends Error {
