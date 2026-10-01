@@ -134,7 +134,7 @@ test("structured application errors cannot masquerade as successful responses", 
   };
   await assert.rejects(
     invoke(client, "workspace-access"),
-    /Access unavailable/,
+    /could not be confirmed/,
   );
 });
 

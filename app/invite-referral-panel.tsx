@@ -118,7 +118,12 @@ export default function InviteReferralPanel({
       onPendingChange(false);
     } catch (error) {
       if (!alive.current) return;
-      if (!wasPending && error instanceof WorkflowError && error.status < 500)
+      if (
+        !wasPending &&
+        error instanceof WorkflowError &&
+        error.status !== null &&
+        error.status < 500
+      )
         pending.current = null;
       setUncertain(Boolean(pending.current));
       onPendingChange(Boolean(pending.current));

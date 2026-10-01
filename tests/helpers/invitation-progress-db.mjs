@@ -72,7 +72,7 @@ export async function invitationProgressChecks(t, { rpc, sql, id: sourceId }) {
       sql(
         `update public.workspace_invitations set updated_at=now()-interval '2 minutes' where id='${invite.id}'`,
       );
-    const tokenHash = (++n).toString(16).padStart(64, "e");
+      const tokenHash = (++n).toString(16).padStart(64, "e");
       invite = rpc(id(2), "invitations.resend", {
         invitationId: invite.id,
         expectedVersion: 0,
@@ -99,6 +99,28 @@ export async function invitationProgressChecks(t, { rpc, sql, id: sourceId }) {
         tokenType: "magiclink",
         envelope: { test: "encrypted" },
       });
+      const recovery = rpc(id(3), "invitation.recovery", {
+        invitationId: invite.id,
+        attemptId: attempt.attemptId,
+      });
+      assert.equal(recovery.attempts[0].attemptId, attempt.attemptId);
+      assert.doesNotMatch(
+        JSON.stringify(recovery),
+        /token|envelope|email|clinical/i,
+      );
+      assert.equal(
+        rpc(id(4), "invitation.recovery", { invitationId: invite.id }).attempts
+          .length,
+        0,
+      );
+      assert.throws(() => rpc(null, "invitation.recovery", {}), /denied/);
+      sql(
+        `update private.invitation_auth_attempts set expires_at=now()-interval '1 minute' where id='${attempt.attemptId}'`,
+      );
+      assert.equal(rpc(id(3), "invitation.recovery", {}).attempts.length, 0);
+      sql(
+        `update private.invitation_auth_attempts set expires_at=now()+interval '10 minutes' where id='${attempt.attemptId}'`,
+      );
       rpc(id(3), "invitation.claim", {
         invitationId: invite.id,
         attemptId: attempt.attemptId,
@@ -110,6 +132,11 @@ export async function invitationProgressChecks(t, { rpc, sql, id: sourceId }) {
       assert.equal(progress.accountWasNew, false);
       assert.ok(progress.signupCompletedAt);
       assert.equal(progress.delivery.state, "delivered");
+      assert.equal(
+        rpc(id(3), "invitation.recovery", { invitationId: invite.id })
+          .attempts[0].claimed,
+        true,
+      );
     },
   );
 }

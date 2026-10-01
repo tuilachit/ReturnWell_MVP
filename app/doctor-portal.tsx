@@ -678,7 +678,9 @@ export default function DoctorPortal({
         !wasPending &&
         ((failure instanceof ReferralSubmissionError &&
           failure.outcome === "rejected") ||
-          (failure instanceof WorkflowError && failure.status < 500))
+          (failure instanceof WorkflowError &&
+            failure.status !== null &&
+            failure.status < 500))
       ) {
         pendingSubmission.current = null;
         setSubmissionPending(false);

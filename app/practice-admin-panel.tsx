@@ -169,7 +169,12 @@ export default function PracticeAdmin({ client }: { client: SupabaseClient }) {
         );
         if (
           !committed &&
-          !(e instanceof WorkflowError && e.status >= 400 && e.status < 500)
+          !(
+            e instanceof WorkflowError &&
+            e.status !== null &&
+            e.status >= 400 &&
+            e.status < 500
+          )
         )
           setUncertain(command);
         setConfirmation(null);

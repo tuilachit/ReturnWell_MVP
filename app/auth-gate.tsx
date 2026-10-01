@@ -39,6 +39,13 @@ export default function AuthGate({
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
   const [preview, setPreview] = useState(false);
+  const [cooldownUntil, setCooldownUntil] = useState(0);
+  const [clock, setClock] = useState(() => Date.now());
+  const signingIn = useRef(false);
+  useEffect(() => {
+    const timer = setInterval(() => setClock(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, []);
   const generation = useRef(0);
   const currentUser = useRef<string | null>(null);
   const resolve = useCallback(
@@ -70,6 +77,34 @@ export default function AuthGate({
     const lifecycle = generation;
     let active = true;
     let authEvent = false;
+    async function refreshAccess() {
+      const actor = currentUser.current;
+      if (!actor || !client) return;
+      const run = ++lifecycle.current;
+      try {
+        const result = await invoke<Access>(client, "workspace-access");
+        if (
+          active &&
+          run === lifecycle.current &&
+          currentUser.current === actor
+        )
+          setAccess(result);
+      } catch (error) {
+        if (active && run === lifecycle.current) {
+          setMessage(errorText(error));
+        }
+      }
+    }
+    const invalid = () => {
+      if (!active) return;
+      lifecycle.current++;
+      setLoading(false);
+      setAccess(null);
+      setChoice("");
+      setMessage("Your access must be checked again before continuing.");
+    };
+    window.addEventListener("focus", refreshAccess);
+    window.addEventListener("workflow-access-invalid", invalid);
     const { data: listener } = client.auth.onAuthStateChange((_event, next) => {
       authEvent = true;
       queueMicrotask(() => {
@@ -87,6 +122,8 @@ export default function AuthGate({
       active = false;
       lifecycle.current++;
       listener.subscription.unsubscribe();
+      window.removeEventListener("focus", refreshAccess);
+      window.removeEventListener("workflow-access-invalid", invalid);
     };
   }, [client, resolve]);
   async function signOut() {
@@ -116,29 +153,44 @@ export default function AuthGate({
         setEmail={setEmail}
         busy={busy}
         loading={loading}
+        retryAfterSeconds={Math.max(
+          0,
+          Math.ceil((cooldownUntil - clock) / 1000),
+        )}
         message={message}
         onPreview={() => setPreview(true)}
         onSubmit={async (event) => {
           event.preventDefault();
+          if (signingIn.current || Date.now() < cooldownUntil) return;
           if (!client) {
             setMessage("The secure backend is not configured in this build.");
             return;
           }
+          signingIn.current = true;
           setBusy(true);
           const destination = safeDestination(window.location.pathname);
-          const { error } = await client.auth.signInWithOtp({
-            email: email.trim(),
-            options: {
-              shouldCreateUser: false,
-              emailRedirectTo: `${window.location.origin}${destination}`,
-            },
-          });
-          setBusy(false);
-          setMessage(
-            error
-              ? "We could not send the sign-in link. Check your invited account."
-              : "Check your email for a secure sign-in link.",
-          );
+          try {
+            const { error } = await client.auth.signInWithOtp({
+              email: email.trim(),
+              options: {
+                shouldCreateUser: false,
+                emailRedirectTo: `${window.location.origin}${destination}`,
+              },
+            });
+            setCooldownUntil(Date.now() + 60000);
+            setMessage(
+              error?.status === 429
+                ? "Please wait before requesting another sign-in link."
+                : "If this email has an invited account, you’ll receive a sign-in link. Check Inbox and Spam.",
+            );
+          } catch {
+            setMessage(
+              "The request could not be confirmed. Check your connection and try again.",
+            );
+          } finally {
+            signingIn.current = false;
+            setBusy(false);
+          }
         }}
       />
     );

@@ -9,7 +9,7 @@ import {
   invitationProgressLabel,
   type InvitationProgress,
 } from "./lib/invitation-progress";
-import { errorText, invoke, requestId } from "./lib/workflow";
+import { errorText, invoke, requestId, WorkflowError } from "./lib/workflow";
 type Invitation = {
   id: string;
   kind: string;
@@ -106,7 +106,12 @@ function InvitationsForm({
       clearInterval(timer);
     };
   }, []);
-  const pending = useRef<{ fingerprint: string; id: string } | null>(null);
+  const pending = useRef<{
+    payload: Record<string, unknown>;
+    id: string;
+  } | null>(null);
+  const [uncertain, setUncertain] = useState(false);
+  const [retryAt, setRetryAt] = useState(0);
   const [preview, setPreview] = useState<{
     subject: string;
     text: string;
@@ -147,7 +152,8 @@ function InvitationsForm({
     };
   }, [client, organisationId]);
   async function mutate(operation: string, row?: Invitation) {
-    if (locked.current) return;
+    if (locked.current || Date.now() < retryAt) return;
+    const retrying = Boolean(pending.current);
     locked.current = true;
     setBusy(true);
     setMessage("");
@@ -166,29 +172,41 @@ function InvitationsForm({
             recipientEmail: email.trim(),
             consentConfirmed: consent,
           };
-      const mutationFingerprint = JSON.stringify(payload);
-      if (pending.current?.fingerprint !== mutationFingerprint)
-        pending.current = { fingerprint: mutationFingerprint, id: requestId() };
+      pending.current ??= { payload, id: requestId() };
+      const command = pending.current;
       await invoke(client, "manage-invitations", {
-        ...payload,
-        requestId: pending.current.id,
+        ...command.payload,
+        requestId: command.id,
       });
       if (!alive.current) return;
       pending.current = null;
+      setUncertain(false);
       setConfirmation(null);
       setMessage(
-        operation === "revoke"
+        command.payload.operation === "revoke"
           ? "Invitation revoked."
           : "Invitation recorded. Email delivery depends on configured delivery and queue status; this is not a completed signup.",
       );
-      if (!row) {
+      if (command.payload.operation === "create") {
         setName("");
         setEmail("");
         setConsent(false);
       }
       await load();
     } catch (error) {
-      if (alive.current) setMessage(errorText(error));
+      if (
+        !retrying &&
+        error instanceof WorkflowError &&
+        error.status !== null &&
+        error.status < 500
+      )
+        pending.current = null;
+      if (alive.current) {
+        setUncertain(Boolean(pending.current));
+        if (error instanceof WorkflowError && error.retryAfterSeconds !== null)
+          setRetryAt(Date.now() + error.retryAfterSeconds * 1000);
+        setMessage(errorText(error));
+      }
     } finally {
       locked.current = false;
       if (alive.current) setBusy(false);
@@ -212,7 +230,7 @@ function InvitationsForm({
           void mutate("create");
         }}
       >
-        <fieldset disabled={busy}>
+        <fieldset disabled={busy || uncertain || now < retryAt}>
           <label>
             Invitation type
             <select
@@ -328,6 +346,20 @@ function InvitationsForm({
         </fieldset>
       </form>
       {message && <p role="status">{message}</p>}
+      {now < retryAt && (
+        <p role="status">
+          Try again in {Math.ceil((retryAt - now) / 1000)} seconds.
+        </p>
+      )}
+      {uncertain && !confirmation && (
+        <button
+          className="button primary"
+          disabled={busy || now < retryAt}
+          onClick={() => void mutate("create")}
+        >
+          Check and retry the same invitation
+        </button>
+      )}
       <h2>Invitation progress</h2>
       <button
         className="button secondary"
@@ -381,6 +413,8 @@ function InvitationsForm({
                     className="button secondary"
                     disabled={
                       busy ||
+                      uncertain ||
+                      now < retryAt ||
                       Date.parse(row.updated_at) + 60000 > now ||
                       row.progress.delivery.state === "suppressed" ||
                       row.progress.delivery.state === "needs_review"
@@ -393,7 +427,7 @@ function InvitationsForm({
                   </button>
                   <button
                     className="button secondary"
-                    disabled={busy}
+                    disabled={busy || uncertain || now < retryAt}
                     onClick={() =>
                       setConfirmation({ operation: "revoke", row })
                     }
@@ -433,6 +467,7 @@ function InvitationsForm({
             : "Revoke invitation"
         }
         busy={busy}
+        confirmDisabled={now < retryAt}
         onCancel={() => setConfirmation(null)}
         onConfirm={() =>
           confirmation && void mutate(confirmation.operation, confirmation.row)

@@ -224,6 +224,10 @@ const mappings: Record<
     },
   },
   "claim-invitation": {
+    recovery: {
+      action: "invitation.recovery",
+      fields: ["invitationId", "attemptId"],
+    },
     default: {
       action: "invitation.claim",
       fields: ["invitationId", "attemptId", "displayName", "requestId"],
@@ -339,6 +343,7 @@ export function workflowHandler(endpoint: string, runtime: WorkflowRuntime) {
     headers["access-control-allow-headers"] =
       "authorization, apikey, content-type, x-client-info";
     headers["access-control-allow-methods"] = "POST, OPTIONS";
+    headers["access-control-expose-headers"] = "Retry-After";
     if (request.method === "OPTIONS") {
       return new Response(null, { status: 204, headers });
     }

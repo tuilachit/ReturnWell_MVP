@@ -80,7 +80,12 @@ export default function ReferralGrowthPanel({
       setRefresh((n) => n + 1);
       onChanged();
     } catch (error) {
-      if (!wasPending && error instanceof WorkflowError && error.status < 500)
+      if (
+        !wasPending &&
+        error instanceof WorkflowError &&
+        error.status !== null &&
+        error.status < 500
+      )
         request.current = null;
       if (alive.current) setMessage(errorText(error));
     } finally {

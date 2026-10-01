@@ -42,6 +42,8 @@ export async function doctorBrowser(
     dropTransitionResponseOnce = false,
     dropInvitationResponseOnce = false,
     dropReconfirmResponseOnce = false,
+    dropClaimResponseOnce = false,
+    seedSession = true,
     actor = "doctor",
   } = {},
 ) {
@@ -74,10 +76,11 @@ export async function doctorBrowser(
   ).client.auth.getSession();
   const storageKey = (actor === "practitioner" ? owner : doctor).client.auth
     .storageKey;
-  await page.addInitScript(
-    ({ key, value }) => localStorage.setItem(key, JSON.stringify(value)),
-    { key: storageKey, value: session },
-  );
+  if (seedSession)
+    await page.addInitScript(
+      ({ key, value }) => localStorage.setItem(key, JSON.stringify(value)),
+      { key: storageKey, value: session },
+    );
   const runtime = {
     ...local.runtime,
     env: {
@@ -106,6 +109,15 @@ export async function doctorBrowser(
           : request.postData(),
       }),
     );
+    if (
+      dropClaimResponseOnce &&
+      endpoint === "claim-invitation" &&
+      !request.postDataJSON()?.operation &&
+      response.ok
+    ) {
+      dropClaimResponseOnce = false;
+      return route.abort("failed");
+    }
     if (
       dropInvitationResponseOnce &&
       endpoint === "manage-referral" &&

@@ -1,167 +1,295 @@
 "use client";
-/* Full navigation clears invitation credentials and account state. */
+/* Full navigation clears account/credential state. */
 /* eslint-disable @next/next/no-html-link-for-pages */
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import WorkflowShell from "../../workflow-shell";
-import { ArrowRight, AttentionIcon, LockKeyhole } from "../../ui-icons";
 import { getSupabaseBrowserClient } from "../../lib/supabase";
+import {
+  accountRecovery,
+  type ClaimRecovery,
+} from "../../lib/account-recovery";
 import {
   confirmationDetails,
   errorText,
   invoke,
   requestId,
 } from "../../lib/workflow";
+
 export default function ConfirmPage() {
   const client = useMemo(() => getSupabaseBrowserClient(), []);
-  const [credential, setCredential] = useState<URLSearchParams | null>(null);
+  const [credential, setCredential] =
+    useState<ReturnType<typeof confirmationDetails>>(null);
+  const [attempts, setAttempts] = useState<ClaimRecovery[]>([]);
+  const [selected, setSelected] = useState<ClaimRecovery | null>(null);
+  const [user, setUser] = useState<string | null>(null);
   const [name, setName] = useState("");
-  const [signedIn, setSignedIn] = useState(false);
   const [checking, setChecking] = useState(true);
   const [busy, setBusy] = useState(false);
-  const [verified, setVerified] = useState(false);
-  const [verifiedUser, setVerifiedUser] = useState<string | null>(null);
   const [message, setMessage] = useState("");
+  const live = useRef(true),
+    locked = useRef(false),
+    currentUser = useRef<string | null>(null);
+  const pending = useRef<{
+    invitationId: string;
+    attemptId: string;
+    displayName: string;
+    requestId: string;
+    userId: string;
+  } | null>(null);
+  const [uncertain, setUncertain] = useState(false);
   useEffect(() => {
-    let active = true;
+    live.current = true;
+    let active = true,
+      sequence = 0;
+    const details = confirmationDetails(window.location.hash);
+    // Retain the credential only in this component's memory. A reload uses the
+    // authenticated attempt projection, never browser-persisted link material.
+    window.history.replaceState(null, "", "/auth/confirm");
     queueMicrotask(() => {
-      if (active) {
-        setCredential(new URLSearchParams(window.location.hash.slice(1)));
-        if (!client) setChecking(false);
-      }
+      if (active) setCredential(details);
     });
-    if (!client) return;
-    void client.auth.getSession().then(({ data }) => {
-      if (active) {
-        setSignedIn(Boolean(data.session));
+    async function refresh() {
+      if (!client) {
+        if (active) setChecking(false);
+        return;
+      }
+      const run = ++sequence;
+      const { data, error } = await client.auth.getSession();
+      if (!active || run !== sequence) return;
+      const id = data.session?.user.id || null;
+      if (currentUser.current !== id) {
+        currentUser.current = id;
+        pending.current = null;
+        setUncertain(false);
+        setName("");
+        setSelected(null);
+        setAttempts([]);
+      }
+      setUser(id);
+      if (!id) {
         setChecking(false);
+        return;
       }
-    });
+      try {
+        if (error)
+          throw Error("Your session could not be checked. Please try again.");
+        const result = await invoke<{ attempts: ClaimRecovery[] }>(
+          client,
+          "claim-invitation",
+          {
+            operation: "recovery",
+            ...(details
+              ? {
+                  invitationId: details.invitationId,
+                  attemptId: details.attemptId,
+                }
+              : {}),
+          },
+        );
+        if (!active || run !== sequence || currentUser.current !== id) return;
+        setAttempts(result.attempts);
+        setSelected(
+          (previous) =>
+            result.attempts.find((a) => a.attemptId === previous?.attemptId) ||
+            (result.attempts.length === 1 ? result.attempts[0] : null),
+        );
+      } catch (e) {
+        if (active && run === sequence) setMessage(errorText(e));
+      } finally {
+        if (active && run === sequence) setChecking(false);
+      }
+    }
+    void refresh();
+    const subscription = client?.auth.onAuthStateChange((_event, next) => {
+      if ((next?.user.id || null) !== currentUser.current && !locked.current)
+        queueMicrotask(() => {
+          if (active) void refresh();
+        });
+    }).data.subscription;
+    const focus = () => {
+      if (!locked.current) void refresh();
+    };
+    window.addEventListener("focus", focus);
     return () => {
       active = false;
+      live.current = false;
+      sequence++;
+      subscription?.unsubscribe();
+      window.removeEventListener("focus", focus);
     };
   }, [client]);
   async function confirm() {
-    if (!client || !credential) return;
+    if (!client || locked.current) return;
+    locked.current = true;
     setBusy(true);
     setMessage("");
     try {
-      const details = confirmationDetails(credential.toString());
-      if (!details)
-        throw new Error(
-          "This verification link is unavailable. Reopen the complete link from your email.",
-        );
-      const current = await client.auth.getSession();
-      if (current.error)
-        throw new Error("Your session could not be checked. Please try again.");
-      if (!verified && current.data.session) {
-        setSignedIn(true);
-        setMessage(
-          "An account is already signed in. Sign out before verifying the invited mailbox.",
-        );
-        return;
-      }
-      if (verified && current.data.session?.user.id !== verifiedUser) {
-        setVerified(false);
-        setVerifiedUser(null);
-        setSignedIn(Boolean(current.data.session));
-        throw new Error(
-          "The signed-in account changed. Reopen your invitation to request a new verification email.",
-        );
-      }
-      if (!verified) {
+      const { data: sessionData, error: sessionError } =
+        await client.auth.getSession();
+      if (sessionError)
+        throw Error("Your session could not be checked. Please try again.");
+      let actor = sessionData.session?.user.id || null;
+      let target = selected;
+      if (!target) {
+        if (actor)
+          throw Error("Sign out before verifying a different invited mailbox.");
+        if (!credential)
+          throw Error("Reopen the complete verification link from your email.");
         const { data, error } = await client.auth.verifyOtp({
-          token_hash: details.tokenHash,
-          type: details.type,
+          token_hash: credential.tokenHash,
+          type: credential.type,
         });
-        if (error)
-          throw new Error(
-            "Verification expired or unavailable. Request a new email from your invitation.",
+        if (error || !data.user)
+          throw Error(
+            accountRecovery({
+              signedIn: false,
+              invitation: "valid",
+              attempt: "expired",
+              sameAccount: false,
+            }).message,
           );
-        setVerified(true);
-        setVerifiedUser(data.user?.id || null);
+        actor = data.user.id;
+        currentUser.current = actor;
+        if (!live.current) return;
+        setUser(actor);
+        target = {
+          invitationId: credential.invitationId,
+          attemptId: credential.attemptId,
+          practiceName: "Your inviting practice",
+          expiresAt: "",
+        };
+        setSelected(target);
+        setCredential(null);
       }
-      const result = await invoke<{
-        applicationId?: string;
-      }>(client, "claim-invitation", {
-        invitationId: details.invitationId,
-        attemptId: details.attemptId,
+      if (
+        !actor ||
+        actor !== currentUser.current ||
+        (pending.current && pending.current.userId !== actor)
+      )
+        throw Error(
+          "The signed-in account changed. Reopen your invitation with the correct account.",
+        );
+      pending.current ??= {
+        invitationId: target.invitationId,
+        attemptId: target.attemptId,
         displayName: name.trim(),
         requestId: requestId(),
-      });
-      window.history.replaceState(null, "", "/auth/confirm");
+        userId: actor,
+      };
+      const command = pending.current;
+      const result = await invoke<{ applicationId?: string }>(
+        client,
+        "claim-invitation",
+        {
+          invitationId: command.invitationId,
+          attemptId: command.attemptId,
+          displayName: command.displayName,
+          requestId: command.requestId,
+        },
+      );
+      if (!live.current) return;
       window.location.assign(result.applicationId ? "/onboarding" : "/");
-    } catch (error) {
-      setMessage(errorText(error));
+    } catch (e) {
+      if (live.current) {
+        setUncertain(Boolean(pending.current));
+        setMessage(errorText(e));
+      }
     } finally {
-      setBusy(false);
+      locked.current = false;
+      if (live.current) setBusy(false);
     }
   }
   return (
     <WorkflowShell title="Verify your email" compact step={2}>
       <p className="workflow-lead">
-        Continue only if you requested this email. Opening this page does not
-        verify or claim an invitation.
+        Opening this page does not verify or claim an invitation. Continue only
+        if you requested access.
       </p>
-      {checking || !credential ? (
+      {checking ? (
         <p role="status">Checking your verification link…</p>
-      ) : !confirmationDetails(credential.toString()) ? (
-        <div className="account-state" role="status">
-          <AttentionIcon size={25} />
-          <h2>This link is incomplete</h2>
-          <p>Reopen the complete verification link from your email. If it has expired, return to your invitation to request a new email.</p>
-          <a href="/">Return to sign in <ArrowRight size={14} /></a>
-        </div>
-      ) : signedIn && !verified ? (
+      ) : selected || (!user && credential) ? (
         <>
-          <p className="account-next">
-            An account is already signed in. Sign out explicitly before
-            verifying the invited mailbox.
-          </p>
-          <button
-            className="button secondary"
-            disabled={busy}
-            onClick={async () => {
-              setBusy(true);
-              const result = await client?.auth.signOut();
-              if (result?.error)
-                setMessage("Sign-out failed. Please try again.");
-              else setSignedIn(false);
-              setBusy(false);
+          {selected && (
+            <p className="account-next">
+              {
+                accountRecovery({
+                  signedIn: true,
+                  invitation: "valid",
+                  attempt: "valid",
+                  sameAccount: true,
+                }).message
+              }
+            </p>
+          )}
+          <form
+            className="account-form"
+            onSubmit={(event) => {
+              event.preventDefault();
+              void confirm();
             }}
           >
-            Sign out before verification
-          </button>
+            <label>
+              Your display name
+              <input
+                required
+                maxLength={120}
+                autoComplete="name"
+                value={name}
+                disabled={busy || uncertain}
+                onChange={(event) => setName(event.target.value)}
+              />
+            </label>
+            <button className="button primary" disabled={busy || !client}>
+              {busy
+                ? "Working…"
+                : uncertain
+                  ? "Retry completing signup"
+                  : selected
+                    ? "Complete signup"
+                    : "Verify and continue"}
+            </button>
+          </form>
         </>
+      ) : attempts.length > 1 ? (
+        <section>
+          <h2>Choose your invitation</h2>
+          {attempts.map((a) => (
+            <button
+              key={a.attemptId}
+              className="button secondary"
+              onClick={() => setSelected(a)}
+            >
+              Continue with {a.practiceName}
+            </button>
+          ))}
+        </section>
       ) : (
-        <form className="account-form"
-          onSubmit={(event) => {
-            event.preventDefault();
-            void confirm();
+        <div className="account-state">
+          <h2>
+            {user
+              ? "No recoverable invitation for this account"
+              : "Reopen your verification email"}
+          </h2>
+          <p>
+            {user
+              ? "If you already joined, open your workspace. Otherwise sign out and reopen the original invitation for the intended mailbox."
+              : "If the verification link expired, reopen your original invitation email to request another. If the invitation itself expired, contact your inviter."}
+          </p>
+          <a href="/">Open workspace or sign in</a>
+        </div>
+      )}
+      {user && (
+        <button
+          className="button secondary"
+          disabled={busy}
+          onClick={async () => {
+            if (!client) return;
+            const { error } = await client.auth.signOut();
+            if (error) setMessage("Sign-out failed. Please try again.");
           }}
         >
-          <label>
-            Your display name
-            <input
-              required
-              maxLength={120}
-              autoComplete="name"
-              value={name}
-              onChange={(event) => setName(event.target.value)}
-            />
-          </label>
-          <button
-            className="button primary"
-            disabled={checking || busy || !client}
-          >
-            {busy
-              ? "Verifying…"
-              : verified
-                ? "Complete signup"
-                : "Verify and continue"}
-            <ArrowRight size={16} />
-          </button>
-          <p className="account-hint"><LockKeyhole size={14} /> This confirms access to the invited mailbox.</p>
-        </form>
+          Sign out of this account
+        </button>
       )}
       {message && <p role="alert">{message}</p>}
     </WorkflowShell>

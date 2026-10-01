@@ -13,6 +13,7 @@ type Props = {
   busy: boolean;
   loading: boolean;
   message: string;
+  retryAfterSeconds?: number;
   onSubmit: (event: FormEvent) => void | Promise<void>;
   onPreview: () => void;
 };
@@ -26,6 +27,7 @@ export default function SignIn({
   busy,
   loading,
   message,
+  retryAfterSeconds = 0,
   onSubmit,
   onPreview,
 }: Props) {
@@ -44,20 +46,32 @@ export default function SignIn({
           Sign in to your referral workspace.
         </p>
         <form onSubmit={onSubmit}>
-          <Field id="work-email" label="Work email">{fieldProps => <div className="email-input">
-            <Mail size={18} aria-hidden="true" />
-            <input
-              {...fieldProps}
-              type="email"
-              autoComplete="email"
-              required
-              placeholder="you@yourpractice.com.au"
-              value={email}
-              onChange={(event) => setEmail(event.target.value)}
-            />
-          </div>}</Field>
-          <button className="button primary full" disabled={!hydrated || busy || loading}>
-            {busy ? "Sending your link…" : "Email me a sign-in link"}
+          <Field id="work-email" label="Work email">
+            {(fieldProps) => (
+              <div className="email-input">
+                <Mail size={18} aria-hidden="true" />
+                <input
+                  {...fieldProps}
+                  type="email"
+                  autoComplete="email"
+                  required
+                  disabled={!hydrated || busy || loading}
+                  placeholder="you@yourpractice.com.au"
+                  value={email}
+                  onChange={(event) => setEmail(event.target.value)}
+                />
+              </div>
+            )}
+          </Field>
+          <button
+            className="button primary full"
+            disabled={!hydrated || busy || loading || retryAfterSeconds > 0}
+          >
+            {busy
+              ? "Sending your link…"
+              : retryAfterSeconds > 0
+                ? `Try again in ${retryAfterSeconds}s`
+                : "Email me a sign-in link"}
             <ArrowRight size={16} aria-hidden="true" />
           </button>
         </form>
@@ -72,7 +86,11 @@ export default function SignIn({
           We’ll send a sign-in link. No password needed.
         </p>
         <div className="preview-entry">
-          <button onClick={onPreview} disabled={!hydrated} aria-label="Preview empty workspace">
+          <button
+            onClick={onPreview}
+            disabled={!hydrated}
+            aria-label="Preview empty workspace"
+          >
             Explore the workspace <ChevronRight size={16} aria-hidden="true" />
           </button>
           <p>Preview only. Nothing is saved or sent.</p>

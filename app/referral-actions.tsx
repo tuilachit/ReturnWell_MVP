@@ -93,6 +93,7 @@ export default function ReferralActions({
       if (
         !uncertain &&
         failure instanceof WorkflowError &&
+        failure.status !== null &&
         failure.status < 500
       ) {
         pending.current = null;

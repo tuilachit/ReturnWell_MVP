@@ -89,7 +89,12 @@ export default function ReferralDraftPanel({
       onSaved(saved);
       setMessage("Draft saved privately. No email was sent.");
     } catch (error) {
-      if (!retrying && error instanceof WorkflowError && error.status < 500)
+      if (
+        !retrying &&
+        error instanceof WorkflowError &&
+        error.status !== null &&
+        error.status < 500
+      )
         pending.current = null;
       onPendingChange(Boolean(pending.current));
       if (mounted.current) setUncertain(Boolean(pending.current));

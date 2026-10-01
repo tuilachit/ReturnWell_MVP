@@ -1,5 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Workspace } from "../types";
+import { parseWorkflowFailure, workflowFailure } from "./workflow-error.ts";
+export { WorkflowError } from "./workflow-error.ts";
 export type Access = {
   doctors: (Workspace & {
     role: string;
@@ -67,48 +69,30 @@ export type InvitationInfo = {
   supportEmail: string;
   businessName: string;
 };
-export class WorkflowError extends Error {
-  code: string;
-  status: number;
-  constructor(message: string, code: string, status: number) {
-    super(message);
-    this.name = "WorkflowError";
-    this.code = code;
-    this.status = status;
-  }
-}
 export async function invoke<T>(
   client: SupabaseClient,
   name: string,
   body: Record<string, unknown> = {},
 ): Promise<T> {
-  const { data, error } = await client.functions.invoke(name, { body });
+  const { data, error } = await client.functions
+    .invoke(name, { body })
+    .catch(() => {
+      throw workflowFailure("network_error");
+    });
   if (error) {
     const response = error.context;
     if (response instanceof Response) {
-      const payload = await response.json().catch(() => null);
-      if (payload?.code === "terms_changed")
-        throw new WorkflowError(
-          "The terms or privacy notice changed. Load the current saved version, review the linked notices, and confirm consent again. Your profile edits are retained.",
-          "terms_changed",
-          response.status,
-        );
-      if (response.status === 409)
-        throw new WorkflowError(
-          "This record changed. Your edits are retained. Reload the saved version before trying again.",
-          payload?.code || "conflict",
-          response.status,
-        );
-      if (payload?.error)
-        throw new WorkflowError(
-          payload.error,
-          payload.code || "request_failed",
-          response.status,
-        );
+      const failure = await parseWorkflowFailure(response);
+      if (
+        typeof window !== "undefined" &&
+        ["unauthorized", "denied"].includes(failure.code)
+      )
+        window.dispatchEvent(new Event("workflow-access-invalid"));
+      throw failure;
     }
-    throw new Error("The request could not be completed. Please try again.");
+    throw workflowFailure("network_error");
   }
-  if (data?.error) throw new Error(data.error);
+  if (data?.error) throw workflowFailure(data.code || "request_failed");
   return data as T;
 }
 export async function invitationEntry<T>(
@@ -124,10 +108,14 @@ export async function invitationEntry<T>(
     body: JSON.stringify(body),
     cache: "no-store",
     referrerPolicy: "no-referrer",
+  }).catch(() => {
+    throw workflowFailure("network_error");
   });
-  const data = await response.json();
-  if (!response.ok || data.error)
-    throw new Error(data.error || "This invitation is unavailable.");
+  if (!response.ok) throw await parseWorkflowFailure(response);
+  const data = await response.json().catch(() => {
+    throw workflowFailure("request_failed");
+  });
+  if (data?.error) throw workflowFailure(data.code || "request_failed");
   return data as T;
 }
 export const errorText = (error: unknown) =>
@@ -192,6 +180,7 @@ export function safeDestination(path: string) {
       "/admin/practitioners",
       "/admin/practices",
       "/security",
+      "/auth/confirm",
       "/practitioner",
     ].includes(path)
     ? path
