@@ -496,13 +496,13 @@ test(
     });
     await t.test("a definite database constraint failure is distinguished from a timeout", async () => {
       const submissionId = randomUUID();
-      await assert.rejects(createReferral(doctor.client, workspace, doctor.userId, { ...input, patientReference: "X".repeat(81) }, submissionId), error => error.outcome === "rejected");
+      await assert.rejects(createReferral(doctor.client, workspace, doctor.userId, { ...input, patientReference: "X".repeat(121) }, submissionId), error => error.outcome === "rejected");
       assert.equal(local.sql(`select count(*) from public.referrals where id=${local.uuidSql(submissionId)}`), "0");
     });
     await t.test("a rejected INSERT remains correctable when the reconciliation read is offline", async () => {
       const submissionId = randomUUID();
       await assert.rejects(
-        withLostResponse(true, () => createReferral(doctor.client, workspace, doctor.userId, { ...input, patientReference: "X".repeat(81) }, submissionId)),
+        withLostResponse(true, () => createReferral(doctor.client, workspace, doctor.userId, { ...input, patientReference: "X".repeat(121) }, submissionId)),
         error => error.outcome === "rejected",
       );
       assert.equal(local.sql(`select count(*) from public.referrals where id=${local.uuidSql(submissionId)}`), "0");

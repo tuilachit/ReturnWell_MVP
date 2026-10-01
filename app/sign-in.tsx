@@ -5,6 +5,7 @@ import { ArrowRight, ChevronRight, Mail } from "./ui-icons";
 import { useSyncExternalStore, type FormEvent } from "react";
 import { Brand, BrandMark } from "./brand";
 import AccountFooter from "./account-footer";
+import Field from "./components/field";
 
 type Props = {
   email: string;
@@ -43,11 +44,10 @@ export default function SignIn({
           Sign in to your referral workspace.
         </p>
         <form onSubmit={onSubmit}>
-          <label htmlFor="work-email">Work email</label>
-          <div className="email-input">
+          <Field id="work-email" label="Work email">{fieldProps => <div className="email-input">
             <Mail size={18} aria-hidden="true" />
             <input
-              id="work-email"
+              {...fieldProps}
               type="email"
               autoComplete="email"
               required
@@ -55,7 +55,7 @@ export default function SignIn({
               value={email}
               onChange={(event) => setEmail(event.target.value)}
             />
-          </div>
+          </div>}</Field>
           <button className="button primary full" disabled={!hydrated || busy || loading}>
             {busy ? "Sending your link…" : "Email me a sign-in link"}
             <ArrowRight size={16} aria-hidden="true" />

@@ -1,7 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Practitioner, Referral, ReferralInput, Workspace } from "../types";
 
-type ReferralRow = {
+export type ReferralRow = {
   id: string;
   reference: string;
   patient_reference: string;
@@ -11,6 +11,8 @@ type ReferralRow = {
   funding_path: string;
   appointment_format: Referral["appointmentFormat"];
   language_or_access: string | null;
+  preferred_language?: string;
+  access_notes?: string;
   selection_mode: Referral["selectionMode"];
   selected_practitioner_id: string | null;
   status: Referral["status"];
@@ -19,7 +21,7 @@ type ReferralRow = {
   practitioners?: { practice_name?: string } | null;
 };
 
-const rowToReferral = (row: ReferralRow): Referral => ({
+export const rowToReferral = (row: ReferralRow): Referral => ({
   id: row.id,
   reference: row.reference,
   patientReference: row.patient_reference,
@@ -29,6 +31,8 @@ const rowToReferral = (row: ReferralRow): Referral => ({
   fundingPath: row.funding_path,
   appointmentFormat: row.appointment_format,
   languageOrAccess: row.language_or_access ?? "",
+  preferredLanguage: row.preferred_language ?? "",
+  accessNotes: row.access_notes ?? "",
   selectionMode: row.selection_mode,
   selectedPractitionerId: row.selected_practitioner_id,
   providerName: row.practitioners?.practice_name ?? (row.selected_practitioner_id ? "Assigned practitioner — profile unavailable" : row.selection_mode === "patient" ? "Patient choosing" : "Not assigned"),

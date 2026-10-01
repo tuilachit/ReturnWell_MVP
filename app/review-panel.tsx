@@ -2,6 +2,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { useEffect, useRef, useState } from "react";
 import WorkflowShell from "./workflow-shell";
+import PageState from "./components/page-state";
 import { errorText, invoke, requestId, type Application } from "./lib/workflow";
 export default function Reviews({ client }: { client: SupabaseClient }) {
   const pending = useRef<{ fingerprint: string; id: string } | null>(null);
@@ -67,9 +68,9 @@ export default function Reviews({ client }: { client: SupabaseClient }) {
       <a href="/invitations">Manage invitations</a>
       {message && <p role="status">{message}</p>}
       {loading ? (
-        <p>Loading applications…</p>
+        <PageState kind="loading" title="Loading applications…" />
       ) : rows.length === 0 ? (
-        <p>No applications to review.</p>
+        <PageState kind="empty" title="No applications to review" description="Submitted applications will appear here." />
       ) : (
         <ul className="workflow-records">
           {rows.map((row) => (

@@ -76,6 +76,12 @@ const mappings: Record<
   Record<string, { action: string; fields: string[] }>
 > = {
   "workspace-access": { default: { action: "workspace.access", fields: [] } },
+  "manage-referral": {
+    "draft.list": {action:"draft.list",fields:["organisationId"]},
+    "draft.load": {action:"draft.load",fields:["id"]},
+    "draft.save": {action:"draft.save",fields:["id","organisationId","expectedVersion","input","requestId"]},
+    "draft.finalize": {action:"draft.finalize",fields:["id","expectedVersion","consentConfirmed","requestId"]},
+  },
   "manage-invitations": {
     list: { action: "invitations.list", fields: ["organisationId"] },
     preview: {
@@ -343,7 +349,7 @@ export function workflowHandler(endpoint: string, runtime: WorkflowRuntime) {
         ? String(error.message)
         : "request_failed";
       const code = message.match(
-        /\b(denied|conflict|rate_limited|invitation_unavailable|recipient_suppressed|reviewed_identity_required|consent_required|evidence_required|invalid_profile|terms_changed|sender_configuration|body_too_large|invalid_request)\b/,
+        /\b(denied|conflict|rate_limited|invitation_unavailable|recipient_suppressed|reviewed_identity_required|consent_required|evidence_required|invalid_profile|invalid_draft|recipient_ineligible|terms_changed|sender_configuration|body_too_large|invalid_request)\b/,
       )?.[1] ?? "request_failed";
       const status = code === "body_too_large"
         ? 413
@@ -372,6 +378,8 @@ export function workflowHandler(endpoint: string, runtime: WorkflowRuntime) {
         evidence_required:
           "Complete the independent identity and registration checks.",
         invalid_profile: "Please check the profile details.",
+        invalid_draft: "Please check the referral fields. Your edits are retained.",
+        recipient_ineligible: "This practitioner no longer meets the referral requirements. Review your selection.",
         consent_required: "Please confirm the required consent.",
         recipient_suppressed:
           "Invitations to this address are paused. Contact ReturnWell support.",

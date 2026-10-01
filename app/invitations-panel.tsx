@@ -2,6 +2,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { useCallback, useEffect, useRef, useState } from "react";
 import WorkflowShell from "./workflow-shell";
+import PageState from "./components/page-state";
 import { errorText, invoke, requestId } from "./lib/workflow";
 type Invitation = {
   id: string;
@@ -303,9 +304,9 @@ function InvitationsForm({
         Refresh
       </button>
       {loading ? (
-        <p>Loading invitations…</p>
+        <PageState kind="loading" title="Loading invitations…" />
       ) : rows.length === 0 ? (
-        <p>No invitations yet.</p>
+        <PageState kind="empty" title="No invitations yet" description="Invitations you create will appear here with their delivery and signup progress." />
       ) : (
         <ul className="workflow-records">
           {rows.map((row) => (

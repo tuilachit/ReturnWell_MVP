@@ -30,14 +30,25 @@ import ReferralGuide from "./referral-guide";
 import { Brand } from "./brand";
 import {
   invoke,
+  WorkflowError,
   notificationLabel,
   type ReferralNotifications,
 } from "./lib/workflow";
 import { demoPractitioners, demoReferrals } from "./data/demo-workspace";
 import { matchPractitioners } from "./lib/matching";
 import { professionLabel, supportedProfessions } from "./lib/professions";
+import { referralStatusLabel as statusLabel } from "./lib/referral-status";
+import ReferralDraftPanel from "./referral-draft-panel";
+import ConfirmDialog from "./components/confirm-dialog";
 import {
-  createReferral,
+  saveReferralDraft,
+  finalizeReferralDraft,
+  type DraftInput,
+  type ReferralDraft,
+} from "./lib/referral-drafts";
+import {
+  rowToReferral,
+  type ReferralRow,
   ReferralSubmissionError,
   listPractitioners,
   listReferrals,
@@ -69,14 +80,6 @@ const formatLabel = (format: AppointmentFormat) =>
   ({ either: "Either", in_person: "In person", telehealth: "Telehealth" })[
     format
   ];
-const statusLabel = (status: Referral["status"]) =>
-  ({
-    sent: "Awaiting response",
-    accepted: "Accepted",
-    declined: "Needs another option",
-    booked: "Appointment booked",
-    cancelled: "Cancelled",
-  })[status];
 
 export default function DoctorPortal({
   mode,
@@ -106,11 +109,16 @@ export default function DoctorPortal({
   const [appointmentFormat, setAppointmentFormat] =
     useState<AppointmentFormat>("either");
   const [languageOrAccess, setLanguageOrAccess] = useState("");
+  const [accessNotes, setAccessNotes] = useState("");
   const selectionMode: SelectionMode = "doctor";
   const [selectedPractitionerId, setSelectedPractitionerId] = useState<
     string | null
   >(null);
   const [consentConfirmed, setConsentConfirmed] = useState(false);
+  const [draft, setDraft] = useState<ReferralDraft | null>(null);
+  const [draftPending, setDraftPending] = useState(false);
+  const [leaving, setLeaving] = useState(false);
+  const leaveAction = useRef<(() => void) | null>(null);
   const [loading, setLoading] = useState(mode === "authenticated");
   const [saving, setSaving] = useState(false);
   const submitting = useRef(false);
@@ -119,6 +127,9 @@ export default function DoctorPortal({
     input: ReferralInput;
     organisationId: string;
     userId: string;
+    draftVersion: number;
+    saveRequestId: string;
+    sendRequestId: string;
   } | null>(null);
   const [submissionPending, setSubmissionPending] = useState(false);
   const [demoMode, setDemoMode] = useState(false);
@@ -132,15 +143,35 @@ export default function DoctorPortal({
         )?.[1] ?? null)
       : null;
 
+  const dirtyDraft =
+    view === "new" &&
+    step < 4 &&
+    Boolean(
+      patientReference ||
+      clinicalSummary ||
+      postcode ||
+      languageOrAccess ||
+      accessNotes,
+    ) &&
+    (!draft ||
+      patientReference !== (draft.input.patientReference ?? "") ||
+      clinicalSummary !== (draft.input.clinicalSummary ?? "") ||
+      postcode !== (draft.input.patientPostcode ?? "") ||
+      profession !== draft.input.profession ||
+      fundingPath !== draft.input.fundingPath ||
+      appointmentFormat !== draft.input.appointmentFormat ||
+      accessNotes !== (draft.input.accessNotes ?? "") ||
+      languageOrAccess !==
+        (draft.input.preferredLanguage ?? draft.input.languageOrAccess ?? ""));
   useEffect(() => {
-    if (!submissionPending) return;
+    if (!submissionPending && !draftPending && !dirtyDraft) return;
     const warnBeforeLeaving = (event: BeforeUnloadEvent) => {
       event.preventDefault();
       event.returnValue = "";
     };
     window.addEventListener("beforeunload", warnBeforeLeaving);
     return () => window.removeEventListener("beforeunload", warnBeforeLeaving);
-  }, [submissionPending]);
+  }, [submissionPending, draftPending, dirtyDraft]);
 
   useEffect(() => {
     const heading = pageHeading.current?.querySelector<HTMLElement>("h1");
@@ -252,6 +283,8 @@ export default function DoctorPortal({
   }, [client, mode, requestedReferralId, workspace, refresh]);
 
   const resetForm = () => {
+    setDraft(null);
+    setDraftPending(false);
     setStep(1);
     setPatientReference("");
     setPostcode("");
@@ -260,18 +293,32 @@ export default function DoctorPortal({
     setFundingPath("Medicare");
     setAppointmentFormat("either");
     setLanguageOrAccess("");
+    setAccessNotes("");
     setSelectedPractitionerId(null);
     setConsentConfirmed(false);
     setDeliveryNote("");
     setError("");
   };
 
-  const goHome = () => {
-    setMobileNav(false);
-    setView("referrals");
-    setDetailReferral(null);
-    setError("");
+  const requestLeave = (action: () => void) => {
+    if (submissionPending || draftPending) {
+      setError("Resolve the pending save before leaving this referral.");
+      return;
+    }
+    if (dirtyDraft) {
+      leaveAction.current = action;
+      setLeaving(true);
+      return;
+    }
+    action();
   };
+  const goHome = () =>
+    requestLeave(() => {
+      setMobileNav(false);
+      setView("referrals");
+      setDetailReferral(null);
+      setError("");
+    });
 
   const startReferral = () => {
     setMobileNav(false);
@@ -280,8 +327,10 @@ export default function DoctorPortal({
       setView("new");
       return;
     }
-    resetForm();
-    setView("new");
+    requestLeave(() => {
+      resetForm();
+      setView("new");
+    });
   };
 
   const loadDemoWorkspace = () => {
@@ -342,13 +391,45 @@ export default function DoctorPortal({
     fundingPath,
     appointmentFormat,
     languageOrAccess,
+    preferredLanguage: languageOrAccess,
+    accessNotes,
     selectionMode,
     selectedPractitionerId,
     consentConfirmed,
   });
 
+  const draftInput = (): DraftInput => ({
+    patientReference,
+    patientPostcode: postcode,
+    profession,
+    clinicalSummary,
+    fundingPath,
+    appointmentFormat,
+    languageOrAccess: "",
+    selectedPractitionerId,
+    preferredLanguage: languageOrAccess,
+    accessNotes,
+  });
+  const restoreDraft = (saved: ReferralDraft) => {
+    setDraft(saved);
+    setPatientReference(saved.input.patientReference ?? "");
+    setPostcode(saved.input.patientPostcode ?? "");
+    setProfession(saved.input.profession ?? "physiotherapist");
+    setClinicalSummary(saved.input.clinicalSummary ?? "");
+    setFundingPath(saved.input.fundingPath ?? "Medicare");
+    setAppointmentFormat(saved.input.appointmentFormat ?? "either");
+    setLanguageOrAccess(
+      saved.input.preferredLanguage ?? saved.input.languageOrAccess ?? "",
+    );
+    setAccessNotes(saved.input.accessNotes ?? "");
+    setSelectedPractitionerId(saved.input.selectedPractitionerId ?? null);
+    setConsentConfirmed(false);
+    setStep(1);
+    setError("");
+  };
   const proceedToShortlist = (event: React.FormEvent) => {
     event.preventDefault();
+    if (draftPending || saving || submissionPending) return;
     const errors = validateReferralInput({
       ...formInput(),
       selectedPractitionerId: "pending",
@@ -385,17 +466,51 @@ export default function DoctorPortal({
       let saved: Referral;
       if (mode === "authenticated" && client && workspace && userId) {
         const submission = pendingSubmission.current ?? {
-          id: crypto.randomUUID(),
+          id: draft?.id ?? crypto.randomUUID(),
           input: { ...input },
           organisationId: workspace.organisationId,
           userId,
+          draftVersion: draft?.version ?? -1,
+          saveRequestId: crypto.randomUUID(),
+          sendRequestId: crypto.randomUUID(),
         };
         pendingSubmission.current = submission;
         setSubmissionPending(true);
-        if (submission.organisationId !== workspace.organisationId || submission.userId !== userId) {
+        if (
+          submission.organisationId !== workspace.organisationId ||
+          submission.userId !== userId
+        ) {
           throw new ReferralSubmissionError("unconfirmed");
         }
-        saved = await createReferral(client, workspace, userId, submission.input, submission.id);
+        const workingCopy: DraftInput = {
+          patientReference: submission.input.patientReference,
+          patientPostcode: submission.input.patientPostcode,
+          profession: submission.input.profession,
+          clinicalSummary: submission.input.clinicalSummary,
+          fundingPath: submission.input.fundingPath,
+          appointmentFormat: submission.input.appointmentFormat,
+          languageOrAccess: "",
+          preferredLanguage:
+            submission.input.preferredLanguage ??
+            submission.input.languageOrAccess,
+          accessNotes: submission.input.accessNotes ?? "",
+          selectedPractitionerId: submission.input.selectedPractitionerId,
+        };
+        const savedDraft = await saveReferralDraft(client, {
+          id: submission.id,
+          organisationId: workspace.organisationId,
+          expectedVersion: submission.draftVersion,
+          requestId: submission.saveRequestId,
+          input: workingCopy,
+        });
+        setDraft(savedDraft);
+        const result = await finalizeReferralDraft(client, {
+          id: savedDraft.id,
+          expectedVersion: savedDraft.version,
+          consentConfirmed: true,
+          requestId: submission.sendRequestId,
+        });
+        saved = rowToReferral(result as ReferralRow);
         saved = {
           ...saved,
           providerName:
@@ -442,21 +557,34 @@ export default function DoctorPortal({
       }
       pendingSubmission.current = null;
       setSubmissionPending(false);
-      setReferrals((current) => [saved, ...current.filter((row) => row.id !== saved.id)]);
+      setReferrals((current) => [
+        saved,
+        ...current.filter((row) => row.id !== saved.id),
+      ]);
       setDetailReferral(saved);
       setStep(4);
     } catch (failure) {
       // A definite rejection on a first attempt allows correction. A later
       // rejection cannot disprove an earlier ambiguous commit, so retain it.
-      if (!wasPending && failure instanceof ReferralSubmissionError && failure.outcome === "rejected") {
+      if (
+        !wasPending &&
+        ((failure instanceof ReferralSubmissionError &&
+          failure.outcome === "rejected") ||
+          (failure instanceof WorkflowError && failure.status < 500))
+      ) {
         pendingSubmission.current = null;
         setSubmissionPending(false);
       }
-      setError(wasPending && failure instanceof ReferralSubmissionError && failure.outcome === "rejected"
-        ? new ReferralSubmissionError("unconfirmed").message
-        : failure instanceof ReferralSubmissionError
-        ? failure.message
-        : "We could not confirm whether the referral was saved. Keep this page open and use Check and retry before starting another referral.");
+      setError(
+        wasPending &&
+          failure instanceof ReferralSubmissionError &&
+          failure.outcome === "rejected"
+          ? new ReferralSubmissionError("unconfirmed").message
+          : failure instanceof ReferralSubmissionError ||
+              (!wasPending && failure instanceof WorkflowError)
+            ? failure.message
+            : "We could not confirm whether the referral was saved. Keep this page open and use Check and retry before starting another referral.",
+      );
     } finally {
       submitting.current = false;
       setSaving(false);
@@ -470,13 +598,31 @@ export default function DoctorPortal({
     setRefresh((value) => value + 1);
   };
   const navigate = (next: View) => {
-    setView(next);
-    setMobileNav(false);
-    setError("");
+    requestLeave(() => {
+      setView(next);
+      setMobileNav(false);
+      setError("");
+    });
   };
 
   return (
     <main className={`gp-shell ${mobileNav ? "nav-open" : ""}`}>
+      <ConfirmDialog
+        open={leaving}
+        title="Leave this draft?"
+        description="Unsaved changes will be discarded. A draft you have already saved stays in your private draft list."
+        confirmLabel="Discard unsaved changes"
+        onConfirm={() => {
+          resetForm();
+          setLeaving(false);
+          leaveAction.current?.();
+          leaveAction.current = null;
+        }}
+        onCancel={() => {
+          setLeaving(false);
+          leaveAction.current = null;
+        }}
+      />
       <a className="skip-link" href="#workspace-content">
         Skip to content
       </a>
@@ -815,6 +961,18 @@ export default function DoctorPortal({
               {step === 1 && (
                 <div className="referral-start-layout">
                   <form className="referral-form" onSubmit={proceedToShortlist}>
+                    {mode === "authenticated" && client && workspace && (
+                      <ReferralDraftPanel
+                        client={client}
+                        organisationId={workspace.organisationId}
+                        input={draftInput()}
+                        draft={draft}
+                        disabled={saving || submissionPending}
+                        onSaved={setDraft}
+                        onLoad={restoreDraft}
+                        onPendingChange={setDraftPending}
+                      />
+                    )}
                     <fieldset>
                       <legend>Patient details</legend>
                       <p>
@@ -868,7 +1026,11 @@ export default function DoctorPortal({
                               setProfession(event.target.value as Profession)
                             }
                           >
-                            {supportedProfessions.map(p => <option key={p.id} value={p.id}>{p.label}</option>)}
+                            {supportedProfessions.map((p) => (
+                              <option key={p.id} value={p.id}>
+                                {p.label}
+                              </option>
+                            ))}
                           </select>
                         </label>
                         <label>
@@ -933,6 +1095,17 @@ export default function DoctorPortal({
                             placeholder="e.g. English"
                           />
                         </label>
+                        <label className="full-width">
+                          <span>Accessibility notes (optional)</span>
+                          <textarea
+                            maxLength={500}
+                            value={accessNotes}
+                            onChange={(event) =>
+                              setAccessNotes(event.target.value)
+                            }
+                            placeholder="e.g. Step-free access needed. Do not include patient names or contact details."
+                          />
+                        </label>
                       </div>
                     </fieldset>
                     <div className="form-actions">
@@ -943,7 +1116,10 @@ export default function DoctorPortal({
                       >
                         Cancel
                       </button>
-                      <button className="button primary">
+                      <button
+                        className="button primary"
+                        disabled={draftPending}
+                      >
                         Find practitioners <ArrowRight size={16} />
                       </button>
                     </div>
@@ -1075,7 +1251,9 @@ export default function DoctorPortal({
                               <strong>
                                 {practitioner.location
                                   ? `${practitioner.location.suburb} ${practitioner.location.postcode}`
-                                  : practitioner.telehealth ? "Telehealth" : "Location not provided"}
+                                  : practitioner.telehealth
+                                    ? "Telehealth"
+                                    : "Location not provided"}
                               </strong>
                               <small>
                                 {practitioner.services.slice(0, 2).join(" · ")}
@@ -1144,7 +1322,11 @@ export default function DoctorPortal({
                         </dd>
                       </div>
                     </dl>
-                    <button className="text-button" disabled={saving || submissionPending} onClick={() => setStep(1)}>
+                    <button
+                      className="text-button"
+                      disabled={saving || submissionPending}
+                      onClick={() => setStep(1)}
+                    >
                       Edit referral
                     </button>
                   </section>
@@ -1181,7 +1363,11 @@ export default function DoctorPortal({
                       disabled={!consentConfirmed || saving}
                       onClick={submitReferral}
                     >
-                      {saving ? "Saving…" : submissionPending ? "Check and retry" : "Record referral"}
+                      {saving
+                        ? "Saving…"
+                        : submissionPending
+                          ? "Check and retry"
+                          : "Record referral"}
                     </button>
                   </aside>
                 </div>
@@ -1245,6 +1431,16 @@ export default function DoctorPortal({
                     <div>
                       <dt>Clinical need</dt>
                       <dd>{detailReferral.clinicalSummary}</dd>
+                    </div>
+                    <div>
+                      <dt>Preferred language</dt>
+                      <dd>
+                        {detailReferral.preferredLanguage || "Not specified"}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt>Accessibility notes</dt>
+                      <dd>{detailReferral.accessNotes || "Not specified"}</dd>
                     </div>
                     <div>
                       <dt>Patient postcode</dt>

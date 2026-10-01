@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import AppErrorBoundary from "./components/app-error-boundary";
 
 export const metadata: Metadata = {
   metadataBase: new URL(
@@ -27,7 +28,7 @@ export default function RootLayout({
 }: Readonly<{ children: React.ReactNode }>) {
   return (
     <html lang="en-AU">
-      <body>{children}</body>
+      <body><AppErrorBoundary>{children}</AppErrorBoundary></body>
     </html>
   );
 }

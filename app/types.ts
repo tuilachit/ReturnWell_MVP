@@ -20,6 +20,8 @@ export type Referral = {
   fundingPath: string;
   appointmentFormat: AppointmentFormat;
   languageOrAccess: string;
+  preferredLanguage?: string;
+  accessNotes?: string;
   selectionMode: SelectionMode;
   selectedPractitionerId: string | null;
   providerName: string;
@@ -53,6 +55,8 @@ export type ReferralInput = {
   fundingPath: string;
   appointmentFormat: AppointmentFormat;
   languageOrAccess: string;
+  preferredLanguage?: string;
+  accessNotes?: string;
   selectionMode: SelectionMode;
   selectedPractitionerId: string | null;
   consentConfirmed: boolean;

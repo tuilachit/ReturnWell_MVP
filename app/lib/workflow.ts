@@ -64,6 +64,13 @@ export type InvitationInfo = {
   supportEmail: string;
   businessName: string;
 };
+export class WorkflowError extends Error {
+  code: string;
+  status: number;
+  constructor(message: string, code: string, status: number) {
+    super(message); this.name="WorkflowError"; this.code=code; this.status=status;
+  }
+}
 export async function invoke<T>(
   client: SupabaseClient,
   name: string,
@@ -75,14 +82,16 @@ export async function invoke<T>(
     if (response instanceof Response) {
       const payload = await response.json().catch(() => null);
       if (payload?.code === "terms_changed")
-        throw new Error(
+        throw new WorkflowError(
           "The terms or privacy notice changed. Load the current saved version, review the linked notices, and confirm consent again. Your profile edits are retained.",
+          "terms_changed", response.status,
         );
       if (response.status === 409)
-        throw new Error(
+        throw new WorkflowError(
           "This record changed. Your edits are retained. Reload the saved version before trying again.",
+          payload?.code || "conflict", response.status,
         );
-      if (payload?.error) throw new Error(payload.error);
+      if (payload?.error) throw new WorkflowError(payload.error, payload.code || "request_failed", response.status);
     }
     throw new Error("The request could not be completed. Please try again.");
   }

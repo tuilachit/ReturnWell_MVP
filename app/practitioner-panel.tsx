@@ -2,6 +2,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { useEffect, useRef, useState } from "react";
 import WorkflowShell from "./workflow-shell";
+import PageState from "./components/page-state";
 import PractitionerProfile from "./practitioner-profile";
 import ReferralActivity from "./referral-activity";
 import { errorText, invoke, requestId } from "./lib/workflow";
@@ -14,6 +15,8 @@ type Assigned = {
   funding_path: string;
   appointment_format: string;
   language_or_access: string | null;
+  preferred_language: string;
+  access_notes: string;
   status: string;
   version: number;
 };
@@ -59,7 +62,7 @@ export default function PractitionerInbox({
       const { data, error } = await client
         .from("referrals")
         .select(
-          "id,reference,patient_reference,patient_postcode,clinical_summary,funding_path,appointment_format,language_or_access,status,version",
+          "id,reference,patient_reference,patient_postcode,clinical_summary,funding_path,appointment_format,language_or_access,preferred_language,access_notes,status,version",
         )
         .eq("selected_practitioner_id", practitioner.practitionerId)
         .order("created_at", { ascending: false });
@@ -178,7 +181,7 @@ export default function PractitionerInbox({
       {message && <p role="status">{message}</p>}
       {selected ? (
         loading ? (
-          <p>Loading referral…</p>
+          <PageState kind="loading" title="Loading referral…" />
         ) : detail ? (
           <section className="workflow-card">
             <button
@@ -216,9 +219,11 @@ export default function PractitionerInbox({
                 </dd>
               </div>
               <div>
-                <dt>Language and access</dt>
-                <dd>{detail.language_or_access || "Not specified"}</dd>
+                <dt>Preferred language</dt>
+                <dd>{detail.preferred_language || "Not specified"}</dd>
               </div>
+              <div><dt>Accessibility notes</dt><dd>{detail.access_notes || "Not specified"}</dd></div>
+              {detail.language_or_access && <div><dt>Previously recorded language / access</dt><dd>{detail.language_or_access}</dd></div>}
             </dl>
             {detail.status === "sent" && (
               <>

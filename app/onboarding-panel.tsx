@@ -2,6 +2,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { useEffect, useState } from "react";
 import WorkflowShell from "./workflow-shell";
+import PageState from "./components/page-state";
 import { getProfession, supportedProfessions } from "./lib/professions";
 import {
   errorText,
@@ -123,7 +124,7 @@ export default function Onboarding({
       <p className="workflow-lead">Confirm your professional details and how you accept referrals. Your profile stays private until it has been reviewed and approved.</p>
       {message && <p role="status">{message}</p>}
       {!application ? (
-        <p role="status">Loading your application…</p>
+        <PageState kind="loading" title="Loading your application…" />
       ) : (
         <>
           <p>

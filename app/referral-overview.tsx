@@ -16,15 +16,8 @@ import {
 } from "./ui-icons";
 import type { Referral } from "./types";
 import { professionLabel } from "./lib/professions";
-
-export const referralStatusLabel = (status: Referral["status"]) =>
-  ({
-    sent: "Awaiting response",
-    accepted: "Accepted",
-    declined: "Needs another option",
-    booked: "Appointment booked",
-    cancelled: "Cancelled",
-  })[status];
+import { referralStatusLabel } from "./lib/referral-status";
+export { referralStatusLabel } from "./lib/referral-status";
 
 type Props = {
   referrals: Referral[];
@@ -62,7 +55,7 @@ export default function ReferralOverview({
   ).length;
   const attention = referrals.filter((r) => r.status === "declined").length;
   const awaiting = referrals.filter((r) => r.status === "sent").length;
-  const booked = referrals.filter((r) => r.status === "booked").length;
+  const accepted = referrals.filter((r) => r.status === "accepted").length;
   const filters = [
     { value: "all", label: "All referrals", count: referrals.length },
     {
@@ -76,7 +69,7 @@ export default function ReferralOverview({
       count: referrals.filter((r) => r.status === "accepted").length,
     },
     { value: "declined", label: "Needs attention", count: attention },
-    { value: "booked", label: "Booked", count: booked },
+    { value: "cancelled", label: "Cancelled", count: referrals.filter(r => r.status === "cancelled").length },
   ];
 
   return (
@@ -116,11 +109,11 @@ export default function ReferralOverview({
             hint: "View referrals needing attention",
           },
           {
-            label: "Appointments booked",
-            value: booked,
-            filter: "booked",
+            label: "Ready for handover",
+            value: accepted,
+            filter: "accepted",
             icon: CalendarCheck2,
-            hint: "View booked appointments",
+            hint: "View accepted referrals",
           },
         ].map(({ label, value, filter, icon: Icon, hint }) => (
           <button

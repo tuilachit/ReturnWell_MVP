@@ -28,3 +28,4 @@ jobs:
           stack_dir=$(mktemp -d "$HOME/.cache/returnwell-local/returnwell-integration-XXXXXX")
           node tests/helpers/local-stack.mjs "$stack_dir"
           RW_LOCAL_STACK_DIR="$stack_dir" npm run test:local-journey
+          RW_LOCAL_STACK_DIR="$stack_dir" npm run test:browser

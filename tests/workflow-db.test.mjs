@@ -933,6 +933,41 @@ test(
           "3",
         );
       });
+      await t.test("drafts are creator scoped, versioned and save no mail", () => {
+        const before = sql('select count(*) from public.notification_outbox');
+        sql(`insert into public.organisation_memberships(organisation_id,user_id,role) values ('${id(10)}','${id(4)}','referrer')`);
+        const input = {id:id(101),organisationId:id(10),expectedVersion:-1,requestId:id(102),input:{patientReference:'FICTIONAL-DRAFT',clinicalSummary:'Fictional unsent summary'}};
+        const draft = rpc(id(2),'draft.save',input);
+        assert.equal(draft.version,0);
+        assert.deepEqual(rpc(id(2),'draft.save',input),draft);
+        assert.equal(rpc(id(2),'draft.list',{organisationId:id(10)}).drafts[0].id,draft.id);
+        assert.equal(rpc(id(4),'draft.list',{organisationId:id(10)}).drafts.length,0);
+        assert.equal(sql("select has_table_privilege('authenticated','public.referral_drafts','insert')"),'f');
+        assert.equal(sql("select has_table_privilege('authenticated','public.referral_drafts','update')"),'f');
+        assert.throws(()=>rpc(id(2),'draft.save',{...input,input:{clinicalSummary:'Different payload'}}),/conflict/);
+        assert.equal(sql('select count(*) from public.notification_outbox'),before);
+        assert.throws(()=>rpc(id(4),'draft.load',{id:input.id}),/denied/);
+        assert.throws(()=>rpc(id(1),'draft.load',{id:input.id}),/denied/);
+        assert.equal(sql(`set role authenticated; set request.jwt.claim.sub='${id(4)}'; select count(*) from public.referral_drafts`),'0');
+        assert.throws(()=>rpc(id(2),'draft.save',{...input,requestId:id(103)}),/conflict/);
+        assert.throws(()=>rpc(id(2),'draft.save',{...input,id:id(104),requestId:id(105),input:{patientName:'Forbidden'}}),/invalid_draft/);
+        sql(`delete from public.organisation_memberships where organisation_id='${id(10)}' and user_id='${id(4)}'`);
+      });
+      await t.test("draft finalisation replays one referral and rechecks eligibility", () => {
+        sql(`update public.practitioners set accepting_new_referrals=true where id='${practitionerId}'`);
+        const input={patientReference:'FICTIONAL-DRAFT',patientPostcode:'2000',profession:'physiotherapist',clinicalSummary:'Fictional summary',fundingPath:'Private',appointmentFormat:'either',selectedPractitionerId:practitionerId};
+        const draft=rpc(id(2),'draft.save',{id:id(110),organisationId:id(10),expectedVersion:-1,requestId:id(111),input});
+        const send={id:draft.id,expectedVersion:draft.version,requestId:id(112),consentConfirmed:true};
+        assert.throws(()=>rpc(id(2),'draft.finalize',{...send,consentConfirmed:false}),/consent_required/);
+        sql(`update public.practitioners set accepting_new_referrals=false where id='${practitionerId}'`);
+        assert.throws(()=>rpc(id(2),'draft.finalize',send),/recipient_ineligible/);
+        sql(`update public.practitioners set accepting_new_referrals=true where id='${practitionerId}'`);
+        const result=rpc(id(2),'draft.finalize',send);
+        assert.equal(result.id,draft.id);
+        assert.deepEqual(rpc(id(2),'draft.finalize',send),result);
+        assert.equal(sql(`select count(*) from public.notification_outbox where referral_id='${draft.id}'`),'1');
+        assert.equal(rpc(id(2),'draft.load',{id:draft.id}).finalizedReferralId,draft.id);
+      });
       await t.test("malformed notification configuration cannot roll back a clinical response", () => {
         sql(
           `update public.organisations set notification_email='invalid' where id='${
