@@ -15,6 +15,25 @@ test("deployment preflight permits a clean source export", async (t) => {
   assert.equal(result.status, 0, result.stderr);
 });
 
+for (const filename of ["middleware.ts", "middleware.js"]) {
+  test(`deployment preflight blocks Vercel's separate compiler for ${filename}`, async (t) => {
+    const root = await mkdtemp(join(tmpdir(), "returnwell-deploy-test-"));
+    t.after(() => rm(root, { recursive: true, force: true }));
+    await writeFile(join(root, filename), 'import { NextResponse } from "next/server";');
+    const result = spawnSync(process.execPath, [script], { cwd: root, encoding: "utf8" });
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, /Use proxy\.ts.*Vinext/);
+  });
+}
+
+test("deployment preflight permits the Vinext proxy entry", async (t) => {
+  const root = await mkdtemp(join(tmpdir(), "returnwell-deploy-test-"));
+  t.after(() => rm(root, { recursive: true, force: true }));
+  await writeFile(join(root, "proxy.ts"), 'import { NextResponse } from "next/server";');
+  const result = spawnSync(process.execPath, [script], { cwd: root, encoding: "utf8" });
+  assert.equal(result.status, 0, result.stderr);
+});
+
 for (const filename of [
   "private-data/fixture.json",
   "app/data/practitioners.generated.json",

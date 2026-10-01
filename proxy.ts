@@ -1,6 +1,8 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { securityHeaders } from "./app/lib/security-headers";
-export function middleware(request: NextRequest) {
+// Vinext bundles this entry into the application server. A root middleware.ts
+// is also auto-compiled by Vercel without Vinext's next/server compatibility.
+export function proxy(request: NextRequest) {
   const headers = securityHeaders({
     supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL,
     development: process.env.NODE_ENV === "development",
