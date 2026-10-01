@@ -142,6 +142,7 @@ const mappings: Record<
     },
   },
   "manage-referral": {
+    "handover.read": { action: "referral.handover", fields: ["referralId"] },
     transition: {
       action: "referral.transition",
       fields: [

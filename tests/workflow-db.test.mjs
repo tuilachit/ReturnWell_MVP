@@ -948,6 +948,88 @@ test(
         requestId: id(32),
       };
       await t.test(
+        "handover is participant-only, uses reviewed practice contacts and loses access with current membership",
+        () => {
+          const input = { referralId: id(30) };
+          assert.throws(() => rpc(id(1), "referral.handover", input), /denied/);
+          assert.throws(() => rpc(id(4), "referral.handover", input), /denied/);
+          const missing = rpc(id(3), "referral.handover", input);
+          assert.equal(missing.reviewedAt, null);
+          assert.equal(missing.contactPhone, null);
+          assert.equal(
+            JSON.stringify(missing).includes("clinical_summary"),
+            false,
+          );
+          assert.match(missing.nextAction, /reviewed practice contact/i);
+          const contact = {
+            organisationId: id(10),
+            expectedVersion: 0,
+            contactPhone: "02 5555 1212",
+            contactEmail: "practice@example.test",
+            secureInstructions: "Use https://secure.example.test/handover",
+            evidenceReference: "Fictional independent callback",
+            requestId: id(9750),
+          };
+          rpc(id(1), "practice.reviewContact", contact);
+          const value = rpc(id(3), "referral.handover", input);
+          assert.equal(value.contactPhone, "02 5555 1212");
+          assert.ok(value.reviewedAt);
+          assert.equal(value.practiceName, "Fictional Practice");
+          assert.deepEqual(rpc(id(2), "referral.handover", input), value);
+          assert.equal(
+            sql(
+              `begin; update public.organisation_memberships set active=false where organisation_id='${id(10)}' and user_id='${id(2)}'; set role service_role; select public.rw_workflow('${id(3)}','referral.handover','${JSON.stringify(input)}')->>'contactPhone'; rollback;`,
+            ),
+            "02 5555 1212",
+          );
+          assert.throws(
+            () =>
+              sql(
+                `begin; update public.organisation_memberships set active=false where organisation_id='${id(10)}' and user_id='${id(2)}'; set role service_role; select public.rw_workflow('${id(2)}','referral.handover','${JSON.stringify(input)}'); rollback;`,
+              ),
+            /denied/,
+          );
+          assert.throws(
+            () =>
+              sql(
+                `begin; update public.practitioner_users set active=false where user_id='${id(3)}'; set role service_role; select public.rw_workflow('${id(3)}','referral.handover','${JSON.stringify(input)}'); rollback;`,
+              ),
+            /denied/,
+          );
+          assert.throws(
+            () =>
+              sql(
+                `begin; update public.practitioners set access_suspended_at=now() where id='${practitionerId}'; set role service_role; select public.rw_workflow('${id(3)}','referral.handover','${JSON.stringify(input)}'); rollback;`,
+              ),
+            /denied/,
+          );
+          for (const [status, expected] of [
+            ["awaiting_onboarding", "not been released"],
+            ["accepted", "secure external handover"],
+            ["declined", "Do not continue handover"],
+            ["cancelled", "cancelled referral"],
+            ["closed", "Coordination is closed"],
+            ["booked", "historical booking status"],
+          ]) {
+            const guidance = sql(
+              `begin; update public.referrals set status='${status}' where id='${id(30)}'; set role service_role; select public.rw_workflow('${id(2)}','referral.handover','${JSON.stringify(input)}')->>'nextAction'; rollback;`,
+            );
+            assert.ok(guidance.includes(expected), status);
+          }
+          assert.throws(
+            () =>
+              sql(
+                `begin; update public.referrals set status='awaiting_onboarding' where id='${id(30)}'; set role service_role; select public.rw_workflow('${id(3)}','referral.handover','${JSON.stringify(input)}'); rollback;`,
+              ),
+            /denied/,
+          );
+          // Keep later legacy-email fixtures unchanged.
+          sql(
+            `delete from private.practice_contacts where organisation_id='${id(10)}'; update public.organisations set notification_email='practice@example.test' where id='${id(10)}'`,
+          );
+        },
+      );
+      await t.test(
         "operator administration does not confer clinical referral access",
         () => {
           assert.equal(

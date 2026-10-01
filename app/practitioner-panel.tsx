@@ -8,6 +8,7 @@ import WorkflowShell from "./workflow-shell";
 import PageState from "./components/page-state";
 import PractitionerProfile from "./practitioner-profile";
 import ReferralActivity from "./referral-activity";
+import HandoverPanel from "./handover-panel";
 import { errorText, invoke, requestId } from "./lib/workflow";
 type Assigned = {
   id: string;
@@ -246,6 +247,12 @@ export default function PractitionerInbox({
                 </div>
               )}
             </dl>
+            <HandoverPanel
+              key={detail.id}
+              client={client}
+              referralId={detail.id}
+              version={detail.version}
+            />
             {detail.status === "sent" && (
               <>
                 <p>

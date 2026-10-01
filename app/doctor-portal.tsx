@@ -40,6 +40,7 @@ import { listReferralPage, type DistanceGroup } from "./lib/directory";
 import { usePractitionerSearch } from "./lib/use-practitioner-search";
 import DirectoryPages from "./components/directory-pages";
 import ReferralActions from "./referral-actions";
+import HandoverPanel from "./handover-panel";
 import terminology from "../shared/terminology.json";
 import CapabilityRequirements from "./components/capability-requirements";
 import { normalizeTerm } from "./lib/terminology";
@@ -1720,6 +1721,14 @@ export default function DoctorPortal({
                       </a>
                       .
                     </p>
+                  )}
+                  {client && mode === "authenticated" && (
+                    <HandoverPanel
+                      key={"handover-" + detailReferral.id}
+                      client={client}
+                      referralId={detailReferral.id}
+                      version={detailReferral.version}
+                    />
                   )}
                   {client && mode === "authenticated" && (
                     <ReferralActions

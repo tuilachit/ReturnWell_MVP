@@ -10,7 +10,7 @@
 
 **Spec:** [Launch-readiness design](../specs/2026-10-01-launch-readiness-design.md).
 
-Status: **implementation in progress**, under the approved [two-doctor pilot plan](2026-10-01-two-doctor-pilot.md). Work is isolated on `codex/pilot-readiness`; it is not deployed or approved for real referrals. D1/D2, A1/direct-referral parts of A2, B1–B4/B6, A3 and A6 have local verification. A6 includes D3's server-enforced privileged-MFA foundation, not all security/recovery work. B5 is blocked by the absent approved geography source. A4/A5/A7, C1–C5, remaining D3–D7 and the referral-linked invitation/release journey remain unfinished. No hosted changes or real email sends.
+Status: **implementation in progress**, under the approved [two-doctor pilot plan](2026-10-01-two-doctor-pilot.md). Work is isolated on `codex/pilot-readiness`; it is not deployed or approved for real referrals. D1/D2, A1/direct-referral parts of A2, B1–B4/B6, A3/A4 and A6 have local verification. A6 includes D3's server-enforced privileged-MFA foundation, not all security/recovery work. A4's contact direction still needs clinician acceptance. B5 is blocked by the absent approved geography source. A5/A7, C1–C5, remaining D3–D7 and the referral-linked invitation/release journey remain unfinished. No hosted changes or real email sends.
 
 ## Global Constraints
 

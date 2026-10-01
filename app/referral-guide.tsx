@@ -25,7 +25,7 @@ const steps = [
   {
     icon: Check,
     title: "Follow the response",
-    text: "Track acceptance or decline in the referral activity. Acceptance is not an appointment booking. Arrange the appointment and patient handover separately with the practitioner.",
+    text: "Track acceptance or decline in activity. After acceptance, use the reviewed referring-practice contact to agree a secure external handover. Arrange appointments and payments separately; close coordination only after confirming the actual outcome.",
   },
 ];
 
