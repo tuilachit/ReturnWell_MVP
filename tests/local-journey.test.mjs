@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { randomUUID } from "node:crypto";
 import { localRuntime } from "./helpers/local-runtime.mjs";
+import { enrollFixtureMfa } from './helpers/mfa.mjs';
 import { createReferral, getReferral } from "../app/lib/referrals.ts";
 
 const enabled = process.env.RW_LOCAL_JOURNEY === "1";
@@ -31,6 +32,7 @@ test(
     const operator = await local.verifiedFixtureUser(
       `operator-${suffix}@example.test`,
     );
+    await enrollFixtureMfa(operator.client);
     const outsider = await local.verifiedFixtureUser(
       `outsider-${suffix}@example.test`,
     );

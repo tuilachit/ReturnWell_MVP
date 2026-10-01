@@ -10,6 +10,8 @@ import Invitations from "./invitations-panel";
 import Onboarding from "./onboarding-panel";
 import Reviews from "./review-panel";
 import PractitionerInbox from "./practitioner-panel";
+import PracticeAdmin from "./practice-admin-panel";
+import SecurityPanel from "./security-panel";
 import { getSupabaseBrowserClient } from "./lib/supabase";
 import {
   errorText,
@@ -20,7 +22,13 @@ import {
 export default function AuthGate({
   requested,
 }: {
-  requested?: "invitations" | "onboarding" | "operator" | "practitioner";
+  requested?:
+    | "invitations"
+    | "onboarding"
+    | "operator"
+    | "practitioner"
+    | "practices"
+    | "security";
 }) {
   const client = useMemo(() => getSupabaseBrowserClient(), []);
   const [session, setSession] = useState<Session | null>(null);
@@ -149,6 +157,27 @@ export default function AuthGate({
         </button>
       </WorkflowShell>
     );
+  const navigation = (
+    <nav className="workflow-navigation">
+      <a href="/">Workspaces</a>
+      <a href="/security">Account security</a>
+      {access.doctors.length > 0 && <a href="/invitations">Invitations</a>}
+      {access.operator && (
+        <>
+          <a href="/admin/practitioners">Application reviews</a>
+          <a href="/admin/practices">Practice administration</a>
+        </>
+      )}
+      <button onClick={() => void signOut()}>Sign out</button>
+    </nav>
+  );
+  if (requested === "security")
+    return (
+      <>
+        {navigation}
+        <SecurityPanel key={session.user.id} client={client} />
+      </>
+    );
   const choices = [
     ...access.doctors.map((item) => ({
       id: `doctor:${item.organisationId}`,
@@ -176,7 +205,9 @@ export default function AuthGate({
       (!requested ||
         (requested === "invitations"
           ? item.id.startsWith("doctor:") || item.id === "operator"
-          : item.id.startsWith(requested))),
+          : requested === "practices"
+            ? item.id === "operator"
+            : item.id.startsWith(requested))),
   );
   const selected = choice || (eligible.length === 1 ? eligible[0].id : "");
   const doctor = access.doctors.find(
@@ -211,16 +242,6 @@ export default function AuthGate({
         </button>
       </WorkflowShell>
     );
-  const navigation = (
-    <nav className="workflow-navigation">
-      <a href="/">Workspaces</a>
-      {doctor && <a href="/invitations">Invitations</a>}
-      {access.operator && (
-        <a href="/admin/practitioners">Application reviews</a>
-      )}
-      <button onClick={() => void signOut()}>Sign out</button>
-    </nav>
-  );
   if (doctor && requested !== "invitations")
     return (
       <DoctorPortal
@@ -235,7 +256,9 @@ export default function AuthGate({
   return (
     <>
       {navigation}
-      {requested === "invitations" ? (
+      {requested === "practices" && access.operator ? (
+        <PracticeAdmin key={session.user.id} client={client} />
+      ) : requested === "invitations" ? (
         <Invitations
           key={selected}
           client={client}

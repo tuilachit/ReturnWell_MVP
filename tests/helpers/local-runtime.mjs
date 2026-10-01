@@ -4,6 +4,7 @@ import { execFileSync } from "node:child_process";
 import { randomBytes, randomUUID } from "node:crypto";
 import { createClient } from "@supabase/supabase-js";
 import { workflowHandler } from "../../supabase/functions/_shared/workflow-http.ts";
+import { verifiedIdentity } from "../../supabase/functions/_shared/authorization.ts";
 import { unseal } from "../../supabase/functions/_shared/workflow-security.ts";
 
 const container = "supabase_db_returnwell-integration";
@@ -76,10 +77,7 @@ export function localRuntime(directory = process.env.RW_LOCAL_STACK_DIR) {
   const generatedTypes = [];
   const runtime = {
     env,
-    getUser: async (token) => {
-      const { data, error } = await admin.auth.getUser(token);
-      return error ? null : data.user;
-    },
+    getUser: (token) => verifiedIdentity(admin.auth, token),
     rpc: async (actor, action, input) => {
       const { data, error } = await admin.rpc("rw_workflow", {
         p_actor: actor,

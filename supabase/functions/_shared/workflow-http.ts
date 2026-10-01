@@ -6,10 +6,15 @@ import {
   type TrustConfig,
   validateTrustConfig,
 } from "./workflow-security.ts";
+import {
+  requireOperatorStepUp,
+  requiresStepUp,
+  type VerifiedIdentity,
+} from "./authorization.ts";
 export type Row = Record<string, unknown>;
 export type WorkflowRuntime = {
   env: Record<string, string | undefined>;
-  getUser: (token: string) => Promise<{ id: string } | null>;
+  getUser: (token: string) => Promise<VerifiedIdentity | null>;
   rpc: (actor: string | null, action: string, input: Row) => Promise<unknown>;
   generateLink?: (
     email: string,
@@ -78,6 +83,49 @@ const mappings: Record<
   Record<string, { action: string; fields: string[] }>
 > = {
   "workspace-access": { default: { action: "workspace.access", fields: [] } },
+  "manage-practice": {
+    list: {
+      action: "practice.list",
+      fields: ["organisationId", "cursor", "memberCursor"],
+    },
+    create: {
+      action: "practice.create",
+      fields: ["name", "ownerUserId", "evidenceReference", "requestId"],
+    },
+    reviewContact: {
+      action: "practice.reviewContact",
+      fields: [
+        "organisationId",
+        "expectedVersion",
+        "contactPhone",
+        "contactEmail",
+        "secureInstructions",
+        "evidenceReference",
+        "requestId",
+      ],
+    },
+    reviewInviter: {
+      action: "practice.reviewInviter",
+      fields: [
+        "organisationId",
+        "memberId",
+        "expectedVersion",
+        "displayName",
+        "evidenceReference",
+        "requestId",
+      ],
+    },
+    revokeMember: {
+      action: "practice.revokeMember",
+      fields: [
+        "organisationId",
+        "memberId",
+        "expectedVersion",
+        "reason",
+        "requestId",
+      ],
+    },
+  },
   "search-practitioners": {
     default: {
       action: "directory.search",
@@ -364,6 +412,7 @@ export function workflowHandler(endpoint: string, runtime: WorkflowRuntime) {
           typeof body.operation === "string" ? body.operation : "default"
         ];
       if (!mapping) throw Error("invalid_request");
+      if (requiresStepUp(mapping.action)) await requireOperatorStepUp(user);
       const input = pick(body, mapping.fields);
       if (mapping.action === "invitations.preview") {
         const invite = row(await runtime.rpc(user.id, mapping.action, input));
@@ -438,7 +487,7 @@ export function workflowHandler(endpoint: string, runtime: WorkflowRuntime) {
             : "request_failed";
       const code =
         message.match(
-          /\b(denied|conflict|rate_limited|invitation_unavailable|recipient_suppressed|reviewed_identity_required|consent_required|credential_policy_required|evidence_required|invalid_profile|invalid_draft|recipient_ineligible|terms_changed|sender_configuration|body_too_large|invalid_request|invalid_cursor|geography_unavailable)\b/,
+          /\b(denied|step_up_required|verified_owner_required|last_owner|conflict|rate_limited|invitation_unavailable|recipient_suppressed|reviewed_identity_required|consent_required|credential_policy_required|evidence_required|invalid_profile|invalid_draft|recipient_ineligible|terms_changed|sender_configuration|body_too_large|invalid_request|invalid_cursor|geography_unavailable)\b/,
         )?.[1] ?? "request_failed";
       const status =
         code === "body_too_large"
@@ -450,6 +499,7 @@ export function workflowHandler(endpoint: string, runtime: WorkflowRuntime) {
               : code === "sender_configuration"
                 ? 503
                 : code === "denied" ||
+                    code === "step_up_required" ||
                     code === "reviewed_identity_required" ||
                     code === "recipient_suppressed"
                   ? 403
@@ -458,6 +508,12 @@ export function workflowHandler(endpoint: string, runtime: WorkflowRuntime) {
                     : 400;
       if (status === 429) headers["retry-after"] = "60";
       const messages: Record<string, string> = {
+        step_up_required:
+          "Verify your authenticator in Account security before this action. Your edits are retained.",
+        verified_owner_required:
+          "Use an existing account with a verified email address for the practice owner.",
+        last_owner:
+          "Another independently reviewed owner is required before removing the last active owner.",
         invalid_cursor:
           "This page no longer matches your filters. Return to the first page.",
         geography_unavailable:

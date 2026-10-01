@@ -17,10 +17,12 @@ export async function selectFixturePractitioner(page, clinic) {
     const next = page.getByRole("button", { name: "Next page", exact: true });
     if (!(await next.isEnabled()))
       throw Error("Fictional recipient absent from directory");
-    const previous = await page.getByRole("radio").first().inputValue();
+    // These radios use React state and have no HTML value attribute ("on").
+    // Wait for a real visible recipient label change after pagination.
+    const previous = await page.getByRole("radio").first().locator('..').innerText();
     await next.click();
     await expect
-      .poll(async () => page.getByRole("radio").first().inputValue())
+      .poll(async () => page.getByRole("radio").first().locator('..').innerText())
       .not.toBe(previous);
   }
   throw Error("Fictional directory exceeded bounded test search");

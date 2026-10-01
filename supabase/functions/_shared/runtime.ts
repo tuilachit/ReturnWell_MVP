@@ -1,5 +1,6 @@
 import { createClient } from "npm:@supabase/supabase-js@2.114.0";
 import type { WorkflowRuntime } from "./workflow-http.ts";
+import { verifiedIdentity } from "./authorization.ts";
 export function runtime(): WorkflowRuntime {
   const env = Deno.env.toObject();
   const admin = createClient(env.SUPABASE_URL, env.SUPABASE_SERVICE_ROLE_KEY, {
@@ -7,10 +8,7 @@ export function runtime(): WorkflowRuntime {
   });
   return {
     env,
-    getUser: async (token) => {
-      const { data, error } = await admin.auth.getUser(token);
-      return error ? null : data.user;
-    },
+    getUser: (token) => verifiedIdentity(admin.auth, token),
     rpc: async (actor, action, input) => {
       const { data, error } = await admin.rpc("rw_workflow", {
         p_actor: actor,
@@ -25,9 +23,8 @@ export function runtime(): WorkflowRuntime {
         type,
         email,
       });
-      if (
-        error || !data.properties?.hashed_token || !data.user?.id
-      ) throw Error("auth_link_failed");
+      if (error || !data.properties?.hashed_token || !data.user?.id)
+        throw Error("auth_link_failed");
       return {
         userId: data.user.id,
         hashedToken: data.properties.hashed_token,

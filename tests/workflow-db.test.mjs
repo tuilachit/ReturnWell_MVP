@@ -160,6 +160,236 @@ test(
         2,
       )}','${id(10)}','Dr Reviewed','Fictional Practice','${id(1)}');`);
       await t.test(
+        "practice administration is independent, audited, versioned and loses access immediately on revoke",
+        () => {
+          assert.throws(
+            () =>
+              rpc(id(2), "practice.create", {
+                name: "Escalation",
+                ownerUserId: id(2),
+                requestId: id(9701),
+                evidenceReference: "check",
+              }),
+            /denied/,
+          );
+          sql(
+            `insert into auth.users(id,email) values ('${id(9700)}','unverified-owner@example.test')`,
+          );
+          assert.throws(
+            () =>
+              rpc(id(1), "practice.create", {
+                name: "Invalid owner",
+                ownerUserId: id(9700),
+                requestId: id(9702),
+                evidenceReference: "check",
+              }),
+            /verified_owner_required/,
+          );
+          assert.throws(
+            () =>
+              rpc(id(1), "practice.create", {
+                name: "Self approval",
+                ownerUserId: id(1),
+                requestId: id(9703),
+                evidenceReference: "check",
+              }),
+            /denied/,
+          );
+          sql(
+            `update auth.users set email_confirmed_at=now() where id='${id(9700)}'`,
+          );
+          const create = {
+            name: "Independently reviewed practice",
+            ownerUserId: id(9700),
+            requestId: id(9704),
+            evidenceReference: "Owner identity checked offline",
+          };
+          const created = rpc(id(1), "practice.create", create);
+          assert.ok(created.organisationId);
+          assert.deepEqual(rpc(id(1), "practice.create", create), created);
+          const org = created.organisationId;
+          assert.equal(
+            sql(
+              `select count(*) from private.practice_admin_events where organisation_id='${org}'`,
+            ),
+            "1",
+          );
+          const record = rpc(id(1), "practice.list", { organisationId: org })
+            .practices[0];
+          assert.equal(record.contact, null);
+          const owner = record.members[0];
+          assert.equal(owner.role, "owner");
+          assert.throws(
+            () =>
+              rpc(id(4), "practice.reviewContact", {
+                organisationId: org,
+                expectedVersion: 0,
+                requestId: id(9705),
+                contactPhone: "02 1234 5678",
+                evidenceReference: "self",
+              }),
+            /denied/,
+          );
+          assert.throws(
+            () =>
+              rpc(id(1), "practice.reviewContact", {
+                organisationId: org,
+                expectedVersion: 0,
+                requestId: id(9706),
+                contactPhone: "02 1234 5678",
+              }),
+            /evidence_required/,
+          );
+          const contact = {
+            organisationId: org,
+            expectedVersion: 0,
+            requestId: id(9707),
+            contactPhone: "02 1234 5678",
+            secureInstructions:
+              "Call for the secure handover channel. No patient information in email.",
+            contactEmail: "work@example.test",
+            evidenceReference: "Called independently sourced practice number",
+          };
+          const saved = rpc(id(1), "practice.reviewContact", contact);
+          assert.equal(saved.version, 1);
+          assert.deepEqual(
+            rpc(id(1), "practice.reviewContact", contact),
+            saved,
+          );
+          assert.throws(
+            () =>
+              rpc(id(1), "practice.reviewContact", {
+                ...contact,
+                requestId: id(9708),
+              }),
+            /conflict/,
+          );
+          assert.equal(
+            sql(
+              `set role authenticated; set request.jwt.claim.sub='${id(2)}'; select count(*) from public.organisations where id='${org}'`,
+            ),
+            "0",
+          );
+          assert.throws(
+            () =>
+              sql(
+                "set role authenticated; select * from private.practice_contacts",
+              ),
+            /permission denied/,
+          );
+          assert.throws(
+            () =>
+              sql(
+                `set role authenticated; set request.jwt.claim.sub='${id(9700)}'; update public.organisations set notification_email='unreviewed@example.test' where id='${org}'`,
+              ),
+            /permission denied/,
+          );
+          assert.throws(
+            () =>
+              rpc(id(1), "practice.revokeMember", {
+                organisationId: org,
+                memberId: owner.id,
+                expectedVersion: 0,
+                reason: "Cannot remove the last owner",
+                requestId: id(9709),
+              }),
+            /last_owner/,
+          );
+          sql(
+            `insert into public.organisation_memberships(organisation_id,user_id,role) values ('${org}','${id(2)}','referrer')`,
+          );
+          const member = rpc(id(1), "practice.list", {
+            organisationId: org,
+          }).practices[0].members.find((m) => m.userId === id(2));
+          const identity = {
+            organisationId: org,
+            memberId: member.id,
+            expectedVersion: 1,
+            displayName: "Dr Independently Reviewed",
+            evidenceReference: "Identity and practice relationship checked",
+            requestId: id(9710),
+          };
+          rpc(id(1), "practice.reviewInviter", identity);
+          assert.equal(
+            sql(
+              `select display_name from private.inviter_identities where user_id='${id(2)}' and organisation_id='${org}'`,
+            ),
+            "Dr Independently Reviewed",
+          );
+          sql(
+            `update public.profiles set display_name='Changed by user' where id='${id(2)}'`,
+          );
+          assert.equal(
+            sql(
+              `select display_name from private.inviter_identities where user_id='${id(2)}' and organisation_id='${org}'`,
+            ),
+            "Dr Independently Reviewed",
+          );
+          const revoke = {
+            organisationId: org,
+            memberId: member.id,
+            expectedVersion: 0,
+            reason: "Practice relationship ended",
+            requestId: id(9711),
+          };
+          rpc(id(1), "practice.revokeMember", revoke);
+          assert.deepEqual(rpc(id(1), "practice.revokeMember", revoke), {
+            ok: true,
+            version: 1,
+          });
+          assert.throws(
+            () => rpc(id(2), "referral.list", { organisationId: org }),
+            /denied/,
+          );
+          assert.equal(
+            sql(
+              `select active from private.inviter_identities where user_id='${id(2)}' and organisation_id='${org}'`,
+            ),
+            "f",
+          );
+          assert.equal(
+            sql(
+              `set role authenticated; set request.jwt.claim.sub='${id(1)}'; select count(*) from public.referrals`,
+            ),
+            "0",
+          );
+          assert.equal(
+            sql(`select count(*) from private.platform_operators`),
+            "1",
+          );
+          sql(
+            `insert into auth.users(id,email,email_confirmed_at) values ('${id(9720)}','second-owner@example.test',now()); insert into public.organisation_memberships(organisation_id,user_id,role) values ('${org}','${id(9720)}','owner')`,
+          );
+          const ownerRevoke = {
+            organisationId: org,
+            memberId: owner.id,
+            expectedVersion: 0,
+            reason: "Owner change",
+            requestId: id(9721),
+          };
+          assert.throws(
+            () => rpc(id(1), "practice.revokeMember", ownerRevoke),
+            /last_owner/,
+          );
+          sql(
+            `insert into private.practice_member_reviews(member_id,reviewed_by,evidence_reference) select id,'${id(1)}','Fictional independently checked successor' from public.organisation_memberships where organisation_id='${org}' and user_id='${id(9720)}'`,
+          );
+          assert.equal(
+            rpc(id(1), "practice.revokeMember", ownerRevoke).ok,
+            true,
+          );
+          assert.equal(
+            sql(
+              `set role authenticated; set request.jwt.claim.sub='${id(9700)}'; select count(*) from public.organisations where id='${org}'`,
+            ),
+            "0",
+          );
+          sql(
+            `update public.profiles set display_name='Editable name' where id='${id(2)}'`,
+          );
+        },
+      );
+      await t.test(
         "credential policies fail closed until independently configured",
         () => {
           assert.equal(
@@ -717,6 +947,31 @@ test(
         decision: "accepted",
         requestId: id(32),
       };
+      await t.test(
+        "operator administration does not confer clinical referral access",
+        () => {
+          assert.equal(
+            sql(`select count(*) from public.referrals where id='${id(30)}'`),
+            "1",
+          );
+          assert.equal(
+            sql(
+              `set role authenticated; set request.jwt.claim.sub='${id(1)}'; select count(*) from public.referrals where id='${id(30)}'`,
+            ),
+            "0",
+          );
+          assert.equal(
+            JSON.stringify(
+              rpc(id(1), "practice.list", { organisationId: id(10) }),
+            ).includes("clinical_summary"),
+            false,
+          );
+          assert.throws(
+            () => rpc(id(1), "referral.list", { organisationId: id(10) }),
+            /denied/,
+          );
+        },
+      );
       await t.test(
         "expiry rejects acceptance and REST creation but preserves historical reads; suspension denies reads",
         () => {
@@ -2324,8 +2579,18 @@ test(
               `do $test$ declare started timestamptz; elapsed jsonb:='[]'; begin for n in 1..30 loop started:=clock_timestamp(); perform private.directory_page('${id(2)}','${JSON.stringify(query)}'); elapsed:=elapsed||to_jsonb(extract(epoch from clock_timestamp()-started)*1000); end loop; perform set_config('returnwell.fixture_timings',elapsed::text,false); end $test$; select current_setting('returnwell.fixture_timings');`,
             ),
           ).sort((a, b) => a - b);
-          assert.equal(sql(`begin;set local role authenticated;set local request.jwt.claim.sub='${id(4)}';set local statement_timeout='500ms';select count(*) from public.verified_practitioners;rollback;`),'0');
-          assert.equal(sql(`begin;set local role authenticated;set local request.jwt.claim.sub='${id(4)}';set local statement_timeout='500ms';select count(*) from public.practitioners;rollback;`),'0');
+          assert.equal(
+            sql(
+              `begin;set local role authenticated;set local request.jwt.claim.sub='${id(4)}';set local statement_timeout='500ms';select count(*) from public.verified_practitioners;rollback;`,
+            ),
+            "0",
+          );
+          assert.equal(
+            sql(
+              `begin;set local role authenticated;set local request.jwt.claim.sub='${id(4)}';set local statement_timeout='500ms';select count(*) from public.practitioners;rollback;`,
+            ),
+            "0",
+          );
           const p50 = timings[14],
             p95 = timings[28],
             bytes = Buffer.byteLength(JSON.stringify(first));
