@@ -94,6 +94,13 @@ test(
           ),
         );
       }
+      await t.test('deployment history is service-only and missing history fails closed', () => {
+        assert.equal(sql("select has_function_privilege('anon','public.rw_backend_migrations()','execute')"), 'f');
+        assert.equal(sql("select has_function_privilege('authenticated','public.rw_backend_migrations()','execute')"), 'f');
+        assert.throws(() => sql('set role service_role; select public.rw_backend_migrations()'), /backend_unavailable/);
+        sql("create schema supabase_migrations; create table supabase_migrations.schema_migrations(version text primary key); insert into supabase_migrations.schema_migrations values('20261001234319'),('20261001222515');");
+        assert.deepEqual(JSON.parse(sql('set role service_role; select public.rw_backend_migrations()')), ['20261001222515', '20261001234319']);
+      });
       await t.test(
         "service-only workflow endpoint exists; browser roles cannot impersonate an actor",
         () => {

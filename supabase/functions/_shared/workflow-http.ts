@@ -15,6 +15,7 @@ import { verificationEmail } from "./email.ts";
 import { validateReleaseConfig } from "./release-mode.ts";
 export type Row = Record<string, unknown>;
 export type WorkflowRuntime = {
+  backendMigrations?: () => Promise<string[]>;
   env: Record<string, string | undefined>;
   getUser: (token: string) => Promise<VerifiedIdentity | null>;
   rpc: (actor: string | null, action: string, input: Row) => Promise<unknown>;

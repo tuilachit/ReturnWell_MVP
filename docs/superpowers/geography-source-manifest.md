@@ -1,13 +1,17 @@
 # Geography source gate
 
-Status on 2026-10-02: **not enabled**. No approved postcode reference dataset,
-licence, edition or redistribution permission has been supplied for this release.
-No source was downloaded or imported, and no paid maps account was created.
+Status on 2026-10-02: **NSW reference edition activated**, following explicit
+user approval of GeoNames free AU postal data. No paid maps account or external
+patient-location request is used. This does not approve practitioner profiles.
 
-Live directory coordinates/distances remain unknown. In-person browsing by
-reviewed suburb/postcode remains available; radius filtering must stay disabled.
-Telehealth ranking does not use patient distance. Synthetic distances in unit
-fixtures do not establish real-world geographical coverage.
+Edition: `geonames-nsw-2026-10-01-a7de4b2a61b8-accuracy46`.
+Archive SHA256: `a7de4b2a61b81bd5fd7dc6bc166e0c0f241fb7b813419bea46dbdd579fe3b9b2`.
+Source Last-Modified: 2026-10-01 02:14:16 UTC; archive size 271,091 bytes.
+5,592 unique NSW postcode/locality pairs across 922 postcodes, no duplicate normalized keys.
+4,525 accuracy-4 reference points; 1,067 retained with unknown coordinates
+(72 accuracy-1, 992 undocumented accuracy-3, three unspecified). Only documented
+accuracy 4/6 points may be used. Do not upgrade unknown rows to guessed points.
+Other AU states are excluded. These are reference localities, not practitioners.
 
 ## Implementation on `codex/location-matching`
 
@@ -20,21 +24,29 @@ Precision is `suburb_reference`: a straight-line spherical approximation between
 reference points, NOT exact patient/practice locations or travel distance. The
 UI names the source/version and never auto-selects a suburb for a postcode.
 
-Real-data activation remains blocked; implementation tests are not geographic
-coverage validation. No hosted migration or deployment was performed here.
+The schema was deployed in the preceding hosted repair. This edition is now
+imported atomically through `private.install_geography`. No existing practitioner
+coordinates were manufactured. Live directory matches still require approved
+profiles and their separately reviewed locations.
 
-## Candidate source, pending approval
+## Approved source and limitations
 
 [GeoNames postal data](https://download.geonames.org/export/zip/) offers a free
 AU export and [CC BY attribution terms](https://download.geonames.org/export/zip/readme.txt).
-It is not Australia Post address validation. Coordinates may be estimated;
+It is not Australia Post address validation. Coordinates are approximate;
 `suburb_reference` deliberately does not claim a true centroid. Approval of this
-source and an update owner is still required. No source download was performed.
+source was given for this import. A continuing refresh owner remains to be named.
 
-Before activation record the approved licence/storage rights, edition/date,
-original file SHA256, NSW row and unique-postcode counts, missing coordinates,
-duplicate/conflict review and operator responsible for refreshes. Do not convert
-an unmatched practice address into a guessed postcode point.
+The postal README states CC BY 4.0 but contains an old /by/3.0 hyperlink;
+the current [official About page](https://www.geonames.org/about.html) explicitly
+links CC BY 4.0. Preserve the README with each archive and retain attribution.
+No broader licensing warranty is implied. The active metadata contains the
+original source URL, attribution, licence, date and original/canonical checksums.
+
+Prepare a future edition with `node scripts/prepare-geonames.mjs AU.zip
+YYYY-MM-DD output.json`, using the observed source publication date. The command
+never downloads or activates anything and refuses to overwrite an output file.
+Review postcode counts, coordinate exclusions and upstream terms on every import.
 
 ## Import and rollback runbook
 

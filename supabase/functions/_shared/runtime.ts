@@ -8,6 +8,11 @@ export function runtime(): WorkflowRuntime {
   });
   return {
     env,
+    backendMigrations: async () => {
+      const { data, error } = await admin.rpc('rw_backend_migrations');
+      if (error || !Array.isArray(data)) throw Error('backend_unavailable');
+      return data;
+    },
     getUser: (token) => verifiedIdentity(admin.auth, token),
     rpc: async (actor, action, input) => {
       const { data, error } = await admin.rpc("rw_workflow", {
