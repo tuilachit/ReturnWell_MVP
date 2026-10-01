@@ -2,7 +2,7 @@
 /* Full navigation keeps public notices separate from workspace state. */
 
 import { ArrowRight, ChevronRight, Mail } from "./ui-icons";
-import type { FormEvent } from "react";
+import { useSyncExternalStore, type FormEvent } from "react";
 import { Brand, BrandMark } from "./brand";
 import AccountFooter from "./account-footer";
 
@@ -15,6 +15,9 @@ type Props = {
   onSubmit: (event: FormEvent) => void | Promise<void>;
   onPreview: () => void;
 };
+const subscribe = () => () => {};
+const clientReady = () => true;
+const serverReady = () => false;
 
 export default function SignIn({
   email,
@@ -25,6 +28,8 @@ export default function SignIn({
   onSubmit,
   onPreview,
 }: Props) {
+  // Server-rendered controls must not accept clicks before React attaches them.
+  const hydrated = useSyncExternalStore(subscribe, clientReady, serverReady);
   return (
     <main className="sign-in-page">
       <header className="sign-in-header">
@@ -51,7 +56,7 @@ export default function SignIn({
               onChange={(event) => setEmail(event.target.value)}
             />
           </div>
-          <button className="button primary full" disabled={busy || loading}>
+          <button className="button primary full" disabled={!hydrated || busy || loading}>
             {busy ? "Sending your link…" : "Email me a sign-in link"}
             <ArrowRight size={16} aria-hidden="true" />
           </button>
@@ -67,7 +72,7 @@ export default function SignIn({
           We’ll send a sign-in link. No password needed.
         </p>
         <div className="preview-entry">
-          <button onClick={onPreview} aria-label="Preview empty workspace">
+          <button onClick={onPreview} disabled={!hydrated} aria-label="Preview empty workspace">
             Explore the workspace <ChevronRight size={16} aria-hidden="true" />
           </button>
           <p>Preview only. Nothing is saved or sent.</p>

@@ -1,0 +1,30 @@
+name: ReturnWell quality
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  local-acceptance:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck && npm run lint
+      - run: npm test
+      - run: npm run build:vercel
+      - run: npm run check:release-inputs > /tmp/returnwell-release-inputs.json
+      - run: npm run test:database
+      - run: npx --no-install playwright install --with-deps chromium
+      - run: npm run test:browser
+      - name: Local Auth and PostgREST journey (no hosted credentials)
+        shell: bash
+        run: |
+          # The helper permits only the private local cache or system temp.
+          mkdir -p "$HOME/.cache/returnwell-local"
+          stack_dir=$(mktemp -d "$HOME/.cache/returnwell-local/returnwell-integration-XXXXXX")
+          node tests/helpers/local-stack.mjs "$stack_dir"
+          RW_LOCAL_STACK_DIR="$stack_dir" npm run test:local-journey
