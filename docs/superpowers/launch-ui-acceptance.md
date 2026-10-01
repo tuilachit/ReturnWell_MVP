@@ -2,7 +2,7 @@
 
 The charcoal/red shared UI is retained; no new icon library, visual rebrand or fictional activity metrics.
 
-Evidence: final full local browser suite 43/43, including cross-tab sign-out, module reload, practitioner recovery and external handover. Built Vercel CSP/hydration acceptance is separately 1/1. All people and clinical strings are fictional; no hosted systems or mailboxes used.
+Evidence: final full local browser suite 46/46, including cross-tab sign-out, module reload, practitioner recovery, GP lifecycle interruption/navigation and external handover. Built Vercel CSP/hydration acceptance is separately 1/1. All people and clinical strings are fictional; no hosted systems or mailboxes used.
 
 - Doctor: private drafts/reload, bounded matching, capability mismatch, invitation-linked finalisation, lost response, changed consent, cancel/refer again and explicit external-handover closure.
 - Practitioner: bounded 25-item metadata inbox (50 server cap), selected-detail-only clinical fetch, current-owner denial, intake history, profile revision, preserved decline edits after a failed read, frozen version and original-command retry after a lost response/focus.

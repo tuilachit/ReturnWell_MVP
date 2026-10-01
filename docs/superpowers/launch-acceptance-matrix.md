@@ -17,8 +17,8 @@ This is an evidence map, not approval for clinical use. Current default: private
 | Notices, identity, consent, handover, retention | Founder + qualified legal/clinical | Draft/blocked; source-controlled evidence references are null |
 | Queue health, redacted signals and incident runbook | Local code/DB | Implemented; no approved external alert sink/owner/acknowledgement drill |
 | Expired credential cleanup, legal hold guard | Local DB/unit | Existing cleanup preserved; no unapproved clinical purge |
-| Restore | Disposable canonical Postgres | Counts preserved; quarantine prevents queued job replay; final 1.312 seconds locally, not hosted RTO |
+| Restore | Disposable canonical Postgres | Counts preserved; quarantine prevents queued job replay; final 1.189 seconds locally, not hosted RTO |
 | Hosted backup/key recovery/rollback/RPO/RTO | Hosted + owner | Unverified; no paid capability purchased or hosted restore performed |
 | Exact deployment/pilot recipients/clinical sign-off | Hosted + human | Not authorised/executed; public launch is a separate decision |
 
-No P0 is waived by a screenshot, passing build, provider acceptance or dashboard Save. Missing approvals remain visible in the release gate. Final test counts and review disposition belong in the release record.
+No P0 is waived by a screenshot, passing build, provider acceptance or dashboard Save. Missing approvals remain visible in the release gate. Final counts and the three corrected Important review findings are in the release record; one minor member-revocation secret-cleanup item remains deferred.

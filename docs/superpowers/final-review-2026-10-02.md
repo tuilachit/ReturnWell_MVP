@@ -22,4 +22,4 @@ Member revocation safely revokes links/cancels future jobs, but does not call th
 - Intake pause and account suspension deliberately have different historical-access semantics.
 - Private-test mode never waived the three local findings above.
 
-All execution rulings and their costs are retained in the implementation ledger. External launch gates remain open.
+All execution rulings and their costs are retained in the [implementation ledger](implementation-ledger-2026-10-02.md). External launch gates remain open.
