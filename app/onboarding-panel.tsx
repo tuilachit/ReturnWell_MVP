@@ -240,7 +240,12 @@ export default function Onboarding({
     }
   }
   return (
-    <WorkflowShell title="Your practitioner profile" step={3}>
+    <WorkflowShell
+      title="Your practitioner profile"
+      step={3}
+      recipient
+      eyebrow="Professional details"
+    >
       <p className="workflow-lead">
         Confirm your professional details and how you accept referrals. Your
         profile stays private until it has been reviewed and approved.
@@ -264,7 +269,7 @@ export default function Onboarding({
         )
       ) : (
         <>
-          <p>
+          <p className="recipient-application-status">
             Status: <strong>{application.status.replaceAll("_", " ")}</strong>
           </p>
           {application.applicant_feedback && (
@@ -341,10 +346,6 @@ export default function Onboarding({
                   )}
                 </Field>
               ))}
-              <p>
-                A registration number is checked manually; entering it does not
-                verify your identity.
-              </p>
               <Field
                 id="profile-profession"
                 label="Profession"
@@ -373,6 +374,10 @@ export default function Onboarding({
                   </select>
                 )}
               </Field>
+              <p>
+                A registration number is checked manually; entering it does not
+                verify your identity.
+              </p>
               <details open className="workflow-card">
                 <summary>2. Services and referral preferences</summary>
                 {([["services", "Services", true]] as const).map(
@@ -624,21 +629,29 @@ export default function Onboarding({
                         target="_blank"
                         rel="noreferrer"
                       >
-                        terms (
-                        {application.current_terms_version || "unavailable"})
-                      </a>
+                        terms
+                      </a>{" "}
                       and{" "}
                       <a
                         href={application.current_privacy_url}
                         target="_blank"
                         rel="noreferrer"
                       >
-                        privacy policy (
-                        {application.current_privacy_version || "unavailable"})
+                        privacy policy
                       </a>
                       .
                     </span>
                   </label>
+                  <details className="recipient-notice-versions">
+                    <summary>Notice versions</summary>
+                    <p>
+                      Terms:{" "}
+                      {application.current_terms_version || "unavailable"}
+                      <br />
+                      Privacy:{" "}
+                      {application.current_privacy_version || "unavailable"}
+                    </p>
+                  </details>
                   <div className="workflow-actions">
                     <button
                       type="button"

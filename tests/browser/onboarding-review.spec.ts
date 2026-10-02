@@ -2,6 +2,7 @@ import { test, expect } from "@playwright/test";
 import { randomUUID } from "node:crypto";
 import { doctorBrowser } from "../helpers/browser-context.mjs";
 import { getProfession } from "../../app/lib/professions";
+import AxeBuilder from "@axe-core/playwright";
 async function application(page) {
   const fixture = await doctorBrowser(page, { actor: "practitioner" });
   const revision = await fixture.local.call(
@@ -34,6 +35,55 @@ test("server-policy profession uses its professional-body label, not an AHPRA cl
     "exercise_physiologist",
   );
 });
+
+for (const width of [375, 1440]) {
+  test(`practitioner setup remains legible, accessible and draft-safe at ${width}px`, async ({
+    page,
+  }) => {
+    test.skip(!process.env.RW_LOCAL_STACK_DIR, "Requires isolated stack");
+    await application(page);
+    await page.setViewportSize({ width, height: 1000 });
+    await page.emulateMedia({ colorScheme: "dark", reducedMotion: "reduce" });
+    await page.goto("/onboarding");
+    await expect(
+      page.getByLabel("Full professional name", { exact: true }),
+    ).toBeVisible();
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollWidth <= innerWidth,
+      ),
+    ).toBe(true);
+    expect(
+      await page
+        .getByLabel("Full professional name", { exact: true })
+        .evaluate((el) => parseFloat(getComputedStyle(el).fontSize)),
+    ).toBeGreaterThanOrEqual(16);
+    const findings = await new AxeBuilder({ page })
+      .withTags(["wcag2a", "wcag2aa", "wcag21aa"])
+      .analyze();
+    expect(
+      findings.violations
+        .filter((v) => ["serious", "critical"].includes(v.impact || ""))
+        .map((v) => ({ id: v.id, nodes: v.nodes.map((n) => n.target) })),
+    ).toEqual([]);
+    await expect(
+      page.getByRole("button", { name: "Submit for review", exact: true }),
+    ).toBeDisabled();
+    await page.screenshot({
+      path: `outputs/recipient-profile-${width}.png`,
+      fullPage: true,
+    });
+    await page
+      .getByLabel("Practice name", { exact: true })
+      .fill("Fictional design review practice");
+    await page.getByRole("button", { name: "Save draft", exact: true }).click();
+    await expect(page.getByRole("status")).toContainText("Draft saved");
+    await page.reload();
+    await expect(page.getByLabel("Practice name", { exact: true })).toHaveValue(
+      "Fictional design review practice",
+    );
+  });
+}
 test("changes-requested practitioner can save a partial draft and gets specific submission errors", async ({
   page,
 }) => {

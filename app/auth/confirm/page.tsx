@@ -200,7 +200,13 @@ export default function ConfirmPage() {
     }
   }
   return (
-    <WorkflowShell title="Verify your email" compact step={2}>
+    <WorkflowShell
+      title="Verify your email"
+      compact
+      step={2}
+      recipient
+      eyebrow="Your practice connection"
+    >
       <p className="workflow-lead">
         Opening this page does not verify or claim an invitation. Continue only
         if you requested access.

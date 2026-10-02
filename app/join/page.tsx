@@ -3,7 +3,13 @@
 /* eslint-disable @next/next/no-html-link-for-pages */
 import { useEffect, useRef, useState } from "react";
 import WorkflowShell from "../workflow-shell";
-import { ArrowRight, AttentionIcon, Check, Mail } from "../ui-icons";
+import {
+  ArrowRight,
+  AttentionIcon,
+  Check,
+  Mail,
+  PracticeIcon,
+} from "../ui-icons";
 import {
   errorText,
   invitationEntry,
@@ -101,15 +107,81 @@ export default function JoinPage() {
     }
   }
   return (
-    <WorkflowShell title="You’re invited to ReturnWell" compact step={1}>
-      {info ? (
+    <WorkflowShell
+      title={
+        info
+          ? `An invitation from ${info.practiceName || "ReturnWell"}`
+          : "Your ReturnWell invitation"
+      }
+      compact
+      step={1}
+      recipient
+      eyebrow="You’re invited to connect"
+      aside={
+        info && (
+          <>
+            <div className="recipient-aside-section">
+              <span className="recipient-section-icon">
+                <PracticeIcon size={24} />
+              </span>
+              <h2>A connection with your practice.</h2>
+              <p>
+                ReturnWell helps practices connect with practitioners and
+                coordinate referrals.
+              </p>
+              <h3>What happens next</h3>
+              {info.kind === "practitioner" ? (
+                <ol className="recipient-next-steps">
+                  <li>
+                    <span>1</span>
+                    <div>
+                      <strong>Verify your email</strong>
+                      <p>We’ll send a link to your invited address.</p>
+                    </div>
+                  </li>
+                  <li>
+                    <span>2</span>
+                    <div>
+                      <strong>Confirm your details</strong>
+                      <p>
+                        Add your professional details and referral preferences.
+                      </p>
+                    </div>
+                  </li>
+                  <li>
+                    <span>3</span>
+                    <div>
+                      <strong>Submit for review</strong>
+                      <p>
+                        Approval is required before you can receive referrals.
+                      </p>
+                    </div>
+                  </li>
+                </ol>
+              ) : (
+                <p>
+                  Verify your invited email to join the named practice as a
+                  referrer.
+                </p>
+              )}
+            </div>
+            <div className="recipient-aside-section recipient-reassurance">
+              <h3>Not expecting this invitation?</h3>
+              <p>
+                Contact the practice using a phone number or website you already
+                know before continuing.
+              </p>
+              <p>You can decline without creating an account.</p>
+            </div>
+          </>
+        )
+      }
+    >
+      {info && !completed ? (
         <>
           <p className="workflow-lead">
-            <strong>{info.inviterName}</strong>
-            {info.practiceName
-              ? ` at ${info.practiceName}`
-              : " from ReturnWell"}{" "}
-            invited you, {info.recipientName},{" "}
+            Hello {info.recipientName}. <strong>{info.inviterName}</strong> has
+            invited you{" "}
             {info.kind === "doctor"
               ? "to join their practice workspace."
               : "to create a practitioner profile for review."}
@@ -120,16 +192,27 @@ export default function JoinPage() {
               <dd>{info.maskedEmail}</dd>
             </div>
             <div>
-              <dt>Expires</dt>
-              <dd>{new Date(info.expiresAt).toLocaleString("en-AU")}</dd>
+              <dt>Available until</dt>
+              <dd>
+                <time dateTime={info.expiresAt}>
+                  {new Date(info.expiresAt).toLocaleString("en-AU", {
+                    day: "numeric",
+                    month: "short",
+                    year: "numeric",
+                    hour: "numeric",
+                    minute: "2-digit",
+                    timeZoneName: "short",
+                  })}
+                </time>
+              </dd>
             </div>
           </dl>
           <div className="account-next">
-            <h2>What happens next</h2>
+            <h2>Start with your email</h2>
             <p>
               {info.kind === "practitioner"
-                ? "After email verification, you’ll confirm your profile and submit it for review. Approval is required before you can receive referrals."
-                : "Verify your invited email to join the named practice as a referrer."}
+                ? "We’ll email you a verification link. Your profile stays private while you complete your details and submit them for review."
+                : "We’ll email you a verification link so you can join the practice workspace."}
             </p>
           </div>
           {!completed && (
@@ -144,15 +227,23 @@ export default function JoinPage() {
                 <span>
                   I accept the{" "}
                   <a href={info.termsUrl} target="_blank" rel="noreferrer">
-                    terms ({info.termsVersion})
+                    terms
                   </a>{" "}
                   and{" "}
                   <a href={info.privacyUrl} target="_blank" rel="noreferrer">
-                    privacy policy ({info.privacyVersion})
+                    privacy policy
                   </a>
                   .
                 </span>
               </label>
+              <details className="recipient-notice-versions">
+                <summary>Notice versions</summary>
+                <p>
+                  Terms: {info.termsVersion}
+                  <br />
+                  Privacy: {info.privacyVersion}
+                </p>
+              </details>
               <div className="workflow-actions">
                 <button
                   className="button primary"
@@ -165,11 +256,11 @@ export default function JoinPage() {
                   }
                   onClick={() => void act("beginSignup")}
                 >
-                  Verify my mailbox
+                  {busy ? "Please wait…" : "Verify my email"}
                   <ArrowRight size={16} />
                 </button>
                 <button
-                  className="button secondary"
+                  className="button secondary recipient-decline"
                   disabled={busy || uncertain || now < retryAt}
                   onClick={() => void act("decline")}
                 >
@@ -228,14 +319,13 @@ export default function JoinPage() {
             </>
           )}
           <footer className="invitation-support">
-            <p>Sent by {info.businessName}</p>
+            <p>Invitation sent by {info.businessName}</p>
             <a href={info.websiteUrl} target="_blank" rel="noreferrer">
-              Visit ReturnWell independently: {info.websiteUrl}
+              {info.websiteUrl.replace(/^https?:\/\//, "").replace(/\/$/, "")}
             </a>
             <p>
-              <a href={`mailto:${info.supportEmail}`}>
-                Contact {info.supportEmail}
-              </a>
+              Questions?{" "}
+              <a href={`mailto:${info.supportEmail}`}>{info.supportEmail}</a>
             </p>
           </footer>
         </>

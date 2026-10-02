@@ -1,11 +1,11 @@
 /* Full navigation keeps public notices separate from workspace state. */
 import { LockKeyhole } from "./ui-icons";
 
-export default function AccountFooter() {
+export default function AccountFooter({ plain = false }: { plain?: boolean }) {
   return (
     <footer className="account-footer">
       <span>
-        <LockKeyhole size={13} />
+        {!plain && <LockKeyhole size={13} />}
         Private test · Fictional data only · Not for clinical use
       </span>
       <nav aria-label="Test information">
