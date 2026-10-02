@@ -86,32 +86,36 @@ export function invitationEmail(
   url.hash = `invite=${encodeURIComponent(token)}`;
   const purpose =
     invite.kind === "doctor"
-      ? "join their practice on ReturnWell"
-      : "create a practitioner profile on ReturnWell";
+      ? "join their practice on ReturnWell as a referrer"
+      : "connect with their practice through ReturnWell";
   const expiry = invite.expires_at
     ? `This invitation expires at ${new Date(invite.expires_at).toISOString()} (UTC). Replacing the link does not extend this deadline.`
     : "The exact expiry will appear in the issued invitation.";
   const paragraphs = [
     `Hello ${invite.recipient_name},`,
-    `${invite.inviter_name} from ${invite.practice_name} has invited you to ${purpose}.`,
-    `ReturnWell helps practices coordinate allied health referrals. ${
-      invite.kind === "practitioner"
-        ? "After verifying your email, you can confirm your details for a separate identity and registration review. Signing up does not immediately publish your profile."
-        : "Verify your work email to join the named practice as a referrer."
-    }`,
+    `${invite.inviter_name} at ${invite.practice_name} has invited you to ${purpose}. ReturnWell helps practices coordinate allied health referrals.`,
+    "You can review the invitation before deciding whether to join. If you proceed, you’ll be asked to sign in or create an account and confirm your professional details.",
+  ];
+  const supportingParagraphs = [
+    `Not expecting this? You can confirm the request with ${invite.practice_name} using contact details you already trust or find independently.`,
+    ...(invite.kind === "practitioner"
+      ? ["After verifying your email, your professional details go through a separate identity and registration review. Signing up does not immediately publish your profile."]
+      : []),
+    "You can decline on the invitation page; no account is needed to decline.",
     expiry,
-    "You can decline on the invitation page; no account is needed to decline. If you were not expecting this, contact us before continuing.",
-    config.businessName,
+    `Sent by ReturnWell on behalf of ${invite.practice_name}.\n${config.businessName}`,
     `Privacy: ${config.privacyUrl}\nTerms: ${config.termsUrl}`,
   ];
   return {
-    subject: `${invite.inviter_name} invited you to ReturnWell`.replaceAll(
+    subject: `${invite.practice_name} has invited you to ${invite.kind === "doctor" ? "join their practice" : "connect"} on ReturnWell`.replaceAll(
       /[\r\n]/g,
       " ",
     ),
     ...renderTransactionalEmail({
-      heading: "You’re invited to ReturnWell",
+      heading: `${invite.kind === "doctor" ? "Join" : "Connect with"} ${invite.practice_name}`,
+      preheader: "Review your practice invitation before deciding whether to join ReturnWell.",
       bodyParagraphs: paragraphs,
+      supportingParagraphs,
       action: { label: "Review invitation", url: url.toString() },
       supportEmail: config.supportEmail,
       websiteUrl: config.websiteUrl,

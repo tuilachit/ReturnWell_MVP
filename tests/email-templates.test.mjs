@@ -74,6 +74,72 @@ test("layout permits only same-origin HTTPS actions and rejects URL credentials"
       }),
     );
 });
+test("invitation identifies the requesting practice and separates referrer onboarding from practitioner review", () => {
+  for (const kind of ["practitioner", "doctor"]) {
+    const message = invitationEmail(
+      {
+        kind,
+        recipient_name: "Alex Example",
+        inviter_name: "Sam Example (practice administrator)",
+        practice_name: "Fictional Example Practice",
+      },
+      "fictional",
+      trust,
+    );
+    assert.match(message.subject, /Fictional Example Practice/);
+    for (const body of [message.text, message.html]) {
+      assert.match(body, /Sam Example \(practice administrator\) at Fictional Example Practice/);
+      assert.match(body, /Sent by ReturnWell on behalf of Fictional Example Practice/);
+      assert.match(body, /sign in or create an account/);
+      assert.match(body, /contact details .*independently/);
+      assert.doesNotMatch(body, /Dr\.? Sam|referral.*waiting|urgent|guaranteed|payment/i);
+      if (kind === "practitioner") {
+        assert.match(body, /identity and registration review/);
+        assert.match(body, /does not immediately publish/);
+      } else {
+        assert.match(body, /join their practice/);
+        assert.doesNotMatch(body, /practitioner profile|registration review/);
+      }
+    }
+    assert.equal((message.html.match(/\/join#invite=fictional/g) || []).length, 1);
+  }
+});
+test("practice names cannot inject subject headers or HTML into invitation attribution", () => {
+  const message = invitationEmail(
+    {
+      kind: "practitioner",
+      recipient_name: "Alex Example",
+      inviter_name: "Sam <script>",
+      practice_name: "Fictional <img src=x>\r\nBcc: attacker@example.test",
+    },
+    "fictional",
+    trust,
+  );
+  assert.match(message.subject, /Fictional/);
+  assert.doesNotMatch(message.subject, /[\r\n]/);
+  assert.doesNotMatch(message.html, /<script>|<img/);
+  assert.match(message.html, /Sam &lt;script&gt;/);
+  assert.match(message.html, /Fictional &lt;img src=x&gt;/);
+});
+test("secondary invitation details follow the action in both formats and remain escaped", () => {
+  const message = layout.renderTransactionalEmail({
+    heading: "Invitation",
+    preheader: "Preview <script> & context",
+    bodyParagraphs: ["Primary message"],
+    supportingParagraphs: ["Secondary detail <img src=x>"],
+    action: { label: "Review invitation", url: trust.appUrl + "/join#invite=fictional" },
+    supportEmail: trust.supportEmail,
+    websiteUrl: trust.websiteUrl,
+  });
+  for (const body of [message.text, message.html]) {
+    assert.match(body, /Secondary detail/);
+    assert.ok(body.indexOf("Primary message") < body.indexOf("Review invitation"));
+    assert.ok(body.indexOf("Review invitation") < body.indexOf("Secondary detail"));
+  }
+  assert.match(message.html, /Preview &lt;script&gt; &amp; context/);
+  assert.match(message.html, /Secondary detail &lt;img src=x&gt;/);
+  assert.doesNotMatch(message.html, /<script>|<img/);
+});
 test("invitation expiry is the original exact deadline, never a renewed seven-day promise", () => {
   const email = invitationEmail(
     {
