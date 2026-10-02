@@ -52,8 +52,10 @@ export const demoPractitioners: Practitioner[] = [
     funding: ["Medicare", "Self funded"],
     languages: ["English"],
     services: ["Mobility", "Persistent pain"],
+    serviceIds: ["persistent_pain"],
+    ageGroupIds: ["adult", "older_adult"],
     location: { suburb: "Sydney", postcode: "2000" },
-    distanceKm: 1.8,
+    distanceKm: null,
   },
   {
     id: "00000000-0000-4000-8000-000000000202",
@@ -69,7 +71,9 @@ export const demoPractitioners: Practitioner[] = [
     funding: ["Medicare", "Self funded"],
     languages: ["English", "Mandarin"],
     services: ["Anxiety", "Adjustment support"],
+    serviceIds: [],
+    ageGroupIds: ["adolescent", "adult", "older_adult"],
     location: { suburb: "Sydney", postcode: "2000" },
-    distanceKm: 2.6,
+    distanceKm: null,
   },
 ];

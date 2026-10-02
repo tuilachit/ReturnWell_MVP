@@ -1553,7 +1553,7 @@ export default function DoctorPortal({
                             {mode === "authenticated"
                               ? remoteMatches.page.totalEligible
                               : matches.length}{" "}
-                            eligible{" "}
+                            {mode === "preview" ? "sample" : "eligible"}{" "}
                             {(mode === "authenticated"
                               ? remoteMatches.page.totalEligible
                               : matches.length) === 1
@@ -1561,10 +1561,9 @@ export default function DoctorPortal({
                               : "practitioners"}
                           </h2>
                           <p>
-                            Matches your funding, format, language and selected
-                            capability requirements. Confirm fees and rebate
-                            eligibility directly. Check the practice location before
-                            choosing; any displayed distance is approximate.
+                            {mode === "preview"
+                              ? "Try the matching rules with fictional practitioners. Nothing is saved or sent, and sample profiles do not represent real registration checks. Distance search is available in the signed-in workspace, not this preview."
+                              : "Matches your funding, format, language and selected capability requirements. Confirm fees and rebate eligibility directly. Check the practice location before choosing; any displayed distance is approximate."}
                           </p>
                         </div>
                       </div>
@@ -1572,12 +1571,19 @@ export default function DoctorPortal({
                         <p role="status">Loading eligible practitioners…</p>
                       ) : matches.length === 0 ? (
                         <div className="no-matches">
-                          <h3>No eligible practitioners found</h3>
+                          <h3>
+                            {mode === "preview"
+                              ? demoMode
+                                ? "No sample practitioners match these requirements"
+                                : "No sample practitioners loaded"
+                              : "No eligible practitioners found"}
+                          </h3>
                           <p>
-                            Only active, registration-verified and
-                            provider-confirmed profiles accepting referrals can
-                            appear. Try changing the format, funding or language
-                            preference.
+                            {mode === "preview"
+                              ? demoMode
+                                ? "The demo includes a physiotherapist and a psychologist, with Medicare or self funding. Try Physiotherapy, Adult and Persistent pain to test a match, or remove optional requirements. Your choices have not been changed."
+                                : "Load the fictional demo to choose a practitioner and try the referral flow. This empty preview is not searching the live directory."
+                              : "Only active, registration-verified and provider-confirmed profiles accepting referrals can appear. Try changing the format, funding or language preference."}
                           </p>
                           {mode === "preview" && !demoMode && (
                             <button
