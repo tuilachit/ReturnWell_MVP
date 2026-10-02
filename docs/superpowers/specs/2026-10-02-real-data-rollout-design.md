@@ -1,14 +1,14 @@
 # ReturnWell real-data integration and pilot rollout
 
 Date: 2 October 2026, Australia/Sydney.
-Status: **proposed design for owner review; not an implementation or launch approval**.
+Status: **design approved by the user on 2 October 2026 (“Okay approve”); implementation-plan review and launch gates remain outstanding**.
 Target: an invitation-only two-doctor pilot during 5–11 October 2026, conditional on the go/no-go gates below. This is a planning target, not a promise of readiness.
 
 ## 1. Intended outcome
 
 The user wants the real practitioner research data connected to ReturnWell and a production-quality app ready for users next week. Preserve the previously agreed two-doctor referral-led pilot. Do not widen this to public signup, bulk outreach, a patient portal, payments or clinical AI.
 
-Selected design assumption: real research candidates are admin-only; doctors see only independently verified, provider-confirmed profiles eligible for their referral. The alternative, a doctor-visible unverified research tab, is deferred because it changes the access/product boundary and risks confusion with the referral directory. Loading research files into the browser bundle is rejected.
+Approved design: real research candidates are admin-only; doctors see only independently verified, provider-confirmed profiles eligible for their referral. The alternative, a doctor-visible unverified research tab, is deferred because it changes the access/product boundary and risks confusion with the referral directory. Loading research files into the browser bundle is rejected.
 
 Success has two separate levels:
 
@@ -123,6 +123,6 @@ Missing owner inputs do not prevent local implementation after design/plan appro
 
 ## 10. Review and handoff
 
-This document proposes the production design, including admin-only visibility. It does not claim code has been written, candidates imported, practitioners approved, mail sent or launch gates closed.
+The user approved this production design, including admin-only visibility, on 2 October 2026. That approval does not establish that code has been written, candidates imported, practitioners approved, mail sent or launch gates closed.
 
 After written-design approval, create the executable implementation plan with exact files, migrations, tests, import dry-run acceptance and release checkpoints. Execute sequentially to control cost. Do not rebuild the referral system or reopen the UI theme as part of this integration.
