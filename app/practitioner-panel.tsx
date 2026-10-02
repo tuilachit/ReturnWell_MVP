@@ -341,7 +341,7 @@ export default function PractitionerInbox({
               )}
             </dl>
             <HandoverPanel
-              key={detail.id}
+              key={"handover-" + detail.id}
               client={client}
               referralId={detail.id}
               version={detail.version}
@@ -437,7 +437,7 @@ export default function PractitionerInbox({
               </>
             )}
             <ReferralActivity
-              key={detail.id}
+              key={"activity-" + detail.id}
               client={client}
               referralId={detail.id}
               refresh={refresh}

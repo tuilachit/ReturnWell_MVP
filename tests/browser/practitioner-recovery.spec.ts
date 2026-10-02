@@ -27,6 +27,60 @@ async function referral(f, reference) {
     },
   );
 }
+test("practitioner referral panels render without errors through acceptance and reload", async ({
+  page,
+}) => {
+  test.skip(!process.env.RW_LOCAL_STACK_DIR, "Requires isolated stack");
+  const errors: string[] = [];
+  page.on("console", (message) => {
+    if (message.type() === "error") errors.push(message.text());
+  });
+  page.on("pageerror", (error) => errors.push(error.message));
+  const f = await doctorBrowser(page, { actor: "practitioner" });
+  const ref = await referral(f, "FICTIONAL-PANEL-IDENTITY");
+  await page.goto("/referrals/" + ref.id);
+  const handover = page.getByRole("region", {
+    name: "External handover",
+    exact: true,
+  });
+  const activity = page.getByRole("complementary");
+  await expect(handover).toHaveCount(1);
+  await expect(handover.getByRole("heading")).toHaveText("Awaiting a response");
+  await expect(activity.getByText("created", { exact: true })).toBeVisible();
+  expect(errors, "Opening a referral must not produce rendering errors").toEqual(
+    [],
+  );
+
+  await page
+    .getByRole("button", { name: "Accept referral", exact: true })
+    .click();
+  await expect(
+    page.getByRole("status").filter({ hasText: "Response saved" }),
+  ).toBeVisible();
+  await expect(handover.getByRole("heading")).toHaveText(
+    "Arrange external handover",
+  );
+  await expect(activity.getByText("accepted", { exact: true })).toHaveCount(1);
+  expect(errors, "Accepting a referral must not produce rendering errors").toEqual(
+    [],
+  );
+
+  await page.reload();
+  await expect(handover).toHaveCount(1);
+  await expect(handover.getByRole("heading")).toHaveText(
+    "Arrange external handover",
+  );
+  await expect(activity.getByText("accepted", { exact: true })).toBeVisible();
+  expect(
+    f.local.sql(
+      `select count(*) from public.referral_events where referral_id='${ref.id}' and event_type='accepted'`,
+    ),
+  ).toBe("1");
+  expect(
+    errors,
+    "Reloading the accepted referral must not produce rendering errors",
+  ).toEqual([]);
+});
 test("practitioner list is bounded metadata and cannot be read by an unrelated actor", async ({
   page,
 }) => {
