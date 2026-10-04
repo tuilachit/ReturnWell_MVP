@@ -10,6 +10,7 @@ test("new workflow routes server-render without exposing account or clinical dat
     "/practitioner",
     "/join",
     "/auth/confirm",
+    "/auth/google",
   ]) {
     const response = await worker.fetch(
       new Request(`http://localhost${path}`, {

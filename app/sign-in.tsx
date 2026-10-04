@@ -13,6 +13,8 @@ type Props = {
   busy: boolean;
   loading: boolean;
   message: string;
+  googleEnabled: boolean;
+  onGoogle: () => void;
   retryAfterSeconds?: number;
   onSubmit: (event: FormEvent) => void | Promise<void>;
   onPreview: () => void;
@@ -27,6 +29,8 @@ export default function SignIn({
   busy,
   loading,
   message,
+  googleEnabled,
+  onGoogle,
   retryAfterSeconds = 0,
   onSubmit,
   onPreview,
@@ -45,6 +49,15 @@ export default function SignIn({
         <p className="sign-in-description">
           Sign in to your referral workspace.
         </p>
+        <button
+          type="button"
+          className="button secondary full google-sign-in"
+          onClick={onGoogle}
+          disabled={!hydrated || busy || loading || !googleEnabled}
+          aria-describedby={!googleEnabled ? "google-availability" : undefined}
+        >Continue with Google</button>
+        {!googleEnabled && <p id="google-availability" className="sign-in-provider-note">Google sign-in is not available yet. Use email below.</p>}
+        <div className="sign-in-divider"><span>or use email</span></div>
         <form onSubmit={onSubmit}>
           <Field id="work-email" label="Work email">
             {(fieldProps) => (
@@ -83,7 +96,7 @@ export default function SignIn({
         <p className="sign-in-invitation">
           Use the email address your practice invited.
           <br />
-          We’ll send a sign-in link. No password needed.
+          First time here? Complete your invitation email first.
         </p>
         <div className="preview-entry">
           <button

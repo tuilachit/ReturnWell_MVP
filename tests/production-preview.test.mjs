@@ -71,6 +71,9 @@ test(
       await page
         .getByRole("heading", { name: "Welcome to ReturnWell" })
         .waitFor();
+      if (process.env.NEXT_PUBLIC_GOOGLE_AUTH_ENABLED !== "true") {
+        assert.equal(await page.getByRole("button", { name: "Continue with Google", exact: true }).isDisabled(), true);
+      }
       await page
         .getByRole("button", { name: "Preview empty workspace", exact: true })
         .click();
@@ -84,6 +87,13 @@ test(
         ),
         0,
       );
+      await page.goto(origin + "/auth/google?error=access_denied&error_description=PRIVATE_GOOGLE_DETAIL");
+      await page.getByRole("alert").waitFor();
+      assert.match(await page.getByRole("alert").innerText(), /cancelled/);
+      assert.equal(page.url(), origin + "/auth/google");
+      assert.doesNotMatch(await page.locator("body").innerText(), /PRIVATE_GOOGLE_DETAIL/);
+      await page.getByRole("link", { name: "Use email instead" }).click();
+      await page.getByLabel("Work email", { exact: true }).waitFor();
     } finally {
       await browser.close();
       await new Promise((resolve) => server.close(resolve));

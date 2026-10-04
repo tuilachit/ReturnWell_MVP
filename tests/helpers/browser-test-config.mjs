@@ -9,6 +9,7 @@ export function browserSettings(source = process.env) {
     ...env,
     EMAIL_DELIVERY_ENABLED: 'false',
     NEXT_PUBLIC_EMAIL_DELIVERY_ENABLED: 'false',
+    NEXT_PUBLIC_GOOGLE_AUTH_ENABLED: 'true',
     NEXT_PUBLIC_SUPABASE_URL: 'http://127.0.0.1:55321',
     NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: 'local-browser-test-not-a-secret',
     WRANGLER_WRITE_LOGS: 'false',

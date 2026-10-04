@@ -1,4 +1,5 @@
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { browserAuthOptions } from "./google-auth";
 
 let browserClient: SupabaseClient | null | undefined;
 
@@ -22,7 +23,7 @@ export function getSupabaseBrowserClient(): SupabaseClient | null {
     auth: {
       persistSession: true,
       autoRefreshToken: true,
-      detectSessionInUrl: typeof window === "undefined" || window.location.pathname !== "/auth/confirm",
+      ...browserAuthOptions(typeof window === "undefined" ? "/" : window.location.pathname),
     },
   });
   return browserClient;

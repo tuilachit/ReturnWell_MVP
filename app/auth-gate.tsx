@@ -14,6 +14,7 @@ import PracticeAdmin from "./practice-admin-panel";
 import SecurityPanel from "./security-panel";
 import EmailOperations from "./email-operations-panel";
 import { getSupabaseBrowserClient } from "./lib/supabase";
+import { googleSignInEnabled } from "./lib/google-auth";
 import {
   errorText,
   invoke,
@@ -161,6 +162,13 @@ export default function AuthGate({
           Math.ceil((cooldownUntil - clock) / 1000),
         )}
         message={message}
+        googleEnabled={Boolean(client) && googleSignInEnabled()}
+        onGoogle={() => {
+          if (signingIn.current || !client || !googleSignInEnabled()) return;
+          signingIn.current = true;
+          const destination = safeDestination(window.location.pathname);
+          window.location.assign(`/auth/google?start=1&next=${encodeURIComponent(destination)}`);
+        }}
         onPreview={() => setPreview(true)}
         onSubmit={async (event) => {
           event.preventDefault();
@@ -281,7 +289,9 @@ export default function AuthGate({
             : "No workspace is available here"
         }
       >
-        <p>Choose the role and practice you want to use.</p>
+        <p>{eligible.length
+          ? "Choose the role and practice you want to use."
+          : "You are signed in, but this account has no authorised workspace for this page. Use the email address your practice invited. If you are joining for the first time, complete the steps in your invitation email or contact your practice administrator."}</p>
         <div className="workflow-actions">
           {eligible.map((item) => (
             <button

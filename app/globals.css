@@ -373,6 +373,30 @@ svg {
   color: var(--muted);
   margin: 20px 0 29px;
 }
+.sign-in-panel .google-sign-in {
+  margin-top: 0;
+}
+.sign-in-provider-note {
+  margin: 10px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.6;
+}
+.sign-in-divider {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin: 22px 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+.sign-in-divider::before,
+.sign-in-divider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--line);
+}
 .auth-message {
   padding: 12px;
   background: var(--brand-soft);
