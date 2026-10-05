@@ -12,6 +12,10 @@ work
 coverage
 private-data
 research
+scripts/candidates
+scripts/import-candidates.mjs
+**/*.candidate-import.json
+**/*.candidate-import.sql
 app/data/practitioners.generated.json
 public/returnwell-import-bundle.json
 **/local-credentials.json

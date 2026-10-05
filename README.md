@@ -33,6 +33,13 @@ the repository root. Earlier source-only candidate research tools are preserved
 under `research/`; they are not part of the running app. Secrets, real practitioner
 datasets and generated candidate exports are deliberately excluded from Git.
 
+Private candidate imports use `npm run data:candidates -- --input label=/absolute/path.json`.
+The default is an offline, count-only dry run: it does not fetch websites, send
+emails or activate practitioners. Research observations remain separate from
+provider-confirmed profiles. Never store raw input or generated import bundles
+in the app, public assets or source control. The old public-export generator is
+retired and fails without reading source data or creating files.
+
 Use Node.js 24 LTS (the Vercel runtime). Local development also supports Node.js 22.13 or later.
 
 ```sh
@@ -67,7 +74,7 @@ deployed browser flow after upgrades.
 Deploy from a clean Git checkout, never the research working directory. The
 build preflight rejects known private candidate files, and `.vercelignore`
 excludes research, credentials and generated candidate exports from CLI uploads.
-Do not run `data:generate` for deployment. Build on Vercel so native dependencies
+The retired `data:generate` workflow must not be used. Build on Vercel so native dependencies
 match its Linux runtime; do not upload macOS-built function output.
 
 Configure the four browser variables above in Vercel, with `NEXT_PUBLIC_APP_URL`

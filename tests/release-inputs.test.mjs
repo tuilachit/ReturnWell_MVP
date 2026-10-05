@@ -34,12 +34,12 @@ test('untracked source cannot silently escape the release manifest', async t => 
   assert.equal(run(root).status,0);
   assert.ok(JSON.parse(run(root).stdout).files['app/unreviewed.ts']);
 });
-for (const filename of ['.env.local', 'supabase/functions/.env', 'private-data/records.json', 'local-credentials.json', '.env.production', 'public/test.key']) {
+for (const filename of ['.env.local', 'supabase/functions/.env', 'private-data/records.json', 'local-credentials.json', '.env.production', 'public/test.key', 'public/test.candidate-import.json', 'outputs/test.candidate-import.sql']) {
   test(`release input rejects ${filename} without printing contents`, async t => {
     const root = await fixture(t);
     await mkdir(join(root, filename, '..'), { recursive: true });
     await writeFile(join(root, filename), 'PRIVATE_TEST_VALUE_NEVER_PRINT');
-    await writeFile(join(root, '.gitignore'), '.env*\n*.key\nprivate-data\nlocal-credentials.json\n');
+    await writeFile(join(root, '.gitignore'), '.env*\n*.key\nprivate-data\nlocal-credentials.json\n*.candidate-import.json\n*.candidate-import.sql\n');
     spawnSync('git', ['add', '.gitignore'], { cwd: root });
     const result = run(root);
     assert.equal(result.status, 1);

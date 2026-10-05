@@ -39,6 +39,8 @@ for (const filename of [
   "app/data/practitioners.generated.json",
   "public/returnwell-import-bundle.json",
   "research/private-data/fixture.json",
+  "public/exports/test.candidate-import.json",
+  "outputs/test.candidate-import.sql",
 ]) {
   test(`deployment preflight refuses ${filename} without printing its contents`, async (t) => {
     const root = await mkdtemp(join(tmpdir(), "returnwell-deploy-test-"));

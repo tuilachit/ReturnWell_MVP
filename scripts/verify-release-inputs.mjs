@@ -8,6 +8,7 @@ const untracked = execFileSync('git', ['ls-files', '--others', '--exclude-standa
 // dependency/build tooling only; public/ and source folders are never skipped.
 const ignored = execFileSync('git', ['ls-files', '--others', '--ignored', '--exclude-standard', '-z', '--', '.', ':!:node_modules', ':!:.git', ':!:.next', ':!:.vinext', ':!:dist', ':!:.output', ':!:.vercel', ':!:.wrangler', ':!:test-results', ':!:playwright-report'], { encoding: 'utf8' }).split('\0').filter(Boolean);
 const unsafe = name => /(^|\/)(private-data|local-credentials\.json)(\/|$)/.test(name)
+  || /\.candidate-import\.(json|sql)$/.test(name)
   || /(^|\/)\.env($|\.)/.test(name) && !name.endsWith('.env.example')
   || /\.(pem|key|p12|pfx)$/.test(name)
   || ['app/data/practitioners.generated.json', 'public/returnwell-import-bundle.json'].includes(name);

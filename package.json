@@ -12,7 +12,7 @@
     "backend:prepare": "node scripts/backend-manifest.mjs --write",
     "check:backend": "node scripts/check-backend-release.mjs",
     "start": "WRANGLER_LOG_PATH=.wrangler/wrangler.log vinext start",
-    "data:generate": "node scripts/generate-prototype-data.mjs",
+    "data:candidates": "node scripts/import-candidates.mjs",
     "test": "npm run build && node --test tests/*.test.mjs",
     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next",
     "typecheck": "tsc --noEmit",
