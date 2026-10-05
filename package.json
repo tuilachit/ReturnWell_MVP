@@ -19,7 +19,7 @@
     "test:workflow": "node --test tests/workflow-security.test.mjs tests/workflow-http.test.mjs tests/workflow-dispatch.test.mjs tests/ui-workflow.test.mjs",
     "test:database": "RW_DATABASE_TEST=1 node --test tests/workflow-db.test.mjs",
     "test:local-stack": "node tests/helpers/local-stack.mjs",
-    "test:local-journey": "RW_LOCAL_JOURNEY=1 node --test --test-concurrency=1 tests/local-journey.test.mjs tests/privileged-journey.test.mjs tests/referral-growth-local.test.mjs tests/candidate-local.test.mjs",
+    "test:local-journey": "RW_LOCAL_JOURNEY=1 node --test --test-concurrency=1 tests/local-journey.test.mjs tests/privileged-journey.test.mjs tests/referral-growth-local.test.mjs tests/candidate-local.test.mjs tests/public-signup-journey.test.mjs",
     "test:browser": "playwright test",
     "check:release-inputs": "node scripts/verify-release-inputs.mjs",
     "db:generate": "drizzle-kit generate"

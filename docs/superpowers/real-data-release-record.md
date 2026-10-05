@@ -50,6 +50,16 @@ Actual totals after replay: one batch, 609 candidates, 609 observations, 609 bat
 
 ## Data baseline and remaining rollout gates
 
+### Signup configuration follow-up
+
+Hosted Auth preflight found `disable_signup: true` despite Google/email being enabled. The approved self-entry scope supersedes that invitation-only setting. A narrow Management API PATCH changed only `disable_signup` to false and enabled leaked-password protection; the read-back retains email confirmation (`mailer_autoconfirm: false`), Google/email providers, and disabled phone. Auth SMTP is not configured, so arbitrary-user email onboarding remains unaccepted; Google can be used while the verified sender/SMTP work is completed.
+
+Repository Auth/email signup settings now agree, while anonymous and SMS signup remain disabled. The regression reproduced rejection in the actual isolated Auth service before the change and now proves public email signup creates an unverified identity with no session or account-registration grant. Refreshed local acceptance: 165 unit passes / 8 explicit opt-in skips, typecheck/lint green, 25/25 actual local journey passes and Vercel preview 1/1. The configuration change updates the full backend manifest to `bac12befd5279b7c19e7884f1158767f404ae198bacd2d9578e8ad9f44ee0a89`; all endpoints must be redeployed before the follow-up frontend.
+
+Live Google handoff reached the provider's account chooser with no visible redirect error; no account was chosen or legal notice accepted. This does not establish completed Google login. Rechecked security advisors now return only intentional service-only RLS/no-policy information; the leaked-password warning is gone.
+
+An additional main-branch CI run `37326049992` failed to start its local database because fixed test port 55322 was already bound; the earlier reviewed branch CI passed. CI now reserves 55321–55329 from ephemeral allocation before tests, preserving existing reservations and all assertions. Follow-up CI/deployment acceptance is recorded in the execution ledger when actually observed.
+
 Approved three private inputs: 609 source IDs, 203 flagged; digest `334d6105a56b366ee67be3d976017313a31136a6ca869541ecf220dc0d13c3d9`. Candidate research remains private, distinct from the independently confirmed referral directory. There are still zero eligible hosted practitioner profiles and zero enabled professional policies; signup/import does not establish credential evidence.
 
 Sender DNS/mailbox delivery, actual Google-provider/new-user email acceptance, authenticated hosted two-role/recipient journey, approved credential evidence and receiving practitioner confirmation, clinical/privacy/retention ownership, monitored incident ownership and hosted recovery remain separate factual launch gates. Existing private-test/email protections are not silently converted into approvals. The deploy is technically live, but real-patient referrals must not be described as launch-ready from these results.

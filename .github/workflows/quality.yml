@@ -7,6 +7,14 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
+      - name: Reserve isolated test ports from ephemeral allocation
+        shell: bash
+        run: |
+          # These fixed loopback-only test ports are inside Linux's ephemeral
+          # range. Preserve existing reservations; keep outbound sockets and
+          # random-port preview servers from occupying them before Docker starts.
+          rw_reserved_ports=$(sysctl -n net.ipv4.ip_local_reserved_ports)
+          sudo sysctl -w "net.ipv4.ip_local_reserved_ports=${rw_reserved_ports:+$rw_reserved_ports,}55321-55329"
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
         with:
