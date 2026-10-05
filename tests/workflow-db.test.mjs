@@ -10,6 +10,7 @@ import { referralGrowthChecks } from "./helpers/referral-growth-db.mjs";
 import { invitationProgressChecks } from "./helpers/invitation-progress-db.mjs";
 import { emailOperationsChecks } from "./helpers/email-operations-db.mjs";
 import { recoveryChecks } from "./helpers/recovery-db.mjs";
+import { candidateImportChecks } from "./helpers/candidate-db.mjs";
 
 // Opt-in, isolated Postgres. Never opens a URL or uses the application's hosted credentials.
 const enabled = process.env.RW_DATABASE_TEST === "1";
@@ -2853,6 +2854,10 @@ test(
       await invitationProgressChecks(t, { rpc, sql, id });
       await emailOperationsChecks(t, { rpc, sql, id });
       await recoveryChecks(t, { container, sql });
+      await candidateImportChecks(t, {sql,rpc,id,sqlAsync: async query => {
+        const result=await promisify(execFile)('docker',['exec','-i',container,'psql','-U','postgres','-X','-q','-A','-t','-v','ON_ERROR_STOP=1','-c',query]);
+        return result.stdout.trim();
+      }});
     } finally {
       execFileSync("docker", ["stop", container], { stdio: "pipe" });
     }

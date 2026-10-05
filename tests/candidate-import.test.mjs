@@ -4,10 +4,19 @@ import {spawnSync} from 'node:child_process';
 import {mkdtemp, readdir, rm} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
-import {normaliseCandidate,prepareCandidateBatch} from '../scripts/candidates/normalise.mjs';
-import {runCandidateImport} from '../scripts/import-candidates.mjs';
+import {normaliseCandidate,prepareCandidateBatch,canonicalJSON} from '../scripts/candidates/normalise.mjs';
+import {runCandidateImport,applyCandidateBatch} from '../scripts/import-candidates.mjs';
 import {legacyCandidate,pilotCandidate,expandedCandidate} from './fixtures/candidate-records.mjs';
 const input=(rows,label='test')=>({label,bytes:Buffer.from(JSON.stringify(rows))});
+test('canonical numbers and keys have a database-reproducible representation',()=>{
+  assert.equal(canonicalJSON({small:1e-7,big:1e21,zero:-0}),'{"big":1000000000000000000000,"small":0.0000001,"zero":0}');
+  assert.equal(canonicalJSON({'😀':1,'\ue000':2,'2':3,'10':4}),'{"10":4,"2":3,"\ue000":2,"😀":1}');
+});
+test('hosted apply rejects non-exact targets before any network request',async()=>{
+  for(const url of ['http://ivutegjvttkrmxctegub.supabase.co','https://ivutegjvttkrmxctegub.supabase.co/','https://ivutegjvttkrmxctegub.supabase.co:443','https://elsewhere.supabase.co','https://ivutegjvttkrmxctegub.supabase.co?x=1']){
+    await assert.rejects(applyCandidateBatch({},'operator','ivutegjvttkrmxctegub',{RW_CANDIDATE_IMPORT_URL:url,RW_CANDIDATE_IMPORT_SERVICE_KEY:'fictional'}),/candidate_target_configuration/);
+  }
+});
 test('three source shapes retain unknowns, multi-profession and stable provenance hashes',()=>{
   const a=legacyCandidate(),b=pilotCandidate(),c=expandedCandidate();
   const batch=prepareCandidateBatch([input([a,b,c])]);
@@ -74,4 +83,14 @@ test('retired public generator fails closed without creating exports',async t=>{
   assert.equal(result.status,1);
   assert.match(result.stderr,/retired/);
   assert.deepEqual(await readdir(root),[]);
+});
+test('apply requires a confirmed project, operator UUID and exact preflight digest',async()=>{
+  const bytes=input([legacyCandidate()]).bytes, batch=prepareCandidateBatch([{label:'test',bytes}]);
+  const lines=[];let calls=0;
+  const deps={readFile:async()=>bytes,apply:async(value,actor,project)=>{calls++;assert.equal(value.manifest.digest,batch.manifest.digest);assert.equal(actor,'00000000-0000-4000-8000-000000000001');assert.equal(project,'ivutegjvttkrmxctegub');return {batchId:'fictional',digest:batch.manifest.digest,replayed:false};},stdout:s=>lines.push(s)};
+  const args=['--input','test=/fixture.json','--apply','--confirm-project','ivutegjvttkrmxctegub','--actor','00000000-0000-4000-8000-000000000001','--expect-digest',batch.manifest.digest];
+  assert.equal(await runCandidateImport(args,deps),0);assert.equal(calls,1);
+  assert.equal(await runCandidateImport(args.slice(0,-2),deps),1);assert.equal(calls,1);
+  assert.equal(await runCandidateImport([...args.slice(0,-1),'0'.repeat(64)],deps),1);assert.equal(calls,1);
+  assert.equal(await runCandidateImport([...args,'--actor','another'],deps),1);assert.equal(calls,1);
 });

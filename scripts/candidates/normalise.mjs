@@ -3,12 +3,19 @@ import catalogue from '../../shared/professions.json' with {type:'json'};
 const known=new Set(catalogue.professions.map(x=>x.id));
 const fail=code=>{throw Error(`candidate_${code}`);};
 const isObject=v=>v!==null&&typeof v==='object'&&!Array.isArray(v);
-const byteLength=v=>Buffer.byteLength(JSON.stringify(v),'utf8');
-export const canonicalJSON=v=>JSON.stringify(canonical(v));
-function canonical(v){
-  if(Array.isArray(v))return v.map(canonical);
-  if(isObject(v))return Object.fromEntries(Object.keys(v).sort().map(k=>[k,canonical(v[k])]));
-  return v;
+const byteLength=v=>Buffer.byteLength(canonicalJSON(v),'utf8');
+// UTF-8 key order and expanded decimal numbers match PostgreSQL jsonb exactly.
+// Do not round-trip through a JS object: integer-like keys would be reordered.
+export function canonicalJSON(v){
+  if(Array.isArray(v))return `[${v.map(canonicalJSON).join(',')}]`;
+  if(isObject(v))return `{${Object.keys(v).sort((a,b)=>Buffer.compare(Buffer.from(a),Buffer.from(b))).map(k=>`${JSON.stringify(k)}:${canonicalJSON(v[k])}`).join(',')}}`;
+  if(typeof v==='number'){
+    const s=JSON.stringify(v);if(!s.includes('e'))return s;
+    const [mantissa,exponent]=s.split('e'),negative=mantissa.startsWith('-'),digits=mantissa.replace('-','').replace('.','');
+    const point=(mantissa.replace('-','').split('.')[0].length)+Number(exponent);
+    return (negative?'-':'')+(point<=0?'0.'+'0'.repeat(-point)+digits:point>=digits.length?digits+'0'.repeat(point-digits.length):digits.slice(0,point)+'.'+digits.slice(point));
+  }
+  return JSON.stringify(v);
 }
 const hash=v=>createHash('sha256').update(v).digest('hex');
 function inspect(v,depth=0){
