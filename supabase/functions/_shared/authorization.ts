@@ -46,6 +46,8 @@ export function requiresStepUp(action: string) {
     "review.decide",
     "review.suspend",
     "review.restore",
+    "candidate.dispose",
+    "candidate.withdrawBatch",
     "practice.create",
     "practice.reviewContact",
     "practice.reviewInviter",

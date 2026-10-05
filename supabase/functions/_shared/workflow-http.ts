@@ -276,6 +276,11 @@ const mappings: Record<
     },
   },
   "review-practitioner": {
+    candidate_list: { action: "candidate.list", fields: ["search", "professionId", "suburb", "postcode", "disposition", "cursor", "limit"] },
+    candidate_detail: { action: "candidate.detail", fields: ["candidateId", "observationCursor", "eventCursor"] },
+    candidate_dispose: { action: "candidate.dispose", fields: ["candidateId", "expectedVersion", "disposition", "reason", "evidenceReference", "requestId"] },
+    candidate_batches: { action: "candidate.batches", fields: ["cursor"] },
+    candidate_withdraw_batch: { action: "candidate.withdrawBatch", fields: ["batchId", "expectedVersion", "reason", "requestId"] },
     due: { action: "review.due", fields: [] },
     access_detail: {
       action: "review.access_detail",

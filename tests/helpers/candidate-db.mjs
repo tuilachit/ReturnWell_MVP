@@ -103,4 +103,69 @@ export async function candidateImportChecks(t,{sql,id:sourceId,sqlAsync}){
     }
     assert.equal(counts(),initial);
   });
+  const workflow=(action,input={},actor=id(1))=>JSON.parse(sql(`set role service_role;select public.rw_workflow('${actor}','candidate.${action}',${j(input)})`));
+  let target,disposed;
+  await t.test('candidate operator queries are bounded, literal, role checked and exclude raw fields',()=>{
+    apply(batch([legacyCandidate({candidate_id:'literal',display_name:'Fictional 100%_ literal'})]));
+    const page=workflow('list',{search:'%_'});assert.equal(page.total,1);assert.equal(page.items.length,1);target=page.items[0];
+    assert.equal('raw' in target,false);assert.equal(target.reviewRequired,true);
+    assert.equal(workflow('list',{search:'SQL injection \''}).total,0);
+    assert.throws(()=>workflow('list',{},id(2)),/denied/);
+    for(const input of [{limit:0},{limit:-1},{limit:1.1},{search:'a'.repeat(161)},{postcode:'20'},{cursor:'bad'}])assert.throws(()=>workflow('list',input),/invalid_request|invalid_cursor/);
+    const detail=workflow('detail',{candidateId:target.id});assert.equal(detail.displayName,target.displayName);assert.equal(detail.observations.length,1);assert.ok(detail.currentObservation.record.raw);
+    const withdrawn=JSON.parse(sql("select jsonb_build_object('id',id) from private.practitioner_candidates where source_id='overlap'"));
+    assert.equal(workflow('detail',{candidateId:withdrawn.id}).withdrawn,true);
+    assert.equal(workflow('list',{search:'Fictional Legacy Person'}).items.some(x=>x.id===withdrawn.id),false);
+  });
+  await t.test('candidate disposition is versioned, idempotent and rechecks revoked operators before replay',()=>{
+    const input={candidateId:target.id,expectedVersion:target.version,disposition:'reviewed_for_onboarding',reason:'Identity reviewed',evidenceReference:'Fictional review record',requestId:id(30)};
+    assert.throws(()=>workflow('dispose',{...input,evidenceReference:null}),/evidence_required/);
+    disposed=workflow('dispose',input);assert.equal(disposed.version,target.version+1);assert.deepEqual(workflow('dispose',input),disposed);
+    assert.throws(()=>workflow('dispose',{...input,reason:'Changed'}),/conflict/);
+    assert.throws(()=>workflow('dispose',{...input,requestId:id(31)}),/conflict/);
+    assert.equal(workflow('detail',{candidateId:target.id}).reviewRequired,false);
+    assert.equal(workflow('detail',{candidateId:target.id}).events.length,1);
+    sql(`update private.platform_operators set active=false where user_id='${id(1)}'`);
+    assert.throws(()=>workflow('list'),/denied/);assert.throws(()=>workflow('dispose',input),/denied/);
+    sql(`update private.platform_operators set active=true where user_id='${id(1)}'`);
+    assert.equal(counts(),initial);
+  });
+  await t.test('candidate history pagination obeys byte budget and binds cursors to their stream and candidate',()=>{
+    let receipt;
+    for(let n=0;n<5;n++)receipt=apply(batch([legacyCandidate({candidate_id:'history',display_name:`History ${n}`,notes:'x'.repeat(60000)})]));
+    const item=workflow('list',{search:'History 4'}).items[0];
+    let detail=workflow('detail',{candidateId:item.id}),seen=new Set(detail.observations.map(x=>x.id));
+    assert.ok(Buffer.byteLength(JSON.stringify(detail))<=256*1024);assert.ok(detail.nextObservationCursor);
+    assert.throws(()=>workflow('detail',{candidateId:target.id,observationCursor:detail.nextObservationCursor}),/invalid_cursor/);
+    while(detail.nextObservationCursor){detail=workflow('detail',{candidateId:item.id,observationCursor:detail.nextObservationCursor});assert.ok(Buffer.byteLength(JSON.stringify(detail))<=256*1024);for(const x of detail.observations){assert.equal(seen.has(x.id),false);seen.add(x.id);}}
+    assert.equal(seen.size,5);
+    const batches=workflow('batches');assert.ok(batches.items.length<=25);
+    const active=batches.items.find(x=>x.batchId===receipt.batchId);assert.ok(active);assert.equal(active.unsupportedOnWithdrawal,0);
+    workflow('withdrawBatch',{batchId:active.batchId,expectedVersion:active.version,reason:'Fictional withdrawal',requestId:id(40)});
+    assert.equal(workflow('list',{search:'History 4'}).total,0);
+    assert.equal(workflow('list',{search:'History 3'}).total,1);
+    assert.equal(counts(),initial);
+  });
+  await t.test('5000 synthetic candidates traverse stable pages without duplicates or private payloads',()=>{
+    for(let offset=0;offset<5000;offset+=1000)apply(batch(Array.from({length:1000},(_,n)=>legacyCandidate({candidate_id:`volume-${offset+n}`,display_name:`Volume ${String(offset+n).padStart(5,'0')}`})),`volume-${offset}`));
+    let cursor=null;const seen=new Set();let previous='';
+    do{
+      const page=workflow('list',{search:'Volume',limit:80,...(cursor?{cursor}:{})});assert.equal(page.total,5000);assert.ok(page.items.length<=50);
+      for(const row of page.items){assert.equal(seen.has(row.id),false);assert.ok(row.displayName>=previous);previous=row.displayName;seen.add(row.id);assert.equal('raw' in row,false);assert.equal('sourceUrls' in row,false);}
+      cursor=page.nextCursor;
+      if(cursor)assert.throws(()=>workflow('list',{search:'different',cursor}),/invalid_cursor/);
+    }while(cursor);
+    assert.equal(seen.size,5000);assert.equal(counts(),initial);
+  });
+  await t.test('dense maximum-size evidence always advances history within the response budget',()=>{
+    const raw=legacyCandidate({candidate_id:'dense',display_name:'Dense history',practice_names:Array.from({length:50},(_,n)=>`${n}`.padEnd(200,'p')),
+      locations:Array.from({length:50},()=>({suburb:'s'.repeat(160),postcode:'2'.repeat(160),state:'N'.repeat(100)}))});
+    let low=0,high=33000,prepared;
+    while(low<=high){const n=Math.floor((low+high)/2);try{prepared=batch([{...raw,numbers:Array(n).fill(0)}]);low=n+1;}catch{high=n-1;}}
+    assert.ok(prepared);apply(prepared);
+    const item=workflow('list',{search:'Dense history'}).items[0];
+    const detail=workflow('detail',{candidateId:item.id});
+    assert.equal(detail.observations.length,1);assert.equal(detail.nextObservationCursor,null);
+    assert.ok(Buffer.byteLength(JSON.stringify(detail))<=256*1024);
+  });
 }

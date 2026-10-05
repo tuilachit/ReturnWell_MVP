@@ -13,6 +13,8 @@ test("privileged writes reject AAL1, missing assurance and forged body metadata 
     ["review-practitioner", "decide"],
     ["review-practitioner", "suspend"],
     ["review-practitioner", "restore"],
+    ["review-practitioner", "candidate_dispose"],
+    ["review-practitioner", "candidate_withdraw_batch"],
     ...["create", "reviewContact", "reviewInviter", "revokeMember"].map(
       (op) => ["manage-practice", op],
     ),
