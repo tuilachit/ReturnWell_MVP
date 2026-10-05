@@ -192,14 +192,14 @@ begin
   return answer;
 end $$;
 
-create function private.withdraw_candidate_batch(actor uuid,batch_id uuid,expected_version integer,reason text,request_id uuid) returns jsonb
+create function private.withdraw_candidate_batch(actor uuid,batch_id uuid,expected_version integer,reason text,request_id uuid,expected_unsupported integer) returns jsonb
 language plpgsql security invoker set search_path='' as $$
 declare b private.candidate_import_batches; c private.practitioner_candidates; selected uuid; hidden integer:=0;
-  payload jsonb; prior private.workflow_requests; answer jsonb;
+  payload jsonb; prior private.workflow_requests; answer jsonb; impact integer;
 begin
   perform private.candidate_operator(actor);
-  if batch_id is null or request_id is null or expected_version is null or expected_version<0 or reason is null or length(btrim(reason)) not between 1 and 500 then raise exception 'candidate_invalid' using errcode='22023'; end if;
-  payload:=jsonb_build_object('batchId',batch_id,'expectedVersion',expected_version,'reason',reason);
+  if batch_id is null or request_id is null or expected_version is null or expected_version<0 or expected_unsupported is null or expected_unsupported not between 0 and 1000 or reason is null or length(btrim(reason)) not between 1 and 500 then raise exception 'candidate_invalid' using errcode='22023'; end if;
+  payload:=jsonb_build_object('batchId',batch_id,'expectedVersion',expected_version,'reason',reason,'expectedUnsupported',expected_unsupported);
   perform pg_advisory_xact_lock(71423811);
   select * into prior from private.workflow_requests w where w.actor_id=actor and w.request_id=withdraw_candidate_batch.request_id;
   if found then
@@ -209,6 +209,10 @@ begin
   select * into b from private.candidate_import_batches where id=batch_id for update;
   if not found then raise exception 'candidate_not_found'; end if;
   if b.version<>expected_version or b.status<>'completed' then raise exception 'version_conflict'; end if;
+  select count(*) into impact from private.candidate_batch_items i where i.batch_id=b.id and not exists(
+    select 1 from private.candidate_batch_items other join private.candidate_import_batches supporting on supporting.id=other.batch_id
+      where other.candidate_id=i.candidate_id and supporting.id<>b.id and supporting.status='completed');
+  if impact<>expected_unsupported then raise exception 'version_conflict'; end if;
   update private.candidate_import_batches set status='withdrawn',version=version+1 where id=b.id;
   for c in select x.* from private.practitioner_candidates x join private.candidate_batch_items i on i.candidate_id=x.id
     where i.batch_id=b.id order by x.id for update of x loop
@@ -228,5 +232,5 @@ begin
   return answer;
 end $$;
 
-revoke all on function private.candidate_canonical(jsonb),private.candidate_hash(jsonb),private.candidate_json_depth(jsonb,integer),private.candidate_operator(uuid),private.validate_candidate_batch(jsonb,jsonb),public.rw_import_candidate_batch(uuid,jsonb,jsonb),private.withdraw_candidate_batch(uuid,uuid,integer,text,uuid) from public,anon,authenticated;
-grant execute on function private.candidate_canonical(jsonb),private.candidate_hash(jsonb),private.candidate_json_depth(jsonb,integer),private.candidate_operator(uuid),private.validate_candidate_batch(jsonb,jsonb),public.rw_import_candidate_batch(uuid,jsonb,jsonb),private.withdraw_candidate_batch(uuid,uuid,integer,text,uuid) to service_role;
+revoke all on function private.candidate_canonical(jsonb),private.candidate_hash(jsonb),private.candidate_json_depth(jsonb,integer),private.candidate_operator(uuid),private.validate_candidate_batch(jsonb,jsonb),public.rw_import_candidate_batch(uuid,jsonb,jsonb),private.withdraw_candidate_batch(uuid,uuid,integer,text,uuid,integer) from public,anon,authenticated;
+grant execute on function private.candidate_canonical(jsonb),private.candidate_hash(jsonb),private.candidate_json_depth(jsonb,integer),private.candidate_operator(uuid),private.validate_candidate_batch(jsonb,jsonb),public.rw_import_candidate_batch(uuid,jsonb,jsonb),private.withdraw_candidate_batch(uuid,uuid,integer,text,uuid,integer) to service_role;

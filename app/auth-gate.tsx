@@ -171,7 +171,9 @@ export default function AuthGate({
           if (signingIn.current || !client || !googleSignInEnabled()) return;
           signingIn.current = true;
           const destination = safeDestination(window.location.pathname);
-          window.location.assign(`/auth/google?start=1&next=${encodeURIComponent(destination)}`);
+          window.location.assign(
+            `/auth/google?start=1&next=${encodeURIComponent(destination)}`,
+          );
         }}
         onPreview={() => setPreview(true)}
         onSubmit={async (event) => {
@@ -227,7 +229,19 @@ export default function AuthGate({
   const navigation = (
     <nav className="workflow-navigation">
       <a href="/">Workspaces</a>
-      <a href="/security">Account security</a>
+      <a
+        href="/security"
+        target={requested === "candidates" ? "_blank" : undefined}
+        rel={requested === "candidates" ? "noopener noreferrer" : undefined}
+      >
+        Account security
+      </a>
+      {requested === "candidates" && (
+        <span>
+          Account security opens in a new tab. Keep this review open, complete
+          verification, then return and retry.
+        </span>
+      )}
       {access.doctors.length > 0 && <a href="/invitations">Invitations</a>}
       {access.operator && (
         <>
@@ -240,7 +254,20 @@ export default function AuthGate({
       <button onClick={() => void signOut()}>Sign out</button>
     </nav>
   );
-  if(requested === "setup" || (!requested&&!access.doctors.length&&!access.practitioners.length&&!access.applicationId&&!access.operator))return <>{navigation}<AccountSetupPanel key={session.user.id} client={client}/></>;
+  if (
+    requested === "setup" ||
+    (!requested &&
+      !access.doctors.length &&
+      !access.practitioners.length &&
+      !access.applicationId &&
+      !access.operator)
+  )
+    return (
+      <>
+        {navigation}
+        <AccountSetupPanel key={session.user.id} client={client} />
+      </>
+    );
   if (requested === "security")
     return (
       <>
@@ -275,7 +302,9 @@ export default function AuthGate({
       (!requested ||
         (requested === "invitations"
           ? item.id.startsWith("doctor:") || item.id === "operator"
-          : requested === "practices" || requested === "email" || requested === "candidates"
+          : requested === "practices" ||
+              requested === "email" ||
+              requested === "candidates"
             ? item.id === "operator"
             : item.id.startsWith(requested))),
   );
@@ -295,9 +324,11 @@ export default function AuthGate({
             : "No workspace is available here"
         }
       >
-        <p>{eligible.length
-          ? "Choose the role and practice you want to use."
-          : "You are signed in, but this account has no authorised workspace for this page. Use the email address your practice invited. If you are joining for the first time, complete the steps in your invitation email or contact your practice administrator."}</p>
+        <p>
+          {eligible.length
+            ? "Choose the role and practice you want to use."
+            : "You are signed in, but this account has no authorised workspace for this page. Use the email address your practice invited. If you are joining for the first time, complete the steps in your invitation email or contact your practice administrator."}
+        </p>
         <div className="workflow-actions">
           {eligible.map((item) => (
             <button
@@ -329,7 +360,7 @@ export default function AuthGate({
     <>
       {navigation}
       {requested === "candidates" && access.operator ? (
-        <CandidateReviewPanel key={session.user.id} client={client}/>
+        <CandidateReviewPanel key={session.user.id} client={client} />
       ) : requested === "email" && access.operator ? (
         <EmailOperations key={session.user.id} client={client} />
       ) : requested === "practices" && access.operator ? (

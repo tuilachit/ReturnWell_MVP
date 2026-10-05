@@ -27,6 +27,7 @@ export function useCandidateAction(onSuccess: () => Promise<void> | void) {
   }, []);
   async function execute() {
     if (running.current || !pending.current) return;
+    const retrying = uncertain;
     running.current = true;
     setBusy(true);
     setError("");
@@ -41,7 +42,7 @@ export function useCandidateAction(onSuccess: () => Promise<void> | void) {
     } catch (e) {
       if (!mounted.current) return;
       setError(errorText(e));
-      if (isDefinitiveWorkflowFailure(e)) {
+      if (!retrying && isDefinitiveWorkflowFailure(e)) {
         pending.current = null;
         setUncertain(false);
         if (e instanceof WorkflowError && e.code === "conflict")

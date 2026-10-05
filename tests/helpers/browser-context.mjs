@@ -80,8 +80,11 @@ export async function doctorBrowser(
   const storageKey = (actor === "practitioner" ? owner : doctor).client.auth
     .storageKey;
   if (seedSession)
-    await page.addInitScript(
-      ({ key, value }) => localStorage.setItem(key, JSON.stringify(value)),
+    await page.context().addInitScript(
+      ({ key, value }) => {
+        if (!localStorage.getItem(key))
+          localStorage.setItem(key, JSON.stringify(value));
+      },
       { key: storageKey, value: session },
     );
   const runtime = {
@@ -105,7 +108,7 @@ export async function doctorBrowser(
   const replacementHold = new Promise((resolve) => {
     releaseReplacement = resolve;
   });
-  await page.route("**/*", async (route) => {
+  const handleRoute = async (route) => {
     const request = route.request();
     const url = new URL(request.url());
     if (!["localhost", "127.0.0.1"].includes(url.hostname))
@@ -189,7 +192,9 @@ export async function doctorBrowser(
       headers: Object.fromEntries(response.headers),
       body: await response.text(),
     });
-  });
+  };
+  await page.context().route("**/*", handleRoute);
+  await page.route("**/*", handleRoute);
   return {
     local,
     runtime,

@@ -62,6 +62,7 @@ export const withdrawCandidateBatch = (
   input: {
     batchId: string;
     expectedVersion: number;
+    expectedUnsupported: number;
     reason: string;
     requestId: string;
   },

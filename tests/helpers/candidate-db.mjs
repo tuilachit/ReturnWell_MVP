@@ -66,7 +66,7 @@ export async function candidateImportChecks(t,{sql,rpc,profile,review,id:sourceI
     assert.equal(counts(),initial);
   });
   await t.test('withdrawal restores supported evidence, replays once, and never revives a withdrawn batch',()=>{
-    const withdraw=(batchId,version,requestId,reason='Fictional correction')=>JSON.parse(sql(`set role service_role;select private.withdraw_candidate_batch('${id(1)}','${batchId}',${version},'${reason}','${requestId}')`));
+    const withdraw=(batchId,version,requestId,reason='Fictional correction')=>JSON.parse(sql(`set role service_role;select private.withdraw_candidate_batch('${id(1)}','${batchId}',${version},'${reason}','${requestId}',${batchId===first.batchId?1:0})`));
     const undone=withdraw(second.batchId,0,id(10));
     assert.equal(undone.hiddenCandidates,0);
     assert.equal(sql("select o.record->>'displayName' from private.practitioner_candidates c join private.candidate_observations o on o.id=c.current_observation_id where c.source_id='fictional-a'"),'Fictional Legacy Person');
@@ -93,7 +93,7 @@ export async function candidateImportChecks(t,{sql,rpc,profile,review,id:sourceI
     const one=apply(batch([record],'overlap-one')),two=apply(batch([record],'overlap-two'));
     assert.equal(one.newObservations,1);assert.equal(two.newObservations,0);
     const version=sql("select version from private.practitioner_candidates where source_id='overlap'");
-    const withdraw=(receipt,request)=>JSON.parse(sql(`set role service_role;select private.withdraw_candidate_batch('${id(1)}','${receipt.batchId}',0,'Fixture overlap','${id(request)}')`));
+    const withdraw=(receipt,request)=>JSON.parse(sql(`set role service_role;select private.withdraw_candidate_batch('${id(1)}','${receipt.batchId}',0,'Fixture overlap','${id(request)}',${receipt.batchId===one.batchId?1:0})`));
     assert.equal(withdraw(two,20).hiddenCandidates,0);
     assert.equal(sql("select version from private.practitioner_candidates where source_id='overlap'"),version);
     assert.equal(withdraw(one,21).hiddenCandidates,1);
@@ -104,6 +104,19 @@ export async function candidateImportChecks(t,{sql,rpc,profile,review,id:sourceI
     assert.equal(counts(),initial);
   });
   const workflow=(action,input={},actor=id(1))=>JSON.parse(sql(`set role service_role;select public.rw_workflow('${actor}','candidate.${action}',${j(input)})`));
+  await t.test('withdrawal rejects a stale impact after a second operator removes overlapping support',()=>{
+    sql(`insert into auth.users(id,email,email_confirmed_at) values ('${id(5010)}','second-candidate-operator@example.test',now());insert into private.platform_operators(user_id) values ('${id(5010)}');`);
+    const record=legacyCandidate({candidate_id:'stale-impact'});
+    const one=apply(batch([record],'impact-one')),two=apply(batch([record],'impact-two'));
+    const original=workflow('batches').items.find(x=>x.batchId===one.batchId);
+    assert.equal(original.unsupportedOnWithdrawal,0);
+    workflow('withdrawBatch',{batchId:two.batchId,expectedVersion:0,expectedUnsupported:0,reason:'Other operator correction',requestId:id(500)},id(5010));
+    const input={batchId:one.batchId,expectedVersion:0,expectedUnsupported:0,reason:'First operator confirmation',requestId:id(501)};
+    assert.throws(()=>workflow('withdrawBatch',input),/conflict/);
+    assert.equal(workflow('batches').items.find(x=>x.batchId===one.batchId).status,'completed');
+    assert.equal(workflow('withdrawBatch',{...input,expectedUnsupported:1}).hiddenCandidates,1);
+    assert.equal(counts(),initial);
+  });
   let target,disposed;
   await t.test('candidate operator queries are bounded, literal, role checked and exclude raw fields',()=>{
     apply(batch([legacyCandidate({candidate_id:'literal',display_name:'Fictional 100%_ literal'})]));
@@ -141,7 +154,7 @@ export async function candidateImportChecks(t,{sql,rpc,profile,review,id:sourceI
     assert.equal(seen.size,5);
     const batches=workflow('batches');assert.ok(batches.items.length<=25);
     const active=batches.items.find(x=>x.batchId===receipt.batchId);assert.ok(active);assert.equal(active.unsupportedOnWithdrawal,0);
-    workflow('withdrawBatch',{batchId:active.batchId,expectedVersion:active.version,reason:'Fictional withdrawal',requestId:id(40)});
+    workflow('withdrawBatch',{batchId:active.batchId,expectedVersion:active.version,expectedUnsupported:0,reason:'Fictional withdrawal',requestId:id(40)});
     assert.equal(workflow('list',{search:'History 4'}).total,0);
     assert.equal(workflow('list',{search:'History 3'}).total,1);
     assert.equal(counts(),initial);
@@ -221,8 +234,8 @@ export async function candidateImportChecks(t,{sql,rpc,profile,review,id:sourceI
     workflow('linkApplication',{...linkInput,applicationId:id(62),expectedVersion:detail.version,requestId:id(83)});
     detail=workflow('detail',{candidateId:source.id});assert.equal(detail.linkedApplicationId,id(62));
     assert.equal(detail.events.filter(e=>['link_application','unlink_application'].includes(e.action)).length,3);
-    workflow('withdrawBatch',{batchId:linkBatch.batchId,expectedVersion:0,reason:'Fictional correction',requestId:id(84)});
-    workflow('withdrawBatch',{batchId:changed.batchId,expectedVersion:0,reason:'Fictional correction',requestId:id(90)});
+    workflow('withdrawBatch',{batchId:linkBatch.batchId,expectedVersion:0,expectedUnsupported:0,reason:'Fictional correction',requestId:id(84)});
+    workflow('withdrawBatch',{batchId:changed.batchId,expectedVersion:0,expectedUnsupported:1,reason:'Fictional correction',requestId:id(90)});
     detail=workflow('detail',{candidateId:source.id});assert.equal(detail.withdrawn,true);assert.equal(detail.linkedApplicationId,id(62));
     assert.equal(applicationSnapshot(),appSnapshot);assert.equal(counts(),initial);
   });

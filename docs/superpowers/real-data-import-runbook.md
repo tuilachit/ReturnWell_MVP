@@ -30,6 +30,8 @@ An ambiguous save freezes its payload and request ID; use **Retry same action**,
 
 Withdraw a batch from **Import batches**, review the unsupported count and current version, enter a reason and explicitly confirm. This hides unsupported research records or restores the latest still-supported observation. It preserves source history, review audit and application links; it never changes clinical profiles or sends emails. There is no production database reset workflow.
 
+Withdrawal includes the confirmed `expectedUnsupported` count. The transaction rechecks it under the same lock as imports and other withdrawals; changed support requires loading the latest impact and a new confirmation. After an ambiguous request, even a rejected retry must retain the original payload/ID until a successful replay confirms its outcome. Account security opens in a separate tab from candidate review; keep the original tab open while completing MFA and then retry. Cancel is available only while no request is running or uncertain.
+
 ## Release and rollback
 
 Apply additive audited migrations before deploying all manifest endpoints and then the frontend. Keep the previous commit/deployment ID and provider backup/restore procedure in the release record. Candidate data remains private regardless of frontend version. Do not roll the backend back to a dispatcher lacking an already-served frontend's operations. Withdrawing an incorrect import is the normal reversible response.

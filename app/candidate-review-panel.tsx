@@ -23,10 +23,12 @@ function BatchWithdrawal({
   client,
   batch,
   onChanged,
+  onCancel,
 }: {
   client: SupabaseClient;
   batch: CandidateBatchSummary;
   onChanged: () => void;
+  onCancel: () => void;
 }) {
   const [reason, setReason] = useState(""),
     [confirmed, setConfirmed] = useState(false);
@@ -34,6 +36,13 @@ function BatchWithdrawal({
   return (
     <section className="workflow-card">
       <h3>Withdraw batch</h3>
+      <button
+        className="button secondary"
+        onClick={onCancel}
+        disabled={action.locked}
+      >
+        Cancel withdrawal
+      </button>
       <p>{batch.digest}</p>
       <p>
         {batch.unsupportedOnWithdrawal} candidates would lose their remaining
@@ -82,6 +91,7 @@ function BatchWithdrawal({
               {
                 batchId: batch.batchId,
                 expectedVersion: batch.version,
+                expectedUnsupported: batch.unsupportedOnWithdrawal,
                 reason,
               },
               (value) => withdrawCandidateBatch(client, value),
@@ -318,6 +328,7 @@ export default function CandidateReviewPanel({
                 key={`${withdraw.batchId}:${withdraw.version}`}
                 client={client}
                 batch={withdraw}
+                onCancel={() => setWithdraw(null)}
                 onChanged={() => {
                   setWithdraw(null);
                   setRefresh((x) => x + 1);

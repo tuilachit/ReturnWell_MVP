@@ -4,6 +4,7 @@ import AxeBuilder from "@axe-core/playwright";
 import { doctorBrowser } from "../helpers/browser-context.mjs";
 import { prepareCandidateBatch } from "../../scripts/candidates/normalise.mjs";
 import { legacyCandidate } from "../fixtures/candidate-records.mjs";
+import { totp } from "../helpers/mfa.mjs";
 
 async function adminBrowser(page, options = {}) {
   const fixture = await doctorBrowser(page, options);
@@ -11,10 +12,11 @@ async function adminBrowser(page, options = {}) {
     `insert into private.platform_operators(user_id) values ('${fixture.doctor.userId}')`,
   );
   const identity = fixture.runtime.getUser;
-  fixture.runtime.getUser = async (token) => {
-    const user = await identity(token);
-    return user ? { ...user, aal: "aal2" } : null;
-  };
+  if (!options.realMfa)
+    fixture.runtime.getUser = async (token) => {
+      const user = await identity(token);
+      return user ? { ...user, aal: "aal2" } : null;
+    };
   const tag = randomUUID().slice(0, 8);
   const records = Array.from({ length: 51 }, (_, i) =>
     legacyCandidate({
@@ -90,6 +92,33 @@ test("doctor cannot read private candidate route", async ({ page }) => {
   ).toBeVisible();
   await expect(page.getByLabel("Search candidates")).toHaveCount(0);
 });
+test("operator can cancel an unsubmitted batch withdrawal without changing data", async ({
+  page,
+}) => {
+  test.skip(!process.env.RW_LOCAL_STACK_DIR, "Requires isolated stack");
+  const f = await adminBrowser(page);
+  await page.goto("/admin/candidates");
+  await page.getByText("Import batches", { exact: true }).click();
+  await page
+    .getByRole("button", { name: "Review batch withdrawal", exact: true })
+    .first()
+    .click();
+  await page.getByLabel("Withdrawal reason").fill("Do not submit this");
+  await page
+    .getByRole("button", { name: "Cancel withdrawal", exact: true })
+    .click();
+  await expect(page.getByLabel("Withdrawal reason")).toHaveCount(0);
+  await expect(
+    page
+      .getByRole("button", { name: "Review batch withdrawal", exact: true })
+      .first(),
+  ).toBeEnabled();
+  expect(
+    f.local.sql(
+      `select status from private.candidate_import_batches where id='${f.batchId}'`,
+    ),
+  ).toBe("completed");
+});
 test("lost disposition response locks the original payload and retries exactly once", async ({
   page,
 }) => {
@@ -124,6 +153,110 @@ test("lost disposition response locks the original payload and retries exactly o
       `select count(*) from private.candidate_review_events where actor_id='${f.doctor.userId}' and action='disposition:reviewed_for_onboarding'`,
     ),
   ).toBe("1");
+});
+test("uncertain candidate action retains its payload after rejected retries", async ({
+  page,
+}) => {
+  test.skip(!process.env.RW_LOCAL_STACK_DIR, "Requires isolated stack");
+  const f = await adminBrowser(page, {
+    loseRpcResponseOnceFor: "candidate.dispose",
+  });
+  await page.goto("/admin/candidates");
+  await page.getByLabel("Search candidates").fill(f.tag);
+  await page
+    .getByRole("button", { name: /Review .*Fictional/ })
+    .first()
+    .click();
+  await page
+    .getByLabel("Reason", { exact: true })
+    .fill("Keep this exact command");
+  const bodies = [];
+  page.on("request", (request) => {
+    if (
+      request.url().endsWith("/review-practitioner") &&
+      request.postDataJSON()?.operation === "candidate_dispose"
+    )
+      bodies.push(request.postDataJSON());
+  });
+  await page.getByRole("button", { name: "Save review", exact: true }).click();
+  const identity = f.runtime.getUser;
+  f.runtime.getUser = async (token) => {
+    const user = await identity(token);
+    return user ? { ...user, aal: "aal1" } : null;
+  };
+  await page
+    .getByRole("button", { name: "Retry same action", exact: true })
+    .click();
+  await expect(page.getByRole("alert")).toContainText("authenticator");
+  await expect(
+    page.getByRole("textbox", { name: "Reason", exact: true }),
+  ).toBeDisabled();
+  f.runtime.getUser = identity;
+  await page
+    .getByRole("button", { name: "Retry same action", exact: true })
+    .click();
+  await expect(page.getByRole("status")).toContainText("Review saved");
+  expect(bodies).toHaveLength(3);
+  expect(bodies[1]).toEqual(bodies[0]);
+  expect(bodies[2]).toEqual(bodies[0]);
+  expect(
+    f.local.sql(
+      `select count(*) from private.candidate_review_events where actor_id='${f.doctor.userId}'`,
+    ),
+  ).toBe("1");
+});
+test("real account security recovery keeps the candidate form in its original tab", async ({
+  page,
+}) => {
+  test.skip(!process.env.RW_LOCAL_STACK_DIR, "Requires isolated stack");
+  const f = await adminBrowser(page, { realMfa: true });
+  await page.goto("/admin/candidates");
+  await page.getByLabel("Search candidates").fill(f.tag);
+  await page
+    .getByRole("button", { name: /Review .*Fictional/ })
+    .first()
+    .click();
+  await page
+    .getByLabel("Reason", { exact: true })
+    .fill("Keep edit through real MFA");
+  await page
+    .getByLabel("Evidence reference", { exact: true })
+    .fill("Preserve evidence");
+  await page.getByRole("button", { name: "Save review", exact: true }).click();
+  await expect(page.getByRole("alert")).toContainText("authenticator");
+  const securityLink = page.getByRole("link", {
+    name: "Account security",
+    exact: true,
+  });
+  await expect(securityLink).toHaveAttribute("target", "_blank");
+  const popupPromise = page.waitForEvent("popup");
+  await securityLink.click();
+  const security = await popupPromise;
+  await security
+    .getByRole("button", { name: "Set up authenticator", exact: true })
+    .click();
+  const secret = await security
+    .getByLabel("Setup key", { exact: true })
+    .inputValue();
+  await security
+    .getByLabel("Authenticator code", { exact: true })
+    .fill(totp(secret));
+  await security
+    .getByRole("button", { name: "Verify authenticator", exact: true })
+    .click();
+  await expect(security.getByRole("status")).toContainText(
+    "Verified for privileged actions",
+  );
+  await security.close();
+  await page.bringToFront();
+  await expect(
+    page.getByRole("textbox", { name: "Reason", exact: true }),
+  ).toHaveValue("Keep edit through real MFA");
+  await expect(
+    page.getByRole("textbox", { name: "Evidence reference", exact: true }),
+  ).toHaveValue("Preserve evidence");
+  await page.getByRole("button", { name: "Save review", exact: true }).click();
+  await expect(page.getByRole("status")).toContainText("Review saved");
 });
 test("version conflict and MFA retain edits; reload permits a new reviewed mutation", async ({
   page,
