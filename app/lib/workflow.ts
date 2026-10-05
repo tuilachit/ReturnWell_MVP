@@ -181,9 +181,11 @@ export function safeDestination(path: string) {
       "/invitations",
       "/onboarding",
       "/admin/practitioners",
+      "/admin/candidates",
       "/admin/practices",
       "/admin/email",
       "/security",
+      "/account/setup",
       "/auth/confirm",
       "/practitioner",
     ].includes(path)

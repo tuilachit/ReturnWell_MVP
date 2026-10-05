@@ -85,7 +85,11 @@ const mappings: Record<
   string,
   Record<string, { action: string; fields: string[] }>
 > = {
-  "workspace-access": { default: { action: "workspace.access", fields: [] } },
+  "workspace-access": {
+    default: { action: "workspace.access", fields: [] },
+    registration_status: {action:"account.status",fields:[]},
+    register: {action:"account.register",fields:["role","displayName","practiceName","registrationNumber","consentConfirmed","termsVersion","privacyVersion","requestId"]},
+  },
   "email-operations": {
     list: { action: "operations.email", fields: ["cursor", "limit"] },
   },
@@ -471,6 +475,16 @@ export function workflowHandler(endpoint: string, runtime: WorkflowRuntime) {
       if (!mapping) throw Error("invalid_request");
       if (requiresStepUp(mapping.action)) await requireOperatorStepUp(user);
       const input = pick(body, mapping.fields);
+      if (mapping.action === "account.status" || mapping.action === "account.register") {
+        const trust=trustConfig(runtime.env);
+        if(mapping.action === "account.status") {
+          const status=row(await runtime.rpc(user.id,mapping.action,input));
+          return json({...status,currentTermsVersion:trust.termsVersion,currentPrivacyVersion:trust.privacyVersion,currentTermsUrl:trust.termsUrl,currentPrivacyUrl:trust.privacyUrl});
+        }
+        if(input.termsVersion!==trust.termsVersion||input.privacyVersion!==trust.privacyVersion)throw Error("terms_changed");
+        input.currentTermsVersion=trust.termsVersion;
+        input.currentPrivacyVersion=trust.privacyVersion;
+      }
       if (mapping.action === "invitations.preview") {
         const invite = row(await runtime.rpc(user.id, mapping.action, input));
         const message = invitationEmail(

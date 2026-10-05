@@ -94,9 +94,9 @@ export default function SignIn({
           </p>
         )}
         <p className="sign-in-invitation">
-          Use the email address your practice invited.
+          New here? Sign in, then choose your account type.
           <br />
-          First time here? Complete your invitation email first.
+          Already invited? Use the email address on your invitation.
         </p>
         <div className="preview-entry">
           <button

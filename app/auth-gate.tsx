@@ -13,6 +13,8 @@ import PractitionerInbox from "./practitioner-panel";
 import PracticeAdmin from "./practice-admin-panel";
 import SecurityPanel from "./security-panel";
 import EmailOperations from "./email-operations-panel";
+import CandidateReviewPanel from "./candidate-review-panel";
+import AccountSetupPanel from "./account-setup-panel";
 import { getSupabaseBrowserClient } from "./lib/supabase";
 import { googleSignInEnabled } from "./lib/google-auth";
 import {
@@ -31,7 +33,9 @@ export default function AuthGate({
     | "practitioner"
     | "practices"
     | "security"
-    | "email";
+    | "email"
+    | "candidates"
+    | "setup";
   // Email diagnostics are operator-only and never grant clinical access.
 }) {
   const client = useMemo(() => getSupabaseBrowserClient(), []);
@@ -184,7 +188,7 @@ export default function AuthGate({
             const { error } = await client.auth.signInWithOtp({
               email: email.trim(),
               options: {
-                shouldCreateUser: false,
+                shouldCreateUser: true,
                 emailRedirectTo: `${window.location.origin}${destination}`,
               },
             });
@@ -192,7 +196,7 @@ export default function AuthGate({
             setMessage(
               error?.status === 429
                 ? "Please wait before requesting another sign-in link."
-                : "If this email has an invited account, you’ll receive a sign-in link. Check Inbox and Spam.",
+                : "Check your email for a secure sign-in link. If it hasn’t arrived, check Spam or try again after a minute.",
             );
           } catch {
             setMessage(
@@ -228,6 +232,7 @@ export default function AuthGate({
       {access.operator && (
         <>
           <a href="/admin/practitioners">Application reviews</a>
+          <a href="/admin/candidates">Candidate review</a>
           <a href="/admin/practices">Practice administration</a>
           <a href="/admin/email">Email delivery</a>
         </>
@@ -235,6 +240,7 @@ export default function AuthGate({
       <button onClick={() => void signOut()}>Sign out</button>
     </nav>
   );
+  if(requested === "setup" || (!requested&&!access.doctors.length&&!access.practitioners.length&&!access.applicationId&&!access.operator))return <>{navigation}<AccountSetupPanel key={session.user.id} client={client}/></>;
   if (requested === "security")
     return (
       <>
@@ -269,7 +275,7 @@ export default function AuthGate({
       (!requested ||
         (requested === "invitations"
           ? item.id.startsWith("doctor:") || item.id === "operator"
-          : requested === "practices" || requested === "email"
+          : requested === "practices" || requested === "email" || requested === "candidates"
             ? item.id === "operator"
             : item.id.startsWith(requested))),
   );
@@ -322,7 +328,9 @@ export default function AuthGate({
   return (
     <>
       {navigation}
-      {requested === "email" && access.operator ? (
+      {requested === "candidates" && access.operator ? (
+        <CandidateReviewPanel key={session.user.id} client={client}/>
+      ) : requested === "email" && access.operator ? (
         <EmailOperations key={session.user.id} client={client} />
       ) : requested === "practices" && access.operator ? (
         <PracticeAdmin key={session.user.id} client={client} />

@@ -144,6 +144,7 @@ begin
       or length(btrim(input->>'reason')) not between 1 and 500 then raise exception 'invalid_request'; end if;
     request:=(input->>'requestId')::uuid;expected:=(input->>'expectedVersion')::integer;reason:=input->>'reason';
     if action='candidate.withdrawBatch' then
+      if jsonb_typeof(input->'batchId') is distinct from 'string' then raise exception 'invalid_request'; end if;
       batch:=(input->>'batchId')::uuid;
       begin
         return private.withdraw_candidate_batch(actor,batch,expected,reason,request);

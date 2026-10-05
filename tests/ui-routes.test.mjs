@@ -7,6 +7,8 @@ test("new workflow routes server-render without exposing account or clinical dat
     "/invitations",
     "/onboarding",
     "/admin/practitioners",
+    "/admin/candidates",
+    "/account/setup",
     "/practitioner",
     "/join",
     "/auth/confirm",

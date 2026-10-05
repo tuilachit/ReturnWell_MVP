@@ -214,10 +214,10 @@ test("returning-user login preserves a referral destination without account enum
   await page.getByLabel("Work email").fill("fictional-login@example.test");
   await page.getByRole("button", { name: "Email me a sign-in link" }).click();
   await expect(page.getByRole("status")).toContainText(
-    "If this email has an invited account",
+    "Check your email for a secure sign-in link",
   );
   expect(redirect).toBe("http://127.0.0.1:3101" + detail);
-  expect(createUser).toBe(false);
+  expect(createUser).toBe(true);
   await expect(
     page.getByRole("button", { name: /Try again in/ }),
   ).toBeDisabled();

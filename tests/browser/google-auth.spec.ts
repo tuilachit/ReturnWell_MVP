@@ -81,8 +81,8 @@ for (const member of [true, false]) {
     if (member) {
       await expect(page.getByRole("button", { name: "New referral", exact: true })).toBeVisible();
     } else {
-      await expect(page.getByRole("heading", { name: "No workspace is available here" })).toBeVisible();
-      await expect(page.getByText("You are signed in, but this account has no authorised workspace", { exact: false })).toBeVisible();
+      await expect(page.getByRole("heading", { name: "Set up your ReturnWell account" })).toBeVisible();
+      await expect(page.getByRole("radio", { name: "Doctor — send referrals", exact: true })).toBeVisible();
       await expect(page.getByRole("button", { name: "New referral", exact: true })).toHaveCount(0);
     }
     expect(exchanges).toBe(1);
