@@ -3,7 +3,7 @@ import {createHash} from 'node:crypto';
 import {prepareCandidateBatch,canonicalJSON} from '../../scripts/candidates/normalise.mjs';
 import {legacyCandidate} from '../fixtures/candidate-records.mjs';
 const j=v=>`'${JSON.stringify(v).replaceAll("'","''")}'::jsonb`;
-export async function candidateImportChecks(t,{sql,id:sourceId,sqlAsync}){
+export async function candidateImportChecks(t,{sql,rpc,profile,review,id:sourceId,sqlAsync}){
   const id=n=>sourceId(800000+n);
   sql(`insert into auth.users(id,email,email_confirmed_at) values ('${id(1)}','candidate-operator@example.test',now()),('${id(2)}','candidate-other@example.test',now());
     insert into private.platform_operators(user_id) values ('${id(1)}');`);
@@ -167,5 +167,78 @@ export async function candidateImportChecks(t,{sql,id:sourceId,sqlAsync}){
     const detail=workflow('detail',{candidateId:item.id});
     assert.equal(detail.observations.length,1);assert.equal(detail.nextObservationCursor,null);
     assert.ok(Buffer.byteLength(JSON.stringify(detail))<=256*1024);
+  });
+  const applicationSnapshot=()=>sql(`select jsonb_agg(to_jsonb(a) order by id) from public.practitioner_applications a where id in ('${id(61)}','${id(62)}','${id(63)}')`);
+  let source,linkBatch,linkInput,appSnapshot;
+  await t.test('linking provenance never approves, copies profile data or assigns an account',()=>{
+    sql(`insert into auth.users(id,email,email_confirmed_at) values ('${id(3)}','candidate-owner-3@example.test',now()),('${id(4)}','candidate-owner-4@example.test',now());`);
+    for(const [n,owner] of [[1,3],[2,4],[3,1]]){
+      sql(`insert into public.workspace_invitations(id,kind,invited_by,inviter_name,practice_name,recipient_name,recipient_email,recipient_email_normalized,consent_recorded_at,status,claimed_by)
+        values('${id(50+n)}','practitioner','${id(1)}','Fictional Reviewer','Fictional Practice','Fictional Clinician','candidate-owner-${owner}@example.test','candidate-owner-${owner}@example.test',now(),'claimed','${id(owner)}');
+        insert into public.practitioner_applications(id,invitation_id,user_id,terms_version,privacy_version) values('${id(60+n)}','${id(50+n)}','${id(owner)}','v1','v1');`);
+      const saved=rpc(id(owner),'application.save',{applicationId:id(60+n),expectedVersion:0,profile:{...profile,registrationNumber:`PHY800000000${owner}`}});
+      rpc(id(owner),'application.submit',{applicationId:id(60+n),expectedVersion:saved.version,profileConfirmed:true,referralConsent:true,termsVersion:'v1',privacyVersion:'v1'});
+    }
+    linkBatch=apply(batch([legacyCandidate({candidate_id:'link-source',display_name:'Fictional Clinician'})]));
+    source=workflow('list',{search:'Fictional Clinician'}).items[0];
+    assert.equal(workflow('detail',{candidateId:source.id}).linkedApplicationId,null);
+    linkInput={candidateId:source.id,applicationId:id(61),expectedVersion:source.version,reason:'Fictional identity comparison',evidenceReference:'Fictional independent evidence',requestId:id(80)};
+    assert.throws(()=>workflow('linkApplication',linkInput),/evidence_required/);
+    workflow('dispose',{candidateId:source.id,expectedVersion:source.version,disposition:'reviewed_for_onboarding',reason:'Reviewed source',evidenceReference:'Fictional review',requestId:id(79)});
+    linkInput.expectedVersion++;
+    assert.throws(()=>workflow('linkApplication',{...linkInput,applicationId:id(63)}),/denied/);
+    assert.throws(()=>workflow('linkApplication',{...linkInput,applicationId:id(999)}),/invalid_request/);
+    assert.throws(()=>workflow('linkApplication',{...linkInput,evidenceReference:''}),/invalid_request|evidence_required/);
+    appSnapshot=applicationSnapshot();
+    const linked=workflow('linkApplication',linkInput);assert.equal(linked.version,linkInput.expectedVersion+1);
+    assert.deepEqual(workflow('linkApplication',linkInput),linked);
+    assert.equal(workflow('detail',{candidateId:source.id}).linkedApplicationId,id(61));
+    apply(batch([legacyCandidate({candidate_id:'another-link-source',display_name:'Another link'})]));
+    const other=workflow('list',{search:'Another link'}).items[0];
+    const reviewed=workflow('dispose',{candidateId:other.id,expectedVersion:other.version,disposition:'reviewed_for_onboarding',reason:'Fictional review',evidenceReference:'Fictional evidence',requestId:id(86)});
+    assert.throws(()=>workflow('linkApplication',{...linkInput,candidateId:other.id,expectedVersion:reviewed.version,requestId:id(87)}),/conflict/);
+    assert.equal(sql(`select application_snapshot ?& array['applicationId','ownerId','applicationVersion','observationHash'] from private.candidate_review_events where candidate_id='${source.id}' and action='link_application'`),'t');
+    assert.equal(applicationSnapshot(),appSnapshot);assert.equal(counts(),initial);
+  });
+  await t.test('link replay is actor scoped and correcting a link is explicit and audited',()=>{
+    assert.throws(()=>workflow('linkApplication',{...linkInput,applicationId:id(62)}),/conflict/);
+    assert.throws(()=>workflow('linkApplication',{...linkInput,requestId:id(81)}),/conflict/);
+    sql(`insert into private.platform_operators(user_id) values('${id(2)}')`);
+    assert.throws(()=>workflow('linkApplication',linkInput,id(2)),/conflict/);
+    sql(`update private.platform_operators set active=false where user_id='${id(1)}'`);
+    assert.throws(()=>workflow('linkApplication',linkInput),/denied/);
+    sql(`update private.platform_operators set active=true where user_id='${id(1)}'`);
+    let detail=workflow('detail',{candidateId:source.id});
+    const unlink={...linkInput,expectedVersion:detail.version,requestId:id(82)};
+    assert.throws(()=>workflow('unlinkApplication',{...unlink,applicationId:id(62)}),/conflict/);
+    const unlinked=workflow('unlinkApplication',unlink);assert.deepEqual(workflow('unlinkApplication',unlink),unlinked);
+    detail=workflow('detail',{candidateId:source.id});assert.equal(detail.linkedApplicationId,null);
+    const changed=apply(batch([legacyCandidate({candidate_id:'link-source',display_name:'Changed candidate observation'})]));
+    detail=workflow('detail',{candidateId:source.id});assert.equal(detail.reviewRequired,true);
+    assert.throws(()=>workflow('linkApplication',{...linkInput,applicationId:id(62),expectedVersion:detail.version,requestId:id(88)}),/evidence_required/);
+    workflow('dispose',{candidateId:source.id,expectedVersion:detail.version,disposition:'reviewed_for_onboarding',reason:'Rechecked changed source',evidenceReference:'Fictional recheck',requestId:id(89)});
+    detail=workflow('detail',{candidateId:source.id});
+    workflow('linkApplication',{...linkInput,applicationId:id(62),expectedVersion:detail.version,requestId:id(83)});
+    detail=workflow('detail',{candidateId:source.id});assert.equal(detail.linkedApplicationId,id(62));
+    assert.equal(detail.events.filter(e=>['link_application','unlink_application'].includes(e.action)).length,3);
+    workflow('withdrawBatch',{batchId:linkBatch.batchId,expectedVersion:0,reason:'Fictional correction',requestId:id(84)});
+    workflow('withdrawBatch',{batchId:changed.batchId,expectedVersion:0,reason:'Fictional correction',requestId:id(90)});
+    detail=workflow('detail',{candidateId:source.id});assert.equal(detail.withdrawn,true);assert.equal(detail.linkedApplicationId,id(62));
+    assert.equal(applicationSnapshot(),appSnapshot);assert.equal(counts(),initial);
+  });
+  await t.test('only independent application approval admits the linked provider; withdrawal never changes live eligibility',()=>{
+    const before=Number(sql('select count(*) from public.practitioners'));
+    const approved=rpc(id(1),'review.decide',{...review,applicationId:id(62),expectedVersion:2,requestId:id(85),registrationEvidence:{...review.registrationEvidence,registrationNumber:'PHY8000000004'}});
+    const practitioner=approved.practitioner_id;
+    assert.equal(Number(sql('select count(*) from public.practitioners')),before+1);
+    assert.equal(sql(`select private.practitioner_is_eligible('${practitioner}','physiotherapist',now())`),'t');
+    assert.equal(workflow('detail',{candidateId:source.id}).withdrawn,true);
+    for(const change of [
+      `update public.practitioners set accepting_new_referrals=false where id='${practitioner}'`,
+      `update private.profession_policies set enabled=false where profession_id='physiotherapist'`,
+      `update private.professional_credentials set expires_at=now() where practitioner_id='${practitioner}'`,
+    ])assert.equal(sql(`begin;${change};select private.practitioner_is_eligible('${practitioner}','physiotherapist',now());rollback;`),'f');
+    assert.equal(sql(`select count(*) from public.practitioner_users where practitioner_id='${practitioner}' and user_id='${id(4)}' and active`),'1');
+    assert.equal(sql(`select count(*) from public.practitioner_users where practitioner_id='${practitioner}' and user_id='${id(1)}'`),'0');
   });
 }

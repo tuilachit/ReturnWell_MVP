@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {workflowHandler} from '../supabase/functions/_shared/workflow-http.ts';
 const request=(operation,fields={},auth=true)=>new Request('https://api.example.test',{method:'POST',headers:auth?{authorization:'Bearer token'}:{},body:JSON.stringify({operation,...fields})});
-const mapping={candidate_list:'candidate.list',candidate_detail:'candidate.detail',candidate_dispose:'candidate.dispose',candidate_batches:'candidate.batches',candidate_withdraw_batch:'candidate.withdrawBatch'};
+const mapping={candidate_list:'candidate.list',candidate_detail:'candidate.detail',candidate_dispose:'candidate.dispose',candidate_batches:'candidate.batches',candidate_withdraw_batch:'candidate.withdrawBatch',candidate_link_application:'candidate.linkApplication',candidate_unlink_application:'candidate.unlinkApplication'};
 test('candidate API uses verified actor, narrow mappings and uncached responses',async()=>{
   for(const [operation,action] of Object.entries(mapping)){
     const calls=[];
@@ -17,7 +17,7 @@ test('candidate API uses verified actor, narrow mappings and uncached responses'
 test('candidate mutations require step-up before the transaction and bulk import is not exposed',async()=>{
   let calls=0;
   const handle=workflowHandler('review-practitioner',{env:{},getUser:async()=>({id:'trusted',aal:'aal1'}),rpc:async()=>{calls++;return {};}});
-  for(const operation of ['candidate_dispose','candidate_withdraw_batch']){
+  for(const operation of ['candidate_dispose','candidate_withdraw_batch','candidate_link_application','candidate_unlink_application']){
     const response=await handle(request(operation,{aal:'aal2'}));assert.equal(response.status,403);assert.equal((await response.json()).code,'step_up_required');
   }
   for(const operation of ['candidate_import','rw_import_candidate_batch','candidate.unknown'])assert.equal((await handle(request(operation))).status,400);

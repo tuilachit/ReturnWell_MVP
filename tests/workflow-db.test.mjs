@@ -2854,7 +2854,7 @@ test(
       await invitationProgressChecks(t, { rpc, sql, id });
       await emailOperationsChecks(t, { rpc, sql, id });
       await recoveryChecks(t, { container, sql });
-      await candidateImportChecks(t, {sql,rpc,id,sqlAsync: async query => {
+      await candidateImportChecks(t, {sql,rpc,id,profile,review,sqlAsync: async query => {
         const result=await promisify(execFile)('docker',['exec','-i',container,'psql','-U','postgres','-X','-q','-A','-t','-v','ON_ERROR_STOP=1','-c',query]);
         return result.stdout.trim();
       }});

@@ -281,6 +281,8 @@ const mappings: Record<
     candidate_dispose: { action: "candidate.dispose", fields: ["candidateId", "expectedVersion", "disposition", "reason", "evidenceReference", "requestId"] },
     candidate_batches: { action: "candidate.batches", fields: ["cursor"] },
     candidate_withdraw_batch: { action: "candidate.withdrawBatch", fields: ["batchId", "expectedVersion", "reason", "requestId"] },
+    candidate_link_application: { action: "candidate.linkApplication", fields: ["candidateId", "applicationId", "expectedVersion", "evidenceReference", "reason", "requestId"] },
+    candidate_unlink_application: { action: "candidate.unlinkApplication", fields: ["candidateId", "applicationId", "expectedVersion", "evidenceReference", "reason", "requestId"] },
     due: { action: "review.due", fields: [] },
     access_detail: {
       action: "review.access_detail",

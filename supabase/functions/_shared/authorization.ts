@@ -48,6 +48,8 @@ export function requiresStepUp(action: string) {
     "review.restore",
     "candidate.dispose",
     "candidate.withdrawBatch",
+    "candidate.linkApplication",
+    "candidate.unlinkApplication",
     "practice.create",
     "practice.reviewContact",
     "practice.reviewInviter",
