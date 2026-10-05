@@ -11,6 +11,9 @@ export const metadata: Metadata = {
   description: "Find, send and track allied health referrals.",
   icons: { icon: "/icon.svg" },
   robots: { index: false, follow: false },
+  verification: {
+    google: "tGVKFHBM9n1PiwnCJ2Jf6t0PV24RCDXcuk0XYBDEEfU",
+  },
   openGraph: {
     title: "ReturnWell GP Referrals",
     description: "Find, send and track allied health referrals",

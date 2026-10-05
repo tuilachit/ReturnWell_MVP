@@ -56,6 +56,11 @@ test(
           : route.abort(),
       );
       const response = await page.goto(origin);
+      const html = await response.text();
+      assert.match(
+        html.split("</head>")[0],
+        /<meta name="google-site-verification" content="tGVKFHBM9n1PiwnCJ2Jf6t0PV24RCDXcuk0XYBDEEfU"\s*\/?\s*>/,
+      );
       const headers = response.headers();
       assert.match(
         headers["content-security-policy"] ?? "",
