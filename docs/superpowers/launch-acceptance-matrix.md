@@ -12,7 +12,7 @@ This is an evidence map, not approval for clinical use. Current default: private
 | Draft/create/invite/claim/review/release/respond/cancel/close | Real local Auth/PostgREST + fresh DB + browser | Implemented; fictional scenarios pass; human clinical journey unperformed |
 | Authority-aware credential freshness, policies and capabilities | Fresh DB/local browser | Implemented, fail closed; actual protocols/practitioner evidence require independent approval |
 | Bounded directory/inbox and matching | Fresh DB/browser | 5,000 fictional profiles tested, metadata pagination; no AI clinical scoring |
-| Distance | External licensed-data gate | Unknown; radius unavailable until approved source supplied |
+| Distance | Hosted reference data + local DB/browser | One active GeoNames NSW edition, 5,592 localities / 4,525 with coordinates verified on 6 October; unknown coordinates remain unknown, no fabricated distance |
 | Wrong account, cross-practice, current role, revoked access, MFA | Local API/DB/browser | Tested; hosted Auth endpoints/configuration and exposed-key rotation still require review |
 | Email timeout, frozen retries, exact expiry, suppression, durable callbacks | Local core handlers/DB/browser preview | Implemented; no real provider send in this run |
 | App email domain + Auth SMTP + new/returning mailbox | Hosted + human | Blocked on approved sender/support, SMTP and explicit acceptance sends |
