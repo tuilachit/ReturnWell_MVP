@@ -740,13 +740,18 @@ export default function DoctorPortal({
       setDetailReferral(saved);
       setStep(4);
     } catch (failure) {
+      // The directory transaction checks the durable request replay before
+      // recipient_changed. That rejection proves this exact send never committed,
+      // even when an earlier transport failure left its outcome uncertain.
+      const staleDirectoryRecipient = pendingSubmission.current?.recipient.kind === 'directory' &&
+        isDefinitiveWorkflowFailure(failure) && failure.code === 'recipient_changed';
       // A definite rejection on a first attempt allows correction. A later
       // rejection cannot disprove an earlier ambiguous commit, so retain it.
       if (
-        !wasPending &&
+        staleDirectoryRecipient || (!wasPending &&
         ((failure instanceof ReferralSubmissionError &&
           failure.outcome === "rejected") ||
-          isDefinitiveWorkflowFailure(failure))
+          isDefinitiveWorkflowFailure(failure)))
       ) {
         pendingSubmission.current = null;
         setSubmissionPending(false);
@@ -760,7 +765,7 @@ export default function DoctorPortal({
           failure.outcome === "rejected"
           ? new ReferralSubmissionError("unconfirmed").message
           : failure instanceof ReferralSubmissionError ||
-              (!wasPending && failure instanceof WorkflowError)
+              ((!wasPending || staleDirectoryRecipient) && failure instanceof WorkflowError)
             ? failure.message
             : "We could not confirm whether the referral was saved. Keep this page open and use Check and retry before starting another referral.",
       );

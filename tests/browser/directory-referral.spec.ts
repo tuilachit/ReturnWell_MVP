@@ -4,6 +4,7 @@ import {randomUUID} from 'node:crypto';
 import {doctorBrowser,selectFixturePractitioner} from '../helpers/browser-context.mjs';
 import {prepareCandidateBatch} from '../../scripts/candidates/normalise.mjs';
 import {legacyCandidate} from '../fixtures/candidate-records.mjs';
+import {adminBrowser} from '../helpers/admin-browser.mjs';
 
 async function directoryFixture(page,options={}) {
   const f=await doctorBrowser(page,options),suffix=randomUUID().slice(0,8);
@@ -93,6 +94,49 @@ test('withdrawn source requires reselection rather than substituting a recipient
   await expect(page.getByRole('alert')).toContainText('changed');
   await expect(page.getByRole('button',{name:'Review referral',exact:true})).toBeDisabled();
   expect(f.local.sql(`select count(*) from public.referrals where created_by='${f.doctor.userId}'`)).toBe('0');
+});
+
+test('a precommit lost send followed by source withdrawal unlocks reselection on retry',async({page})=>{
+  test.skip(!process.env.RW_LOCAL_STACK_DIR,'Requires isolated local Auth.');
+  const f=await directoryFixture(page,{failInvitationBeforeCommitOnce:true});
+  await fillReferral(page);
+  await selectFixturePractitioner(page,f.directoryClinic);
+  await page.getByRole('button',{name:'Review referral',exact:true}).click();
+  await consent(page);
+  await page.getByRole('button',{name:'Send referral',exact:true}).click();
+  await expect(page.getByRole('button',{name:'Check and retry',exact:true})).toBeVisible();
+  expect(f.local.sql(`select count(*) from public.referrals where created_by='${f.doctor.userId}'`)).toBe('0');
+  f.local.sql(`update private.directory_contact_routes set active=false where practice_key=lower('${f.directoryClinic}');`);
+  await page.getByRole('button',{name:'Check and retry',exact:true}).click();
+  await expect(page.getByRole('alert')).toContainText('changed');
+  await expect(page.getByRole('button',{name:'Check and retry',exact:true})).toHaveCount(0);
+  await expect(page.getByRole('button',{name:'Review referral',exact:true})).toBeDisabled();
+  await page.getByRole('button',{name:'Edit referral need',exact:true}).click();
+  await expect(page.getByLabel('Patient initials',{exact:true})).toBeEnabled();
+  await expect(page.getByLabel('Patient initials',{exact:true})).toHaveValue('FX');
+  expect(f.local.sql(`select count(*) from public.referrals where created_by='${f.doctor.userId}'`)).toBe('0');
+});
+
+test('operator-only and mixed-role staff use an explicit invitation route without customer administration',async({page})=>{
+  test.skip(!process.env.RW_LOCAL_STACK_DIR,'Requires isolated local Auth.');
+  const f=await adminBrowser(page);
+  await page.goto('/');
+  await expect(page.getByRole('link',{name:'Invitation administration',exact:true})).toHaveCount(0);
+  await page.goto('/admin/invitations');
+  await expect(page.getByRole('combobox',{name:'Invitation context',exact:true})).toBeVisible();
+  await expect(page.getByRole('link',{name:'Invitation administration',exact:true})).toBeVisible();
+  const org=randomUUID();
+  f.local.sql(`insert into public.organisations(id,name) values('${org}','Fictional Mixed Staff Practice');insert into public.organisation_memberships(organisation_id,user_id,role) values('${org}','${f.account.userId}','owner');`);
+  await page.reload();
+  await expect(page.getByRole('combobox',{name:'Invitation context',exact:true})).toBeVisible();
+  await page.goto('/');
+  await expect(page.getByRole('heading',{name:'Referrals',exact:true,level:1})).toBeVisible();
+  await expect(page.getByRole('link',{name:'Invitation administration',exact:true})).toHaveCount(0);
+  // Losing the current backend role must deny the staff route, not trust UI state.
+  f.local.sql(`delete from private.platform_operators where user_id='${f.account.userId}'`);
+  await page.goto('/admin/invitations');
+  await expect(page.getByRole('heading',{name:'No workspace is available here',exact:true})).toBeVisible();
+  await expect(page.getByRole('combobox',{name:'Invitation context',exact:true})).toHaveCount(0);
 });
 
 test('operator authority does not add administration to customer choices',async({page})=>{

@@ -189,6 +189,7 @@ export function safeDestination(path: string) {
       "/invitations",
       "/onboarding",
       "/admin/practitioners",
+      "/admin/invitations",
       "/admin/candidates",
       "/admin/practices",
       "/admin/email",

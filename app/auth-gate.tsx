@@ -28,6 +28,7 @@ export default function AuthGate({
 }: {
   requested?:
     | "invitations"
+    | "staffInvitations"
     | "onboarding"
     | "operator"
     | "practitioner"
@@ -243,8 +244,9 @@ export default function AuthGate({
         </span>
       )}
       {access.doctors.length > 0 && <a href="/invitations">Invitations</a>}
-      {access.operator && ['operator','practices','email','candidates'].includes(requested??'') && (
+      {access.operator && ['operator','practices','email','candidates','staffInvitations'].includes(requested??'') && (
         <>
+          <a href="/admin/invitations">Invitation administration</a>
           <a href="/admin/practitioners">Application reviews</a>
           <a href="/admin/candidates">Candidate review</a>
           <a href="/admin/practices">Practice administration</a>
@@ -286,7 +288,7 @@ export default function AuthGate({
     ...(access.applicationId
       ? [{ id: "onboarding", label: "My practitioner application" }]
       : []),
-    ...(access.operator && ['operator','practices','email','candidates'].includes(requested??'')
+    ...(access.operator && ['operator','practices','email','candidates','staffInvitations'].includes(requested??'')
       ? [{ id: "operator", label: "ReturnWell administration" }]
       : []),
   ];
@@ -300,10 +302,10 @@ export default function AuthGate({
         item.id.startsWith("practitioner:")) &&
       (!requested ||
         (requested === "invitations"
-          ? item.id.startsWith("doctor:") || item.id === "operator"
+          ? item.id.startsWith("doctor:")
           : requested === "practices" ||
               requested === "email" ||
-              requested === "candidates"
+              requested === "candidates" || requested === "staffInvitations"
             ? item.id === "operator"
             : item.id.startsWith(requested))),
   );
@@ -364,7 +366,7 @@ export default function AuthGate({
         <EmailOperations key={session.user.id} client={client} />
       ) : requested === "practices" && access.operator ? (
         <PracticeAdmin key={session.user.id} client={client} />
-      ) : requested === "invitations" ? (
+      ) : requested === "invitations" || (requested === "staffInvitations" && access.operator) ? (
         <Invitations
           key={selected}
           client={client}

@@ -6,6 +6,7 @@ const j=v=>`'${JSON.stringify(v).replaceAll("'","''")}'::jsonb`;
 export async function directoryReferralChecks(t,{sql,rpc,id,sqlAsync,organisationId=id(1)}){
   const doctor=id(2),reviewer=id(800001),owner=id(950003),wrong=id(950004),practitioner=id(950030);
   const records=[1,2].map(n=>legacyCandidate({candidate_id:`directory-flow-${n}`,display_name:`Directory test ${n}`,practice_names:['Fictional Practice'],business_emails:['shared@example.test'],funding_types_raw:['self_funded'],languages_raw:['English'],telehealth:false}));
+  records.push(legacyCandidate({candidate_id:'directory-modality-flow',display_name:'Directory modality receiver',locations:[],telehealth:false,business_emails:['modality-flow@example.test']}));
   const prepared=prepareCandidateBatch([{label:'directory-flow',bytes:Buffer.from(JSON.stringify(records))}]);
   sql(`set role service_role;select public.rw_import_candidate_batch('${reviewer}',${j(prepared.manifest)},${j(prepared.records)});`);
   sql(`insert into private.inviter_identities(user_id,organisation_id,display_name,practice_name,verified_by) values('${doctor}','${organisationId}','Fictional Doctor','Fictional Practice','${reviewer}') on conflict do nothing;
@@ -18,12 +19,20 @@ export async function directoryReferralChecks(t,{sql,rpc,id,sqlAsync,organisatio
   const options=rpc(doctor,'directory.recipients',{query:'Directory test',distanceGroup:'unknown',needs,limit:50}).items.filter(x=>x.kind==='directory');
   assert.equal(options.length,2);
   let n=951000;const next=()=>id(++n);
-  const make=selection=>{
-    const draft=rpc(doctor,'draft.save',{id:next(),organisationId,expectedVersion:-1,requestId:next(),input:{patientReference:'Fictional directory case',patientPostcode:'2000',profession:'physiotherapist',clinicalSummary:'Fictional private summary',fundingPath:'self_funded',appointmentFormat:'either',patientContact:{initials:'FX',preferredMethod:'phone',phone:'0412345678',email:''}}});
+  const make=(selection,appointmentFormat='either')=>{
+    const draft=rpc(doctor,'draft.save',{id:next(),organisationId,expectedVersion:-1,requestId:next(),input:{patientReference:'Fictional directory case',patientPostcode:'2000',profession:'physiotherapist',clinicalSummary:'Fictional private summary',fundingPath:'self_funded',appointmentFormat,patientContact:{initials:'FX',preferredMethod:'phone',phone:'0412345678',email:''}}});
     return {id:draft.id,expectedVersion:0,requestId:next(),selection,consentConfirmed:true,contactConsentConfirmed:true,contactBasis:'documented_permission',tokenHash:String(n).padStart(64,'0'),envelope:{test:'encrypted'},keyId:'test'};
   };
   const one=make(options[0].selection),two=make(options[1].selection);
   let first,second;
+  await t.test('explicit physical and telehealth sends reject a contradictory or missing modality',()=>{
+    const selected=rpc(doctor,'directory.recipients',{query:'Directory modality receiver',distanceGroup:'unknown',needs,limit:50}).items[0].selection;
+    for(const format of ['in_person','telehealth']) {
+      const send=make(selected,format);
+      assert.throws(()=>rpc(doctor,'growth.directoryInvite',send),/recipient_changed/);
+      assert.equal(sql(`select count(*) from public.referrals where id='${send.id}'`),'0');
+    }
+  });
   await t.test('source sends reject absent consent, revoked authority and suppressed destinations before commit',()=>{
     assert.throws(()=>rpc(doctor,'growth.directoryInvite',{...one,consentConfirmed:false}),/consent_required/);
     assert.throws(()=>rpc(doctor,'growth.directoryInvite',{...one,contactConsentConfirmed:false}),/consent_required/);

@@ -47,6 +47,7 @@ export async function doctorBrowser(
     dropFinalResponseOnce = false,
     dropTransitionResponseOnce = false,
     dropInvitationResponseOnce = false,
+    failInvitationBeforeCommitOnce = false,
     dropReconfirmResponseOnce = false,
     dropClaimResponseOnce = false,
     dropPractitionerResponseOnce = false,
@@ -121,6 +122,10 @@ export async function doctorBrowser(
       return route.abort();
     const endpoint = url.pathname.match(/^\/functions\/v1\/([a-z-]+)$/)?.[1];
     if (!endpoint) return route.continue();
+    if (failInvitationBeforeCommitOnce && endpoint === 'manage-referral' && request.postDataJSON()?.operation === 'draft.directoryInvite') {
+      failInvitationBeforeCommitOnce = false;
+      return route.abort('failed');
+    }
     const response = await workflowHandler(
       endpoint,
       runtime,

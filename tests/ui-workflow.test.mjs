@@ -68,6 +68,7 @@ test("login destinations preserve referral detail and reject external or arbitra
   const detail = "/referrals/10000000-0000-4000-8000-000000000001";
   assert.equal(safeDestination(detail), detail);
   assert.equal(safeDestination("/practitioner"), "/practitioner");
+  assert.equal(safeDestination("/admin/invitations"), "/admin/invitations");
   for (const path of [
     "https://attacker.test",
     "//attacker.test",

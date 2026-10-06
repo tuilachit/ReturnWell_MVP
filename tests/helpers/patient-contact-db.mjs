@@ -1,10 +1,23 @@
 import assert from 'node:assert/strict';
+import {validatePatientContact} from '../../app/lib/patient-contact.ts';
 export async function patientContactChecks(t,{sql,rpc,id,organisationId=id(1)}){
   const doctor=id(2),reviewer=id(800001),recipient=id(800002),referral=id(940001);
   const contact={initials:'JL',preferredMethod:'phone',phone:'+61 412 345 678',email:'unused@example.test'};
   const input={patientReference:'Fictional contact case',patientPostcode:'2000',profession:'physiotherapist',clinicalSummary:'Fictional reason',fundingPath:'self_funded',appointmentFormat:'in_person',patientContact:contact};
   sql(`insert into private.inviter_identities(user_id,organisation_id,display_name,practice_name,verified_by) values('${doctor}','${organisationId}','Fictional Doctor','Fictional Practice','${reviewer}') on conflict do nothing;`);
   let pending;
+  await t.test('browser and SQL agree on composed, combining and non-Latin initials',()=>{
+    for(const initials of ['ÉL','E\u0301L','J\u0301L','कि','𐐀𐐁','ĐN','\u00a0ÉL\u00a0']) {
+      const value={initials,preferredMethod:'phone',phone:'0412345678',email:''};
+      assert.deepEqual(validatePatientContact(value,true),[]);
+      assert.deepEqual(JSON.parse(sql(`select private.validate_patient_contact('${JSON.stringify(value).replaceAll("'","''")}',true)`)),{...value,initials:initials.trim()});
+    }
+    for(const initials of ['Ⅰ','J\u200dL','J\nL','١','𐐀'.repeat(17)]) {
+      const value={initials,preferredMethod:'phone',phone:'0412345678',email:''};
+      assert.ok(validatePatientContact(value,true).length>0);
+      assert.throws(()=>sql(`select private.validate_patient_contact('${JSON.stringify(value).replaceAll("'","''")}',true)`),/invalid_patient_contact/);
+    }
+  });
   await t.test('patient contacts survive partial drafts and finalise privately with the invitation',()=>{
     const draft=rpc(doctor,'draft.save',{id:referral,organisationId,expectedVersion:-1,requestId:id(940002),input});
     assert.equal(draft.input.patientContact.initials,'JL');

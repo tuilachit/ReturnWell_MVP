@@ -3,6 +3,7 @@ import {prepareCandidateBatch} from '../../scripts/candidates/normalise.mjs';
 import {legacyCandidate} from '../fixtures/candidate-records.mjs';
 import {geographyImportSql} from '../../scripts/import-geography.mjs';
 import {credentialFixtureSql} from './credential-fixture.mjs';
+import {directoryScaleFixtureSql} from './directory-scale-fixture.mjs';
 const j=v=>`'${JSON.stringify(v).replaceAll("'","''")}'::jsonb`;
 export async function directoryRecipientChecks(t,{sql,rpc,id}){
   const actor=id(800001),doctor=id(2),outsider=id(800002);
@@ -76,5 +77,34 @@ export async function directoryRecipientChecks(t,{sql,rpc,id}){
     assert.equal(combined.items[0].practitionerId,practitioner);
     sql(`update public.practitioners set accepting_new_referrals=false where id='${practitioner}'`);
     assert.equal(rpc(doctor,'directory.recipients',search).counts.confirmed,0);
+  });
+  await t.test('a missing physical location is unknown, never telehealth-only when telehealth is false',()=>{
+    const batch=prepareCandidateBatch([{label:'modality-fixture',bytes:Buffer.from(JSON.stringify([legacyCandidate({candidate_id:'modality-no-telehealth',display_name:'Fictional modality receiver',locations:[],telehealth:false,business_emails:['modality@example.test']})]))}]);
+    sql(`set role service_role;select public.rw_import_candidate_batch('${actor}',${j(batch.manifest)},${j(batch.records)});`);
+    const search={query:'Fictional modality receiver',limit:50,needs};
+    assert.equal(rpc(doctor,'directory.recipients',{...search,distanceGroup:'remote'}).items.length,0);
+    assert.equal(rpc(doctor,'directory.recipients',{...search,distanceGroup:'unknown'}).items.length,1);
+    for(const appointmentFormat of ['in_person','telehealth'])for(const distanceGroup of ['local','remote','unknown'])
+      assert.equal(rpc(doctor,'directory.recipients',{...search,distanceGroup,needs:{...needs,appointmentFormat}}).items.length,0);
+  });
+  await t.test('combined pages stay bounded with 5000 members and cross the directory tier once',()=>{
+    sql(directoryScaleFixtureSql({ownerId:outsider,reviewerId:actor,tag:'RECIPIENT-SCALE'}));
+    const batch=prepareCandidateBatch([{label:'combined-scale',bytes:Buffer.from(JSON.stringify([legacyCandidate({candidate_id:'combined-scale',display_name:'Fictional RECIPIENT-SCALE directory',locations:[],telehealth:true,business_emails:['combined-scale@example.test']})]))}]);
+    sql(`set role service_role;select public.rw_import_candidate_batch('${actor}',${j(batch.manifest)},${j(batch.records)});`);
+    const search={query:'RECIPIENT-SCALE',limit:50,distanceGroup:'remote',needs:{...needs,appointmentFormat:'telehealth'}};
+    // RED is bounded too: the old exhaustive pagination must fail this timeout.
+    sql(`set statement_timeout='750ms';select private.directory_recipients('${doctor}',${j(search)});`);
+    const seen=new Set();let cursor=null,page;
+    do {
+      page=rpc(doctor,'directory.recipients',{...search,...(cursor?{cursor}:{})});
+      assert.deepEqual(page.counts,{confirmed:5000,needsConfirmation:1});
+      assert.ok(page.items.length<=50);
+      for(const item of page.items){const key=item.kind==='member'?item.practitionerId:item.selection.routeId;assert.equal(seen.has(key),false);seen.add(key);}
+      cursor=page.nextCursor;
+    }while(cursor);
+    assert.equal(seen.size,5001);assert.equal(page.items.length,1);assert.equal(page.items[0].kind,'directory');
+    const timings=JSON.parse(sql(`do $test$ declare started timestamptz; elapsed jsonb:='[]'; begin for n in 1..30 loop started:=clock_timestamp();perform private.directory_recipients('${doctor}',${j(search)});elapsed:=elapsed||to_jsonb(extract(epoch from clock_timestamp()-started)*1000);end loop;perform set_config('returnwell.combined_timings',elapsed::text,false);end $test$;select current_setting('returnwell.combined_timings');`)).sort((a,b)=>a-b);
+    console.log(JSON.stringify({combinedMemberProfiles:5000,queryRuns:30,p50Ms:timings[14],p95Ms:timings[28]}));
+    assert.ok(timings[28]<500,`Combined p95 exceeded 500ms budget: ${timings[28]}`);
   });
 }
