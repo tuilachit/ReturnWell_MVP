@@ -3,6 +3,7 @@ import {execFileSync} from 'node:child_process';
 import {readFileSync,readdirSync} from 'node:fs';
 import {directoryRecipientChecks} from './helpers/directory-recipient-db.mjs';
 import {patientContactChecks} from './helpers/patient-contact-db.mjs';
+import {directoryReferralChecks} from './helpers/directory-referral-db.mjs';
 // Focused disposable real-Postgres suite, with no hosted URL or credentials.
 test('directory recipients on real Postgres',{skip:process.env.RW_DATABASE_TEST!=='1'},async t=>{
   const container=`returnwell-recipient-test-${process.pid}`;
@@ -28,5 +29,6 @@ test('directory recipients on real Postgres',{skip:process.env.RW_DATABASE_TEST!
       insert into public.organisation_memberships(organisation_id,user_id,role) values('${id(1)}','${id(2)}','owner');`);
     await directoryRecipientChecks(t,{sql,rpc,id});
     if(process.env.RW_CONTACT_TEST==='1')await patientContactChecks(t,{sql,rpc,id});
+    if(process.env.RW_DIRECTORY_FLOW_TEST==='1')await directoryReferralChecks(t,{sql,rpc,id});
   }finally{execFileSync('docker',['stop',container],{stdio:'pipe'});}
 });

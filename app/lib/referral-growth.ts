@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { invoke } from "./workflow";
+import { invoke } from "./workflow.ts";
+import type {DirectorySelection} from './referral-recipients.ts';
 export type ReferralGrowth = {
   referralId: string;
   invitationId: string;
@@ -35,6 +36,10 @@ export const inviteReferral = (client: SupabaseClient, input: InviteReferral) =>
     operation: "draft.invite",
     ...input,
   });
+export const sendDirectoryReferral=(client: SupabaseClient,input: {
+  id:string;expectedVersion:number;requestId:string;selection:DirectorySelection;
+  consentConfirmed:true;contactConsentConfirmed:true;contactBasis:InviteReferral['contactBasis'];
+})=>invoke<ReferralGrowth>(client,'manage-referral',{operation:'draft.directoryInvite',...input});
 export const referralGrowth = (client: SupabaseClient, referralId: string) =>
   invoke<ReferralGrowth | null>(client, "manage-referral", {
     operation: "onboarding.status",
@@ -48,6 +53,8 @@ export const growthLabels = {
   cancelled: "Referral cancelled",
 };
 export const growthReasons: Record<string, string> = {
+  directory_identity_review: "ReturnWell must independently confirm the intended practitioner and practice before patient details are released.",
+  directory_source_changed: "The directory source changed. Review the intended practitioner before confirming again.",
   consent_expired:
     "The seven-day release window expired. Review the referral and confirm consent again.",
   requirements_changed:

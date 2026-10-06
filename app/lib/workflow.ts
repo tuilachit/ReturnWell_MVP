@@ -21,7 +21,14 @@ export type Access = {
     organisationName: string;
   }[];
 };
+export type IntendedIdentity = {
+  displayName: string;
+  practiceName: string;
+  professionId: string;
+  reviewRequired: true;
+};
 export type Application = {
+  intendedIdentity?: IntendedIdentity;
   id: string;
   user_id: string;
   status: "draft" | "submitted" | "changes_requested" | "approved" | "rejected";
@@ -57,6 +64,7 @@ export type Profile = {
   }[];
 };
 export type InvitationInfo = {
+  intendedIdentity?: IntendedIdentity;
   invitationId: string;
   inviterName: string;
   practiceName: string;

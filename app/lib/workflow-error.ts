@@ -1,4 +1,7 @@
 const messages: Record<string, string> = {
+  recipient_changed: "This contact or its suitability changed. Find practitioners again and review your selection.",
+  directory_selection_required: "Choose the intended practitioner from the directory results.",
+  invalid_patient_contact: "Check the patient initials and chosen contact method. Your edits are retained.",
   unauthorized: "Your session ended. Sign in again to continue.",
   denied:
     "Your access changed. Reopen your workspace or contact your practice administrator.",
@@ -70,6 +73,9 @@ export class WorkflowError extends Error {
   }
 }
 const definitiveCodes = new Set([
+  "recipient_changed",
+  "directory_selection_required",
+  "invalid_patient_contact",
   "unauthorized",
   "denied",
   "rate_limited",

@@ -14,6 +14,13 @@ const base = {
     throw Error("RPC should not be reached");
   },
 };
+test('source and patient-contact errors are actionable pre-commit rejections',async()=>{
+  for(const code of ['recipient_changed','invalid_patient_contact','directory_selection_required']){
+    const handle=api.workflowHandler('manage-referral',{...base,getUser:async()=>({id:'trusted-user'}),rpc:async()=>{throw Error(code+' SECRET SQL');}});
+    const response=await handle(new Request('https://api.example.test',{method:'POST',headers:{authorization:'Bearer verified'},body:JSON.stringify({operation:'draft.save'})}));
+    assert.equal(response.status,400);assert.equal((await response.json()).code,code);
+  }
+});
 test("a lost RPC response after commit is ambiguous, not a definite rejection", async () => {
   let committed = false;
   const handle = api.workflowHandler("manage-referral", {

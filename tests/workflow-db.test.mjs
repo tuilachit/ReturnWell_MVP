@@ -14,6 +14,7 @@ import { candidateImportChecks } from "./helpers/candidate-db.mjs";
 import { accountRegistrationChecks } from "./helpers/account-registration-db.mjs";
 import { directoryRecipientChecks } from "./helpers/directory-recipient-db.mjs";
 import { patientContactChecks } from './helpers/patient-contact-db.mjs';
+import { directoryReferralChecks } from './helpers/directory-referral-db.mjs';
 
 // Opt-in, isolated Postgres. Never opens a URL or uses the application's hosted credentials.
 const enabled = process.env.RW_DATABASE_TEST === "1";
@@ -2864,6 +2865,7 @@ test(
       }});
       await directoryRecipientChecks(t,{sql,rpc,id});
       await patientContactChecks(t,{sql,rpc,id,organisationId:id(10)});
+      await directoryReferralChecks(t,{sql,rpc,id,organisationId:id(10)});
     } finally {
       execFileSync("docker", ["stop", container], { stdio: "pipe" });
     }

@@ -158,6 +158,10 @@ const mappings: Record<
     },
   },
   "manage-referral": {
+    "draft.directoryInvite": {
+      action: "growth.directoryInvite",
+      fields: ["id", "expectedVersion", "requestId", "selection", "consentConfirmed", "contactConsentConfirmed", "contactBasis"],
+    },
     "contact.read": { action: "referral.contact.read", fields: ["referralId"] },
     "inbox.list": {
       action: "referral.inbox",
@@ -516,7 +520,7 @@ export function workflowHandler(endpoint: string, runtime: WorkflowRuntime) {
       if (
         mapping.action === "invitations.create" ||
         mapping.action === "invitations.resend" ||
-        mapping.action === "growth.invite"
+        mapping.action === "growth.invite" || mapping.action === "growth.directoryInvite"
       ) {
         if (
           !runtime.env.INVITATION_ENCRYPTION_KEY ||
@@ -578,7 +582,7 @@ export function workflowHandler(endpoint: string, runtime: WorkflowRuntime) {
             : "request_failed";
       const code =
         message.match(
-          /\b(denied|step_up_required|verified_owner_required|last_owner|conflict|rate_limited|invitation_unavailable|recipient_suppressed|reviewed_identity_required|consent_required|credential_policy_required|evidence_required|invalid_profile|invalid_draft|recipient_ineligible|terms_changed|sender_configuration|body_too_large|invalid_request|invalid_cursor|geography_unavailable|invalid_location|invalid_radius|location_required)\b/,
+          /\b(denied|step_up_required|verified_owner_required|last_owner|conflict|rate_limited|invitation_unavailable|recipient_suppressed|reviewed_identity_required|consent_required|credential_policy_required|evidence_required|invalid_profile|invalid_draft|invalid_patient_contact|recipient_changed|directory_selection_required|recipient_ineligible|terms_changed|sender_configuration|body_too_large|invalid_request|invalid_cursor|geography_unavailable|invalid_location|invalid_radius|location_required)\b/,
         )?.[1] ?? "request_failed";
       const status =
         code === "body_too_large"
@@ -599,6 +603,9 @@ export function workflowHandler(endpoint: string, runtime: WorkflowRuntime) {
                     : 400;
       if (status === 429) headers["retry-after"] = "60";
       const messages: Record<string, string> = {
+        recipient_changed: "This contact or its suitability changed. Find practitioners again and review your selection.",
+        directory_selection_required: "Choose the intended practitioner from the directory results.",
+        invalid_patient_contact: "Check the patient initials and chosen contact method. Your edits are retained.",
         step_up_required:
           "Verify your authenticator in Account security before this action. Your edits are retained.",
         verified_owner_required:

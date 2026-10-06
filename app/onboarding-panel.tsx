@@ -70,6 +70,7 @@ export default function Onboarding({
     languages: split(listText.languages),
   });
   const notices = (row: Application) => ({
+    intendedIdentity: row.intendedIdentity,
     current_terms_version: row.current_terms_version,
     current_privacy_version: row.current_privacy_version,
     current_terms_url: row.current_terms_url,
@@ -272,6 +273,13 @@ export default function Onboarding({
           <p className="recipient-application-status">
             Status: <strong>{application.status.replaceAll("_", " ")}</strong>
           </p>
+          {application.intendedIdentity && (
+            <aside className="workflow-card" aria-label="Intended referral recipient">
+              <h2>Who this referral is for</h2>
+              <p>{application.intendedIdentity.displayName} · {application.intendedIdentity.practiceName}</p>
+              <p>Complete your own professional details below. ReturnWell independently checks the intended person and practice before releasing patient information. Access to a shared clinic inbox alone is not approval.</p>
+            </aside>
+          )}
           {application.applicant_feedback && (
             <aside className="workflow-card">
               <h2>Review feedback</h2>
