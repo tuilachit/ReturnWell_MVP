@@ -87,14 +87,19 @@ export async function directoryReferralChecks(t,{sql,rpc,id,organisationId=id(1)
       if(action==='cancel')rpc(doctor,'referral.transition',{referralId:sent.referralId,expectedVersion:0,action:'cancel',reasonCode:'no_longer_required',requestId:next()});
       if(action==='decline')rpc(null,'invitation.decline',{tokenHash:sql(`select token_hash from private.invitation_secrets where invitation_id='${sent.invitationId}'`),requestId:next()});
       if(action==='expiry')sql(`update public.workspace_invitations set expires_at=now()-interval '1 minute' where id='${sent.invitationId}'`);
-      if(action==='consent')sql(`update private.referral_invitations set consent_confirmed_at=now()-interval '8 days',consent_valid_until=now()-interval '1 minute' where referral_id='${sent.referralId}'`);
+      if(action==='consent')sql(`update private.referral_invitations set consent_confirmed_at=now()-interval '8 days',consent_valid_until=now()-interval '1 day' where referral_id='${sent.referralId}'`);
       rpc(null,'growth.sweep',{});
       const state=rpc(doctor,'growth.status',{referralId:sent.referralId});
       assert.equal(state.status,action==='cancel'?'cancelled':'needs_reconfirmation');
       assert.equal(sql(`select selected_practitioner_id is null from public.referrals where id='${sent.referralId}'`),'t');
       if(action==='consent'){
+        assert.throws(()=>rpc(doctor,'growth.reconfirm',{referralId:sent.referralId,expectedVersion:state.version,requestId:next(),consentConfirmed:true}),/invitation_unavailable/);
+        const attempt=rpc(null,'invitation.begin',{tokenHash:sql(`select token_hash from private.invitation_secrets where invitation_id='${sent.invitationId}'`),termsVersion:'v1',privacyVersion:'v1',consentAccepted:true,requestId:next()});
+        rpc(null,'invitation.attach_auth',{attemptId:attempt.attemptId,authLeaseId:attempt.authLeaseId,authUserId:owner,tokenType:'magiclink',envelope:{test:'encrypted'}});
+        rpc(owner,'invitation.claim',{invitationId:sent.invitationId,attemptId:attempt.attemptId,displayName:'Directory test 1',requestId:next()});
         rpc(doctor,'growth.reconfirm',{referralId:sent.referralId,expectedVersion:state.version,requestId:next(),consentConfirmed:true});
-        assert.equal(rpc(doctor,'growth.status',{referralId:sent.referralId}).status,'awaiting_signup');
+        rpc(null,'growth.sweep',{});
+        assert.equal(rpc(doctor,'growth.status',{referralId:sent.referralId}).status,'awaiting_review');
       }
       sql(`delete from private.email_suppressions where email='shared@example.test' and reason='declined_invitation'`);
     }
