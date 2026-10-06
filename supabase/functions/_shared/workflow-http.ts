@@ -158,6 +158,7 @@ const mappings: Record<
     },
   },
   "manage-referral": {
+    "contact.read": { action: "referral.contact.read", fields: ["referralId"] },
     "inbox.list": {
       action: "referral.inbox",
       fields: ["practitionerId", "status", "cursor", "limit"],

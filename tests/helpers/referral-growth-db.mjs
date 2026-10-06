@@ -98,7 +98,7 @@ export async function referralGrowthChecks(
   await t.test(
     "linked invitation finalisation is atomic, creator scoped and private before mailbox proof",
     () => {
-      const { draft, input } = fixture();
+      const { draft, input } = fixture({patientContact:{initials:'FX',preferredMethod:'email',phone:'',email:'fictional-patient@example.test'}});
       for (const override of [
         { consentConfirmed: false },
         { contactConsentConfirmed: false },
@@ -214,6 +214,9 @@ export async function referralGrowthChecks(
       rpc(null, "growth.sweep");
       rpc(null, "growth.sweep");
       assert.equal(state(initial.referralId).status, "released");
+      assert.deepEqual(rpc(id(3),'referral.contact.read',{referralId:initial.referralId}),
+        {initials:'FX',preferredMethod:'email',phone:'',email:'fictional-patient@example.test'});
+      assert.throws(()=>rpc(id(4),'referral.contact.read',{referralId:initial.referralId}),/denied/);
       assert.equal(
         sql(
           `select selected_practitioner_id from public.referrals where id='${initial.referralId}'`,

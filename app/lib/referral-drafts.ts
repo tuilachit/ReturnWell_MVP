@@ -3,9 +3,10 @@ import type { ReferralInput } from "../types";
 import { invoke } from "./workflow.ts";
 import { isSupportedProfession } from "./professions.ts";
 import { normalizeTerm } from "./terminology.ts";
+import { validatePatientContact, type PatientContact } from './patient-contact.ts';
 export type DraftInput = Partial<
-  Omit<ReferralInput, "selectionMode" | "consentConfirmed">
-> & { preferredLanguage?: string; accessNotes?: string; patientLocalityId?: string; searchRadiusKm?: number };
+  Omit<ReferralInput, "selectionMode" | "consentConfirmed" | "patientContact">
+> & { patientContact?: Partial<PatientContact>; preferredLanguage?: string; accessNotes?: string; patientLocalityId?: string; searchRadiusKm?: number };
 export type ReferralDraft = {
   id: string;
   organisationId: string;
@@ -39,6 +40,10 @@ export function validateDraft(input: DraftInput): string[] {
   };
   const errors: string[] = [];
   for (const [key, value] of Object.entries(input)) {
+    if(key==='patientContact') {
+      errors.push(...validatePatientContact(value as Partial<PatientContact>,false));
+      continue;
+    }
     if (key === "searchRadiusKm") {
       if (typeof value !== "number" || !Number.isFinite(value) || value <= 0 || value > 500 || !input.patientLocalityId)
         errors.push("Choose a suburb before a radius between 1 and 500 km.");

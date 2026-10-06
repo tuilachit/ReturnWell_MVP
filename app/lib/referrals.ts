@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Referral, ReferralInput, Workspace } from "../types";
 import { workflowFailure } from "./workflow-error.ts";
+import {validatePatientContact} from './patient-contact.ts';
 
 export type ReferralRow = {
   id: string;
@@ -58,6 +59,7 @@ export const rowToReferral = (row: ReferralRow): Referral => ({
 
 export function validateReferralInput(input: ReferralInput): string[] {
   const errors: string[] = [];
+  if(input.patientContact) errors.push(...validatePatientContact(input.patientContact,true));
   if (!input.patientReference.trim())
     errors.push("Enter the patient reference used by your practice.");
   if (!/^\d{4}$/.test(input.patientPostcode))

@@ -11,6 +11,7 @@ export type Workspace = {
 };
 
 export type Referral = {
+  patientContact?: import('./lib/patient-contact').PatientContact;
   requiredServiceIds?: string[];
   patientAgeGroupId?: string;
   id: string;
@@ -65,6 +66,7 @@ export type Practitioner = {
 };
 
 export type ReferralInput = {
+  patientContact?: import('./lib/patient-contact').PatientContact;
   requiredServiceIds?: string[];
   patientAgeGroupId?: string;
   patientReference: string;
