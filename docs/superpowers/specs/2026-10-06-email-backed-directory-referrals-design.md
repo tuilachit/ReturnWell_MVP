@@ -1,7 +1,88 @@
 # Email-backed directory referrals
 
 Date: 6 October 2026, Australia/Melbourne
-Status: Written design awaiting user review; not implemented or deployed.
+Status: Recommended design approved by the user on 6 October 2026; implementation
+plan review pending. Not implemented or deployed.
+
+## YOUR ATTENTION — decisions and launch dependencies
+
+> **Read this section first.** The simple doctor journey is agreed in principle.
+> The items below need your decision or founder input; they are not implementation
+> details I can silently choose. The user has approved the recommendations below:
+> retain recipient review, practitioner-only access, labelled uncertain options,
+> minimum structured patient-contact fields and inline consent. Named review owners,
+> sender/DNS/SMTP evidence and launch sign-offs remain external dependencies.
+> Editing this document does not implement the flow or enable production sending.
+
+### 1. DECISION — when can a new recipient see the patient details?
+
+**Important mismatch:** you described signup followed by access to the referral.
+The design currently retains the existing independent professional/ownership review
+before release. That can mean signup → waiting for review, not immediate access.
+
+- **Recommendation:** retain intended-recipient identity and ownership checks.
+  Existing approved recipients can proceed when the checks pass; a new or ambiguous
+  recipient needs a defined review path and an owner who can complete it promptly.
+- **Your input:** confirm whether this waiting-for-review step is acceptable for
+  the pilot, and who performs it. If immediate access for brand-new recipients is
+  required, the recipient-authorization design must be revised explicitly; general
+  signup or possession of the link alone is not the proposed access rule.
+
+### 2. DECISION — shared clinic email addresses
+
+Several directory practitioners share practice inboxes. Someone verifying that
+inbox is not necessarily the practitioner selected by the doctor.
+
+- **Recommendation:** keep the invitation attached to one intended practitioner
+  and practice. Do not let one inbox claim every associated profile.
+- **Your input:** should authorised clinic staff be allowed to receive and manage
+  referrals on behalf of practitioners? This design currently assumes access by
+  the intended practitioner, not a delegated clinic team. Clinic-team access needs
+  its own explicit role/ownership rules before it can expose patient information.
+
+### 3. DECISION — results with unknown funding or availability
+
+Many directory contacts have profession/location/email evidence but no confirmed
+funding, language, services or availability. Strict matching may produce very few
+results; treating unknown values as matches would mislead the doctor.
+
+- **Recommendation:** show confirmed matches first and clearly labelled
+  "Requirements need confirmation" directory options on the same results page.
+  A known incompatibility is not an unknown and must not be relabelled as a match.
+- **Your input:** approve this distinction, or require confirmed matches only.
+  Choosing an uncertain option does not automatically satisfy the later release
+  checks; unresolved requirements need confirmation or doctor reconfirmation.
+
+### 4. DECISION — patient contact fields and consent
+
+The current form does not have dedicated patient-contact fields. These are new
+private data, not just an email-template adjustment.
+
+- **Recommendation:** initials plus preferred contact method; require only its
+  corresponding phone number or email. Keep consent confirmation inline before
+  Send referral. Do not put these details in the notification email.
+- **Your input:** confirm these minimum fields, whether the contact can be a parent
+  or carer, and the responsible founder/clinical contact for approving the consent
+  wording. Also confirm how doctors record permission to notify the receiving
+  practice: the existing contact-basis requirement has not been removed merely
+  because its email is publicly listed.
+
+### 5. EXTERNAL DEPENDENCY — branded email and launch readiness
+
+One click can initiate an immediate sending attempt; it cannot guarantee immediate
+mailbox delivery. Successful signup also depends on working Auth email delivery.
+
+- **Your/founder's action:** provide or confirm DNS access for sender verification,
+  the real sender and support addresses, Auth SMTP configuration, and a controlled
+  recipient mailbox for end-to-end acceptance. Configuration and delivery must be
+  checked live before calling these ready.
+- **Before real patient use:** the responsible owners must approve the published
+  notices, patient-data handling/retention and recipient-review process. The code
+  change is not a substitute for that sign-off.
+- **I can handle:** integration, private storage, matching implementation, immediate
+  dispatch and retry behavior, status reporting, admin navigation separation,
+  security/regression tests, and release verification once the required choices
+  and configuration are available. No bulk emails are part of this rollout.
 
 ## Intended outcome
 
@@ -18,7 +99,8 @@ button → email notification → recipient signs up through the link → author
 recipient sees referral information, patient initials and contact details.
 There must be no separate invitation form, manual email entry or administrative
 screen in this journey. This document makes the data and identity boundaries
-explicit before implementation. The revised written design awaits user approval.
+explicit before implementation. The user approved the recommendations and requested
+implementation; the implementation plan is the next review artifact.
 
 ## Existing foundation and selected approach
 
