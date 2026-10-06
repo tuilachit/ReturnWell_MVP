@@ -1,4 +1,22 @@
-# Real-data integration release record — 6 October 2026
+# Real-data integration release record — 7 October 2026
+
+## Latest change: email-backed referral journey — LOCAL ONLY
+
+The source-bound directory referral implementation is in the isolated
+`codex/real-data-rollout` worktree. It is not merged, pushed or deployed. See the
+[feature acceptance record](email-backed-referral-acceptance-2026-10-07.md) for its
+local evidence and outstanding release requirements. The deployed-state evidence
+below describes the earlier candidate/account release, not this new feature.
+
+Read-only preflight for this implementation confirmed the intended Supabase project
+is healthy, with 39 hosted migrations, 609 private candidates, zero member profiles,
+zero enabled professional policies, and neither new directory routes nor private
+patient-contact storage installed. Vercel CLI inspection confirmed the expected
+ReturnWell/fitment project; the connector itself returned a scope-permission error.
+Resend reported `returnwell.com.au` as `not_started`. No hosted records, settings,
+domains, functions, migrations or emails were changed by this implementation.
+
+## Previous technical release — 6 October 2026
 
 Status: reviewed technical release deployed; private candidates imported. Not a clinical go/no-go.
 

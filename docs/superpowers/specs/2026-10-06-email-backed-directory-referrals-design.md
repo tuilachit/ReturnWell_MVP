@@ -1,8 +1,9 @@
 # Email-backed directory referrals
 
 Date: 6 October 2026, Australia/Melbourne
-Status: Recommended design approved by the user on 6 October 2026; implementation
-plan review pending. Not implemented or deployed.
+Status: Approved design implemented locally on 6–7 October 2026; final acceptance
+and independent review are in progress. Not deployed. See
+[acceptance record](../email-backed-referral-acceptance-2026-10-07.md).
 
 ## YOUR ATTENTION — decisions and launch dependencies
 

@@ -21,6 +21,7 @@ export type ReferralGrowth = {
   recipientEmail: string;
   notification: string;
   invitationNotification?: string;
+  invitationDelivered?: boolean;
 };
 export type InviteReferral = {
   id: string;

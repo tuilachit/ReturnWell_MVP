@@ -673,7 +673,7 @@ export default function DoctorPortal({
           const referral=await getReferral(client,workspace.organisationId,result.referralId);
           if(!referral)throw new ReferralSubmissionError('unconfirmed');
           saved=referral;
-          setDeliveryNote(`The referral was saved. ${notificationLabel({kind:'invitation',status:result.invitationNotification??'pending'})} Patient details remain private while the intended practitioner completes signup and review.`);
+          setDeliveryNote(`The referral was saved. ${notificationLabel({kind:'invitation',status:result.invitationNotification??'pending',delivered:result.invitationDelivered})} Patient details remain private while the intended practitioner completes signup and review.`);
         }else{
           const result=await finalizeReferralDraft(client,{id:savedDraft.id,expectedVersion:savedDraft.version,consentConfirmed:true,requestId:submission.sendRequestId});
           saved=rowToReferral(result as ReferralRow);

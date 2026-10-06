@@ -10,7 +10,7 @@
 
 **Spec:** `docs/superpowers/specs/2026-10-06-email-backed-directory-referrals-design.md`
 
-**Status:** Design recommendations approved; this new implementation plan awaits review and execution-method selection. No implementation or deployment in the planning turn.
+**Status:** Native execution approved and tasks 1–5 implemented locally. Task 6 acceptance and independent review are in progress. No production release; see [acceptance record](../email-backed-referral-acceptance-2026-10-07.md).
 
 ## Global Constraints
 

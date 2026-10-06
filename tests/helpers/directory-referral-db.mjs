@@ -66,6 +66,16 @@ export async function directoryReferralChecks(t,{sql,rpc,id,sqlAsync,organisatio
     assert.equal(jobs.filter(x=>x.related_id===first.invitationId && x.family==='invitation').length,1);
     sql(`update private.email_jobs set state='pending',lease_id=null,lease_expires_at=null where state='processing' and attempts=0`);
   });
+  await t.test('invitation status distinguishes provider acceptance from confirmed delivery for the current generation',()=>{
+    const job=sql(`select id from private.email_jobs where family='invitation' and related_id='${first.invitationId}' and related_version=1`);
+    assert.equal(rpc(doctor,'growth.status',{referralId:first.referralId}).invitationDelivered,false);
+    sql(`update private.email_jobs set state='sent',provider_message_id='fictional-directory-provider' where id='${job}'`);
+    assert.equal(rpc(doctor,'growth.status',{referralId:first.referralId}).invitationNotification,'sent');
+    assert.equal(rpc(doctor,'growth.status',{referralId:first.referralId}).invitationDelivered,false);
+    rpc(null,'email.webhook',{eventId:'fictional-directory-delivered',providerId:'fictional-directory-provider',eventType:'delivered',occurredAt:new Date().toISOString()});
+    assert.equal(rpc(doctor,'growth.status',{referralId:first.referralId}).invitationDelivered,true);
+    sql(`delete from private.email_events where provider_event_id='fictional-directory-delivered';update private.email_jobs set state='pending',provider_message_id=null where id='${job}'`);
+  });
   await t.test('forwarded links and shared mailboxes do not bypass intended identity review',()=>{
     for(const result of [first,second]){
       const tokenHash=sql(`select token_hash from private.invitation_secrets where invitation_id='${result.invitationId}'`);

@@ -30,14 +30,15 @@ test('source-bound referral through real local Auth, HTTP and PostgREST isolates
     const page=await call('search-practitioners',{operation:'recipients',query:suffix,distanceGroup:'unknown',needs:{professionId:'physiotherapist',fundingId:'self_funded',appointmentFormat:'either',requiredServiceIds:[]}},doctor.client);
     const contacts=page.items.filter(x=>x.kind==='directory');assert.equal(contacts.length,2);
     assert.doesNotMatch(JSON.stringify(page),new RegExp(email));
-    const sends=[];
-    for(const selected of contacts){
+    const send=async selected=>{
       const draft=await call('manage-referral',{operation:'draft.save',id:randomUUID(),organisationId:org,expectedVersion:-1,requestId:randomUUID(),input:{patientReference:'Fictional private reference',patientPostcode:'2000',profession:'physiotherapist',clinicalSummary:'Fictional confidential summary',fundingPath:'self_funded',appointmentFormat:'either',patientContact:{initials:'FX',preferredMethod:'phone',phone:'0412345678',email:''}}},doctor.client);
       const input={operation:'draft.directoryInvite',id:draft.id,expectedVersion:draft.version,requestId:randomUUID(),selection:selected.selection,contactBasis:'documented_permission',contactConsentConfirmed:true,consentConfirmed:true};
       const sent=await call('manage-referral',input,doctor.client);
       assert.equal((await call('manage-referral',input,doctor.client)).invitationId,sent.invitationId);
-      sends.push(sent);
-    }
+      return sent;
+    };
+    const sends=[];
+    for(const selected of contacts)sends.push(await send(selected));
     assert.notEqual(sends[0].invitationId,sends[1].invitationId);
     let recipient,applicationId;
     for(const [index,sent] of sends.entries()){
@@ -73,4 +74,30 @@ test('source-bound referral through real local Auth, HTTP and PostgREST isolates
     assert.equal((await call('manage-referral',{operation:'onboarding.status',referralId:sends[1].referralId},doctor.client)).status,'awaiting_review');
     assert.equal((await local.call('manage-referral',{operation:'contact.read',referralId:sends[1].referralId},recipient.client)).status,403);
     assert.equal(local.sql(`select count(*) from public.referral_events where referral_id='${sends[0].referralId}' and event_type='sent'`),'1');
+    // Exercise directory-specific lifecycle gates through the production HTTP
+    // handler and real Auth. SQL changes only the isolated fixture's clocks.
+    for(const action of ['cancel','decline','expiry','consent']){
+      const sent=await send(contacts[1]);
+      const token=await local.invitationToken(sent.invitationId);
+      if(action==='cancel')await call('manage-referral',{operation:'transition',referralId:sent.referralId,expectedVersion:0,action:'cancel',reasonCode:'no_longer_required',requestId:randomUUID()},doctor.client);
+      if(action==='decline')await call('invitation-entry',{operation:'decline',token,requestId:randomUUID()});
+      if(action==='expiry')local.sql(`update public.workspace_invitations set expires_at=now()-interval '1 minute' where id='${sent.invitationId}'`);
+      if(action==='consent')local.sql(`update private.referral_invitations set consent_confirmed_at=now()-interval '8 days',consent_valid_until=now()-interval '1 day' where referral_id='${sent.referralId}'`);
+      await local.runtime.rpc(null,'growth.sweep',{});
+      const progress=await call('manage-referral',{operation:'onboarding.status',referralId:sent.referralId},doctor.client);
+      assert.equal(progress.status,action==='cancel'?'cancelled':'needs_reconfirmation');
+      assert.equal((await local.call('manage-referral',{operation:'contact.read',referralId:sent.referralId},recipient.client)).status,403);
+      assert.equal((await recipient.client.from('referrals').select('id').eq('id',sent.referralId)).data.length,0);
+      if(action==='consent'){
+        await call('invitation-entry',{operation:'beginSignup',token,termsVersion:local.env.TERMS_VERSION,privacyVersion:local.env.PRIVACY_VERSION,consentAccepted:true,requestId:randomUUID()});
+        const message=await local.verificationMessage(sent.invitationId);
+        recipient=await local.verify(message.values);
+        await call('claim-invitation',{invitationId:sent.invitationId,attemptId:message.attemptId,displayName:contacts[0].displayName,requestId:randomUUID()},recipient.client);
+        await call('manage-referral',{operation:'onboarding.reconfirm',referralId:sent.referralId,expectedVersion:progress.version,requestId:randomUUID(),consentConfirmed:true},doctor.client);
+        assert.equal((await call('manage-referral',{operation:'onboarding.status',referralId:sent.referralId},doctor.client)).status,'awaiting_review');
+        assert.equal((await local.call('manage-referral',{operation:'contact.read',referralId:sent.referralId},recipient.client)).status,403);
+      }
+      if(action==='decline')local.sql(`delete from private.email_suppressions where email='${email}' and reason='declined_invitation'`);
+      assert.equal(local.sql(`select count(*) from public.notification_outbox where referral_id='${sent.referralId}'`),'0');
+    }
   });

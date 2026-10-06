@@ -101,7 +101,7 @@ export default function ReferralGrowthPanel({
           <p>
             {progress.recipientName} · {progress.recipientEmail}
           </p>
-          <p>{notificationLabel({kind:'invitation',status:progress.invitationNotification??'pending'})}</p>
+          <p>{notificationLabel({kind:'invitation',status:progress.invitationNotification??'pending',delivered:progress.invitationDelivered})}</p>
           {progress.reason && (
             <p>
               {growthReasons[progress.reason] ??

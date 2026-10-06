@@ -2,6 +2,11 @@
 
 This is an evidence map, not approval for clinical use. Current default: private_test, fictional referrals only.
 
+7 October local implementation: [email-backed referral acceptance](email-backed-referral-acceptance-2026-10-07.md)
+covers the existing form → directory/member selection → one Send referral → secure
+signup/review → authorised patient contact journey. This feature is **not deployed**.
+Earlier hosted evidence below does not establish acceptance of its new schema or UI.
+
 6 October technical release update: [real-data release record](real-data-release-record.md) supersedes older technical states below where explicitly verified. Two-role self-entry and private 609-candidate storage/review are deployed; normal clinical supply, sender-domain and hosted participant acceptance remain distinct.
 
 | Gate | Evidence layer | Current state |
