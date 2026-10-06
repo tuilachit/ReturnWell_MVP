@@ -137,6 +137,10 @@ const mappings: Record<
     },
   },
   "search-practitioners": {
+    recipients: {
+      action: "directory.recipients",
+      fields: ["needs", "postcode", "localityId", "radiusKm", "distanceGroup", "cursor", "limit", "query", "professionId"],
+    },
     default: {
       action: "directory.search",
       fields: [
