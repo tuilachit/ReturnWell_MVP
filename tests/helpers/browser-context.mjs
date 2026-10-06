@@ -15,8 +15,14 @@ export async function selectFixturePractitioner(page, clinic) {
       return;
     }
     const next = page.getByRole("button", { name: "Next page", exact: true });
-    if (!(await next.isEnabled()))
+    if (!(await next.isEnabled())) {
+      const remote=page.getByRole('button',{name:/^Telehealth-only options/});
+      if(await remote.count()&&await remote.getAttribute('aria-pressed')!=='true'){
+        await remote.click();
+        continue;
+      }
       throw Error("Fictional recipient absent from directory");
+    }
     // These radios use React state and have no HTML value attribute ("on").
     // Wait for a real visible recipient label change after pagination.
     const previous = await page
@@ -154,7 +160,7 @@ export async function doctorBrowser(
     if (
       dropInvitationResponseOnce &&
       endpoint === "manage-referral" &&
-      request.postDataJSON()?.operation === "draft.invite" &&
+      ["draft.invite","draft.directoryInvite"].includes(request.postDataJSON()?.operation) &&
       response.ok
     ) {
       dropInvitationResponseOnce = false;

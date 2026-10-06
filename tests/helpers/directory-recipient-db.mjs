@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import {prepareCandidateBatch} from '../../scripts/candidates/normalise.mjs';
 import {legacyCandidate} from '../fixtures/candidate-records.mjs';
 import {geographyImportSql} from '../../scripts/import-geography.mjs';
+import {credentialFixtureSql} from './credential-fixture.mjs';
 const j=v=>`'${JSON.stringify(v).replaceAll("'","''")}'::jsonb`;
 export async function directoryRecipientChecks(t,{sql,rpc,id}){
   const actor=id(800001),doctor=id(2),outsider=id(800002);
@@ -61,5 +62,19 @@ export async function directoryRecipientChecks(t,{sql,rpc,id}){
     assert.equal(rpc(doctor,'directory.recipients',query).counts.needsConfirmation,0);
     assert.equal(sql(`select active from private.directory_contact_routes where id='${selected.routeId}'`),'f');
     assert.equal(sql('select count(*) from private.email_jobs'),before);
+  });
+  await t.test('combined results retain approved members and their authoritative eligibility',()=>{
+    const practitioner=id(880001),organisation=sql(`select organisation_id from public.organisation_memberships where user_id='${doctor}' and active order by organisation_id limit 1`);
+    sql(`insert into public.practitioners(id,display_name,profession,practice_name,contact_email,lifecycle_status,ahpra_registration_number,ahpra_verification_status,ahpra_verified_at,provider_confirmation_status,provider_confirmed_at,accepting_new_referrals,telehealth,services,funding,languages)
+      values('${practitioner}','Fictional Member Regression','physiotherapist','Fictional Member Regression Clinic','member-regression@example.test','active','MEMBERREGRESSION','verified',now(),'confirmed',now(),true,true,array['Physiotherapy'],array['Medicare'],array['English']);`);
+    sql(credentialFixtureSql({practitionerId:practitioner,ownerId:outsider,reviewerId:actor,organisationId:organisation}));
+    const search={needs,distanceGroup:'remote',query:'Member Regression',limit:1};
+    assert.equal(rpc(doctor,'directory.search',search).items.length,1);
+    const combined=rpc(doctor,'directory.recipients',search);
+    assert.equal(combined.counts.confirmed,1);
+    assert.equal(combined.items[0].kind,'member');
+    assert.equal(combined.items[0].practitionerId,practitioner);
+    sql(`update public.practitioners set accepting_new_referrals=false where id='${practitioner}'`);
+    assert.equal(rpc(doctor,'directory.recipients',search).counts.confirmed,0);
   });
 }

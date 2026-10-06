@@ -7,7 +7,7 @@ import {
   growthReasons,
   type ReferralGrowth,
 } from "./lib/referral-growth";
-import { errorText, invoke, isDefinitiveWorkflowFailure } from "./lib/workflow";
+import { errorText, invoke, isDefinitiveWorkflowFailure, notificationLabel } from "./lib/workflow";
 import ConfirmDialog from "./components/confirm-dialog";
 export default function ReferralGrowthPanel({
   client,
@@ -101,6 +101,7 @@ export default function ReferralGrowthPanel({
           <p>
             {progress.recipientName} · {progress.recipientEmail}
           </p>
+          <p>{notificationLabel({kind:'invitation',status:progress.invitationNotification??'pending'})}</p>
           {progress.reason && (
             <p>
               {growthReasons[progress.reason] ??

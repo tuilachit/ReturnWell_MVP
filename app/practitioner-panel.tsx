@@ -9,6 +9,7 @@ import PageState from "./components/page-state";
 import PractitionerProfile from "./practitioner-profile";
 import ReferralActivity from "./referral-activity";
 import HandoverPanel from "./handover-panel";
+import PatientContactDetail from './components/patient-contact-detail';
 import { errorText, invoke, requestId } from "./lib/workflow";
 import {
   WorkflowError,
@@ -340,6 +341,7 @@ export default function PractitionerInbox({
                 </div>
               )}
             </dl>
+            <PatientContactDetail key={detail.id} client={client} referralId={detail.id} version={detail.version}/>
             <HandoverPanel
               key={"handover-" + detail.id}
               client={client}

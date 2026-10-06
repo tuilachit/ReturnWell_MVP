@@ -38,14 +38,20 @@ import {
 import { demoPractitioners, demoReferrals } from "./data/demo-workspace";
 import { matchPractitioners, normaliseMatchNeeds } from "./lib/matching";
 import { listReferralPage, type DistanceGroup } from "./lib/directory";
-import { usePractitionerSearch } from "./lib/use-practitioner-search";
+import { useReferralRecipientSearch } from "./lib/use-referral-recipient-search";
 import DirectoryPages from "./components/directory-pages";
+import type {RecipientOption, RecipientPage} from "./lib/referral-recipients";
+import ReferralRecipientOptions, {recipientKey} from "./components/referral-recipient-options";
+import PatientContactFields, {emptyPatientContact} from "./components/patient-contact-fields";
+import PatientContactDetail from "./components/patient-contact-detail";
+import ReferralSendPanel from "./components/referral-send-panel";
+import {validatePatientContact, type PatientContact} from "./lib/patient-contact";
+import {sendDirectoryReferral, type InviteReferral} from "./lib/referral-growth";
 import LocationControls from "./components/location-controls";
 import { usePostcodeLocalities } from "./lib/use-postcode-localities";
 import { needsGeographyRefresh } from "./lib/workflow-error";
 import ReferralActions from "./referral-actions";
 import HandoverPanel from "./handover-panel";
-import InviteReferralPanel from "./invite-referral-panel";
 import ReferralGrowthPanel from "./referral-growth-panel";
 import terminology from "../shared/terminology.json";
 import CapabilityRequirements from "./components/capability-requirements";
@@ -125,6 +131,7 @@ export default function DoctorPortal({
   const [matchCursor, setMatchCursor] = useState<string | null>(null);
   const [matchGroup, setMatchGroup] = useState<DistanceGroup | null>(null);
   const [patientReference, setPatientReference] = useState("");
+  const [patientContact,setPatientContact]=useState<PatientContact>({...emptyPatientContact});
   const [postcode, setPostcode] = useState("");
   const [localityId, setLocalityId] = useState("");
   const [radius, setRadius] = useState("");
@@ -143,11 +150,13 @@ export default function DoctorPortal({
     string | null
   >(null);
   const [consentConfirmed, setConsentConfirmed] = useState(false);
+  const [storedRecipient,setSelectedRecipient]=useState<RecipientOption|null>(null);
+  const [contactBasis,setContactBasis]=useState<InviteReferral['contactBasis']|''>('');
+  const [contactConsentConfirmed,setContactConsentConfirmed]=useState(false);
   const [draft, setDraft] = useState<ReferralDraft | null>(null);
   const [draftPending, setDraftPending] = useState(false);
   const [lifecycleDirty, setLifecycleDirty] = useState(false);
   const [lifecyclePending, setLifecyclePending] = useState(false);
-  const [inviteOpen, setInviteOpen] = useState(false);
   const [leaving, setLeaving] = useState(false);
   const leaveAction = useRef<(() => void) | null>(null);
   const [loading, setLoading] = useState(mode === "authenticated");
@@ -162,6 +171,8 @@ export default function DoctorPortal({
     draftVersion: number;
     saveRequestId: string;
     sendRequestId: string;
+    recipient: RecipientOption;
+    contactBasis: InviteReferral['contactBasis'] | '';
   } | null>(null);
   const [submissionPending, setSubmissionPending] = useState(false);
   const [demoMode, setDemoMode] = useState(false);
@@ -179,6 +190,8 @@ export default function DoctorPortal({
     view === "new" &&
     step < 4 &&
     (patientReference !== (draft?.input.patientReference ?? "") ||
+      (Object.keys(emptyPatientContact) as (keyof PatientContact)[]).some(key =>
+        patientContact[key] !== (draft?.input.patientContact?.[key] ?? emptyPatientContact[key])) ||
       clinicalSummary !== (draft?.input.clinicalSummary ?? "") ||
       postcode !== (draft?.input.patientPostcode ?? "") ||
       localityId !== (draft?.input.patientLocalityId ?? "") ||
@@ -360,11 +373,11 @@ export default function DoctorPortal({
   ]);
 
   const resetForm = () => {
-    setInviteOpen(false);
     setDraft(null);
     setDraftPending(false);
     setStep(1);
     setPatientReference("");
+    setPatientContact({...emptyPatientContact});
     setPostcode("");
     setLocalityId("");
     setRadius("");
@@ -379,6 +392,9 @@ export default function DoctorPortal({
     setPatientAgeGroupId("");
     setAccessNotes("");
     setSelectedPractitionerId(null);
+    setSelectedRecipient(null);
+    setContactBasis('');
+    setContactConsentConfirmed(false);
     setConsentConfirmed(false);
     setDeliveryNote("");
     setError("");
@@ -469,7 +485,7 @@ export default function DoctorPortal({
     requiredServiceIds,
     patientAgeGroupId,
   });
-  const remoteMatches = usePractitionerSearch(
+  const remoteMatches = useReferralRecipientSearch(
     mode === "authenticated" && view === "new" && step >= 2 && matchNeeds && !location.loading
       ? (client ?? null)
       : null,
@@ -483,14 +499,20 @@ export default function DoctorPortal({
       refresh,
     },
   );
-  const matches =
-    mode === "authenticated" ? remoteMatches.page.items : localMatches;
-
-  const selectedPractitioner =
-    matches.find((item) => item.practitioner.id === selectedPractitionerId)
-      ?.practitioner ??
-    practitioners.find((item) => item.id === selectedPractitionerId) ??
-    null;
+  const recipientPage:RecipientPage=mode==='authenticated'?remoteMatches.page:{
+    items:localMatches.map(({practitioner,reasons})=>({kind:'member',practitionerId:practitioner.id,displayName:practitioner.displayName,professionId:practitioner.profession,practiceName:practitioner.practiceName,location:practitioner.location,distanceKm:null,reasons,warnings:[],requirementStatus:'confirmed'})),
+    nextCursor:null,counts:{confirmed:localMatches.length,needsConfirmation:0},geography:undefined,
+  };
+  const matches=recipientPage.items;
+  const selectedRecipient=storedRecipient&&(submissionPending||mode==='preview'||(!remoteMatches.loading&&!remoteMatches.error&&matches.some(x=>recipientKey(x)===recipientKey(storedRecipient))))?storedRecipient:null;
+  const selectRecipient=(option:RecipientOption)=>{
+    setSelectedRecipient(option);
+    setSelectedPractitionerId(option.kind==='member'?option.practitionerId:null);
+    setConsentConfirmed(false);setContactBasis('');setContactConsentConfirmed(false);
+  };
+  const clearRecipient=()=>{
+    setSelectedRecipient(null);setSelectedPractitionerId(null);setConsentConfirmed(false);setContactBasis('');setContactConsentConfirmed(false);
+  };
   const filteredReferrals = useMemo(() => {
     if (mode === "authenticated") return referrals;
     const needle = search.trim().toLocaleLowerCase("en-AU");
@@ -508,6 +530,7 @@ export default function DoctorPortal({
 
   const formInput = (): ReferralInput => ({
     patientReference,
+    ...(mode==='authenticated'||patientContact.initials?{patientContact:{...patientContact}}:{}),
     patientPostcode: postcode,
     profession,
     clinicalSummary,
@@ -525,6 +548,7 @@ export default function DoctorPortal({
 
   const draftInput = (): DraftInput => ({
     patientReference,
+    patientContact:{...patientContact},
     patientPostcode: postcode,
     ...(appointmentFormat !== "telehealth" && localityId ? { patientLocalityId: localityId, ...(radius ? { searchRadiusKm: Number(radius) } : {}) } : {}),
     profession,
@@ -541,6 +565,7 @@ export default function DoctorPortal({
   const restoreDraft = (saved: ReferralDraft) => {
     setDraft(saved);
     setPatientReference(saved.input.patientReference ?? "");
+    setPatientContact({...emptyPatientContact,...saved.input.patientContact});
     setPostcode(saved.input.patientPostcode ?? "");
     setLocalityId(saved.input.patientLocalityId ?? "");
     setRadius(String(saved.input.searchRadiusKm ?? ""));
@@ -560,7 +585,7 @@ export default function DoctorPortal({
     );
     setRequiredServiceIds(saved.input.requiredServiceIds ?? []);
     setPatientAgeGroupId(saved.input.patientAgeGroupId ?? "");
-    setSelectedPractitionerId(saved.input.selectedPractitionerId ?? null);
+    clearRecipient();
     setConsentConfirmed(false);
     setStep(1);
     setError("");
@@ -570,6 +595,7 @@ export default function DoctorPortal({
     if (draftPending || saving || submissionPending) return;
     const errors = [
       ...validateDraft(draftInput()),
+      ...(mode==='authenticated'?validatePatientContact(patientContact,true):[]),
       ...validateReferralInput({
         ...formInput(),
         selectedPractitionerId: "pending",
@@ -578,16 +604,13 @@ export default function DoctorPortal({
     ];
     if (errors.length > 0) {
       setError(errors[0]);
+      if(mode==='authenticated'&&validatePatientContact(patientContact,true).length)document.querySelector<HTMLInputElement>('input[aria-label="Patient initials"], input[name="patientInitials"]')?.focus();
       return;
     }
     setError("");
     setMatchCursor(null);
     setMatchGroup(null);
-    setSelectedPractitionerId((current) =>
-      matches.some(({ practitioner }) => practitioner.id === current)
-        ? current
-        : null,
-    );
+    clearRecipient();
     setStep(2);
   };
 
@@ -596,12 +619,16 @@ export default function DoctorPortal({
     if (submitting.current) return;
     const wasPending = pendingSubmission.current !== null;
     const input = pendingSubmission.current?.input ?? formInput();
+    const recipient=pendingSubmission.current?.recipient??selectedRecipient;
     // Validate locally before a request can become ambiguous. Pending retries
     // retain their original snapshot and idempotency keys.
     const errors = [
       ...(!wasPending ? validateDraft(draftInput()) : []),
-      ...validateReferralInput(input),
+      ...validateReferralInput({...input,selectedPractitionerId:recipient?.kind==='directory'?'pending':input.selectedPractitionerId}),
+      ...(mode==='authenticated'?validatePatientContact(input.patientContact??{},true):[]),
     ];
+    if(!recipient)errors.push('Choose a practitioner before sending.');
+    if(recipient?.kind==='directory'&&!wasPending&&(!contactBasis||!contactConsentConfirmed))errors.push('Confirm recorded permission to notify this practice.');
     if (errors.length > 0) {
       setError(errors[0]);
       return;
@@ -622,6 +649,8 @@ export default function DoctorPortal({
           draftVersion: draft?.version ?? -1,
           saveRequestId: crypto.randomUUID(),
           sendRequestId: crypto.randomUUID(),
+          recipient:recipient!,
+          contactBasis,
         };
         pendingSubmission.current = submission;
         setSubmissionPending(true);
@@ -639,19 +668,22 @@ export default function DoctorPortal({
           input: submission.draftSnapshot,
         });
         setDraft(savedDraft);
-        const result = await finalizeReferralDraft(client, {
-          id: savedDraft.id,
-          expectedVersion: savedDraft.version,
-          consentConfirmed: true,
-          requestId: submission.sendRequestId,
-        });
-        saved = rowToReferral(result as ReferralRow);
+        if(submission.recipient.kind==='directory'){
+          const result=await sendDirectoryReferral(client,{id:savedDraft.id,expectedVersion:savedDraft.version,requestId:submission.sendRequestId,selection:submission.recipient.selection,consentConfirmed:true,contactConsentConfirmed:true,contactBasis:submission.contactBasis as InviteReferral['contactBasis']});
+          const referral=await getReferral(client,workspace.organisationId,result.referralId);
+          if(!referral)throw new ReferralSubmissionError('unconfirmed');
+          saved=referral;
+          setDeliveryNote(`The referral was saved. ${notificationLabel({kind:'invitation',status:result.invitationNotification??'pending'})} Patient details remain private while the intended practitioner completes signup and review.`);
+        }else{
+          const result=await finalizeReferralDraft(client,{id:savedDraft.id,expectedVersion:savedDraft.version,consentConfirmed:true,requestId:submission.sendRequestId});
+          saved=rowToReferral(result as ReferralRow);
+        }
         saved = {
           ...saved,
           providerName:
-            selectedPractitioner?.practiceName ?? saved.providerName,
+            submission.recipient.practiceName ?? saved.providerName,
         };
-        try {
+        if(submission.recipient.kind==='member')try {
           const delivery = await invoke<ReferralNotifications>(
             client,
             "send-referral-notification",
@@ -683,7 +715,7 @@ export default function DoctorPortal({
           patientAgeGroupId: input.patientAgeGroupId,
           selectionMode: input.selectionMode,
           selectedPractitionerId: input.selectedPractitionerId,
-          providerName: selectedPractitioner?.practiceName ?? "Not assigned",
+          providerName: recipient?.practiceName ?? "Not assigned",
           status: "sent",
           createdAt: now,
           updatedAt: now,
@@ -718,6 +750,9 @@ export default function DoctorPortal({
       ) {
         pendingSubmission.current = null;
         setSubmissionPending(false);
+        if(failure instanceof WorkflowError&&failure.code==='recipient_changed'){
+          clearRecipient();setStep(2);setRefresh(value=>value+1);
+        }
       }
       setError(
         wasPending &&
@@ -1147,7 +1182,7 @@ export default function DoctorPortal({
 
               {step === 1 && (
                 <div className="referral-start-layout">
-                  <form className="referral-form" onSubmit={proceedToShortlist}>
+                  <form className="referral-form" onSubmit={proceedToShortlist} onChange={clearRecipient}>
                     {draft?.supersedesReferralId && (
                       <p role="status">
                         Replacement referral: review the copied details, choose
@@ -1207,9 +1242,10 @@ export default function DoctorPortal({
                         </label>
                       </div>
                       {mode === "authenticated" && <LocationControls postcode={postcode} localityId={localityId} radius={radius} location={location} telehealth={appointmentFormat === "telehealth"}
-                        onLocality={value => { setLocalityId(value); setRadius(""); setMatchCursor(null); setMatchGroup(null); setSelectedPractitionerId(null); setConsentConfirmed(false); }}
-                        onRadius={value => { setRadius(value); setMatchCursor(null); setMatchGroup(null); setSelectedPractitionerId(null); setConsentConfirmed(false); }} />}
+                        onLocality={value => { setLocalityId(value); setRadius(""); setMatchCursor(null); setMatchGroup(null); clearRecipient(); }}
+                        onRadius={value => { setRadius(value); setMatchCursor(null); setMatchGroup(null); clearRecipient(); }} />}
                     </fieldset>
+                    <PatientContactFields value={patientContact} disabled={draftPending||saving||submissionPending} onChange={setPatientContact}/>
                     <fieldset>
                       <legend>Clinical need</legend>
                       <p>
@@ -1454,54 +1490,16 @@ export default function DoctorPortal({
                     </button>
                   </aside>
                   <section className="shortlist-main">
-                    {mode === "authenticated" && client && workspace && (
-                      <>
-                        <button
-                          className="button secondary"
-                          disabled={draftPending}
-                          onClick={() => {
-                            setSelectedPractitionerId(null);
-                            setInviteOpen((value) => !value);
-                          }}
-                        >
-                          {inviteOpen
-                            ? "Back to directory"
-                            : "Invite a practitioner"}
-                        </button>
-                        {inviteOpen && (
-                          <InviteReferralPanel
-                            client={client}
-                            organisationId={workspace.organisationId}
-                            input={draftInput()}
-                            draft={draft}
-                            onSaved={setDraft}
-                            onPendingChange={setDraftPending}
-                            onCreated={async (id) => {
-                              const referral = await getReferral(
-                                client,
-                                workspace.organisationId,
-                                id,
-                              );
-                              setDetailReferral(referral);
-                              setDraftPending(false);
-                              setInviteOpen(false);
-                              setView("detail");
-                              setRefresh((value) => value + 1);
-                            }}
-                          />
-                        )}
-                      </>
-                    )}
                     <fieldset
-                      disabled={inviteOpen || draftPending}
+                      disabled={draftPending||saving||submissionPending}
                       style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}
                     >
                       <legend className="sr-only">
-                        Choose an existing practitioner
+                        Choose a practitioner
                       </legend>
                       {mode === "authenticated" && <LocationControls postcode={postcode} localityId={localityId} radius={radius} location={location} telehealth={appointmentFormat === "telehealth"}
-                        onLocality={value => { setLocalityId(value); setRadius(""); setMatchCursor(null); setMatchGroup(null); setSelectedPractitionerId(null); setConsentConfirmed(false); }}
-                        onRadius={value => { setRadius(value); setMatchCursor(null); setMatchGroup(null); setSelectedPractitionerId(null); setConsentConfirmed(false); }} />}
+                        onLocality={value => { setLocalityId(value); setRadius(""); setMatchCursor(null); setMatchGroup(null); clearRecipient(); }}
+                        onRadius={value => { setRadius(value); setMatchCursor(null); setMatchGroup(null); clearRecipient(); }} />}
                       {mode === "authenticated" && (
                         <DirectoryPages
                           page={remoteMatches.page}
@@ -1512,16 +1510,16 @@ export default function DoctorPortal({
                           onGroup={(value) => {
                             setMatchGroup(value);
                             setMatchCursor(null);
-                            setSelectedPractitionerId(null);
+                            clearRecipient();
                           }}
                           onFirst={() => {
                             setMatchCursor(null);
-                            setSelectedPractitionerId(null);
+                            clearRecipient();
                           }}
                           onNext={() => {
                             setMatchGroup(remoteMatches.group);
                             setMatchCursor(remoteMatches.page.nextCursor);
-                            setSelectedPractitionerId(null);
+                            clearRecipient();
                           }}
                         />
                       )}
@@ -1537,8 +1535,7 @@ export default function DoctorPortal({
                                 setRadius("");
                                 setMatchCursor(null);
                                 setMatchGroup(null);
-                                setSelectedPractitionerId(null);
-                                setConsentConfirmed(false);
+                                clearRecipient();
                               }
                               setRefresh((value) => value + 1);
                             }}
@@ -1550,25 +1547,21 @@ export default function DoctorPortal({
                       <div className="section-heading">
                         <div>
                           <h2>
-                            {mode === "authenticated"
-                              ? remoteMatches.page.totalEligible
-                              : matches.length}{" "}
-                            {mode === "preview" ? "sample" : "eligible"}{" "}
-                            {(mode === "authenticated"
-                              ? remoteMatches.page.totalEligible
-                              : matches.length) === 1
+                            {recipientPage.counts.confirmed+recipientPage.counts.needsConfirmation}{" "}
+                            {mode === "preview" ? "sample" : "contactable"}{" "}
+                            {(recipientPage.counts.confirmed+recipientPage.counts.needsConfirmation) === 1
                               ? "practitioner"
                               : "practitioners"}
                           </h2>
                           <p>
                             {mode === "preview"
                               ? "Try the matching rules with fictional practitioners. Nothing is saved or sent, and sample profiles do not represent real registration checks. Distance search is available in the signed-in workspace, not this preview."
-                              : "Matches your funding, format, language and selected capability requirements. Confirm fees and rebate eligibility directly. Check the practice location before choosing; any displayed distance is approximate."}
+                              : "Confirmed members and directory contacts are separate. Directory funding, services and availability need confirmation; known incompatibilities are excluded. Practice emails may be shared. Distances are approximate, not driving distances."}
                           </p>
                         </div>
                       </div>
                       {mode === "authenticated" && remoteMatches.loading ? (
-                        <p role="status">Loading eligible practitioners…</p>
+                        <p role="status">Loading contactable practitioners…</p>
                       ) : matches.length === 0 ? (
                         <div className="no-matches">
                           <h3>
@@ -1576,14 +1569,14 @@ export default function DoctorPortal({
                               ? demoMode
                                 ? "No sample practitioners match these requirements"
                                 : "No sample practitioners loaded"
-                              : "No eligible practitioners found"}
+                              : "No contactable practitioners found"}
                           </h3>
                           <p>
                             {mode === "preview"
                               ? demoMode
                                 ? "The demo includes a physiotherapist and a psychologist, with Medicare or self funding. Try Physiotherapy, Adult and Persistent pain to test a match, or remove optional requirements. Your choices have not been changed."
                                 : "Load the fictional demo to choose a practitioner and try the referral flow. This empty preview is not searching the live directory."
-                              : "Only active, registration-verified and provider-confirmed profiles accepting referrals can appear. Try changing the format, funding or language preference."}
+                              : "No supported contacts or confirmed members were found in this group. Check the location and requirements, or browse distance-unavailable and telehealth options. The search radius has not been widened."}
                           </p>
                           {mode === "preview" && !demoMode && (
                             <button
@@ -1595,51 +1588,7 @@ export default function DoctorPortal({
                           )}
                         </div>
                       ) : (
-                        <div className="provider-list">
-                          {matches.map(({ practitioner, reasons }) => (
-                            <label
-                              className={`provider-row ${selectedPractitionerId === practitioner.id ? "selected" : ""}`}
-                              key={practitioner.id}
-                            >
-                              <input
-                                type="radio"
-                                name="practitioner"
-                                checked={
-                                  selectedPractitionerId === practitioner.id
-                                }
-                                onChange={() =>
-                                  setSelectedPractitionerId(practitioner.id)
-                                }
-                              />
-                              <span className="provider-name">
-                                <strong>{practitioner.displayName}</strong>
-                                <small>{practitioner.practiceName}</small>
-                              </span>
-                              <span>
-                                <strong>
-                                  {practitioner.location
-                                    ? `${practitioner.location.suburb} ${practitioner.location.postcode}`
-                                    : practitioner.telehealth
-                                      ? "Telehealth"
-                                      : "Location not provided"}
-                                </strong>
-                                <small>
-                                  {practitioner.services
-                                    .slice(0, 2)
-                                    .join(" · ")}
-                                </small>
-                              </span>
-                              <ul>
-                                {reasons.map((reason) => (
-                                  <li key={reason}>
-                                    <Check size={12} />
-                                    {reason}
-                                  </li>
-                                ))}
-                              </ul>
-                            </label>
-                          ))}
-                        </div>
+                        <ReferralRecipientOptions page={recipientPage} selected={selectedRecipient} busy={saving||submissionPending} onSelect={selectRecipient}/>
                       )}
                       <div className="form-actions">
                         <button
@@ -1651,7 +1600,7 @@ export default function DoctorPortal({
                         </button>
                         <button
                           className="button primary"
-                          disabled={!selectedPractitionerId}
+                          disabled={!selectedRecipient||(mode==='authenticated'&&(remoteMatches.loading||Boolean(remoteMatches.error)))}
                           onClick={() => setStep(3)}
                         >
                           Review referral <ArrowRight size={16} />
@@ -1666,6 +1615,7 @@ export default function DoctorPortal({
                 <div className="review-layout">
                   <section className="review-card">
                     <h2>Referral details</h2>
+                    {!selectedRecipient&&!submissionPending&&<p role="alert">The selected contact is no longer current. <button className="text-button" onClick={()=>{clearRecipient();setStep(2);}}>Choose a practitioner again</button></p>}
                     <dl>
                       <div>
                         <dt>Patient reference</dt>
@@ -1686,10 +1636,11 @@ export default function DoctorPortal({
                       <div>
                         <dt>Practitioner</dt>
                         <dd>
-                          {selectedPractitioner?.displayName}
-                          <small>{selectedPractitioner?.practiceName}</small>
+                          {selectedRecipient?.displayName}
+                          <small>{selectedRecipient?.practiceName}</small>
                         </dd>
                       </div>
+                      {mode==='authenticated'&&<div><dt>Patient contact</dt><dd>{patientContact.initials} · {patientContact.preferredMethod==='phone'?patientContact.phone:patientContact.email}<small>Private. Not included in email.</small></dd></div>}
                       <div>
                         <dt>Access</dt>
                         <dd>
@@ -1706,46 +1657,7 @@ export default function DoctorPortal({
                       Edit referral
                     </button>
                   </section>
-                  <aside className="send-card">
-                    <h2>Record referral</h2>
-                    <p>
-                      {mode === "preview"
-                        ? "This preview will show the next step without saving or sending anything."
-                        : "The referral will be saved securely. Email delivery remains off until the sender configuration is approved."}
-                    </p>
-                    <label className="consent-check">
-                      <input
-                        type="checkbox"
-                        checked={consentConfirmed}
-                        disabled={saving || submissionPending}
-                        onChange={(event) =>
-                          setConsentConfirmed(event.target.checked)
-                        }
-                      />
-                      <span>
-                        I confirm the patient has consented and the information
-                        is accurate.
-                      </span>
-                    </label>
-                    {submissionPending && !saving && (
-                      <p role="status">
-                        This save is not yet confirmed. Keep this page open.
-                        Check and retry uses the same submission, without
-                        changing the details or creating a second referral.
-                      </p>
-                    )}
-                    <button
-                      className="button primary full"
-                      disabled={!consentConfirmed || saving}
-                      onClick={submitReferral}
-                    >
-                      {saving
-                        ? "Saving…"
-                        : submissionPending
-                          ? "Check and retry"
-                          : "Record referral"}
-                    </button>
-                  </aside>
+                  <ReferralSendPanel selected={selectedRecipient} contactBasis={contactBasis} contactConsentConfirmed={contactConsentConfirmed} consentConfirmed={consentConfirmed} busy={saving} uncertain={submissionPending} preview={mode==='preview'} onSend={submitReferral} onContactBasis={setContactBasis} onContactConsent={setContactConsentConfirmed} onConsent={setConsentConfirmed}/>
                 </div>
               )}
 
@@ -1866,12 +1778,15 @@ export default function DoctorPortal({
                     />
                   )}
                   {client && mode === "authenticated" && (
-                    <HandoverPanel
+                <>
+                <PatientContactDetail key={detailReferral.id} client={client} referralId={detailReferral.id} version={detailReferral.version}/>
+                <HandoverPanel
                       key={"handover-" + detailReferral.id}
                       client={client}
                       referralId={detailReferral.id}
-                      version={detailReferral.version}
-                    />
+                  version={detailReferral.version}
+                />
+                </>
                   )}
                   {client && mode === "authenticated" && (
                     <ReferralActions

@@ -22,6 +22,8 @@ test("a real local doctor saves and reloads a private draft without sending mail
   await page
     .getByPlaceholder("Describe the need, goals and relevant context…")
     .fill("Fictional saved draft summary");
+  await page.getByLabel('Patient initials',{exact:true}).fill('FX');
+  await page.getByLabel('Patient phone',{exact:true}).fill('0412');
   await page.getByRole("button", { name: "Save draft", exact: true }).click();
   await expect(
     page.getByText("Draft saved privately. No email was sent."),
@@ -46,6 +48,8 @@ test("a real local doctor saves and reloads a private draft without sending mail
   await expect(
     page.getByPlaceholder("Describe the need, goals and relevant context…"),
   ).toHaveValue("Fictional saved draft summary");
+  await expect(page.getByLabel('Patient initials',{exact:true})).toHaveValue('FX');
+  await expect(page.getByLabel('Patient phone',{exact:true})).toHaveValue('0412');
   expect(
     local.sql(
       `select count(*) from public.referrals where created_by='${doctor.userId}'`,
@@ -79,6 +83,8 @@ test("lost finalisation response retries the same draft and queues exactly one n
   await page
     .getByPlaceholder("Describe the need, goals and relevant context…")
     .fill("Fictional browser referral.");
+  await page.getByLabel('Patient initials',{exact:true}).fill('FX');
+  await page.getByLabel('Patient phone',{exact:true}).fill('0412345678');
   await page.getByRole("button", { name: "Find practitioners" }).click();
   await selectFixturePractitioner(page, clinic);
   await page.getByRole("button", { name: "Review referral" }).click();
@@ -88,7 +94,7 @@ test("lost finalisation response retries the same draft and queues exactly one n
     })
     .check();
   await page
-    .getByRole("button", { name: "Record referral", exact: true })
+    .getByRole("button", { name: "Send referral", exact: true })
     .click();
   await expect(
     page.getByRole("button", { name: "Check and retry", exact: true }),

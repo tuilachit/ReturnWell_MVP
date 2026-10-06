@@ -33,6 +33,9 @@ for (const actor of ["doctor", "practitioner"])
         consentConfirmed: true,
       },
     );
+    // Fixture-only contact for the authorised detail reader. Atomic draft
+    // capture and access denial are exercised by the database/Auth journeys.
+    local.sql(`insert into private.referral_patient_contacts(referral_id,contact) values('${ref.id}','{"initials":"FX","preferredMethod":"email","email":"fictional-patient@example.test","phone":""}')`);
     const accepted = await local.call(
       "respond-to-referral",
       {
@@ -45,6 +48,8 @@ for (const actor of ["doctor", "practitioner"])
     );
     expect(accepted.status).toBe(200);
     await page.goto("/referrals/" + ref.id);
+    await expect(page.getByRole('heading',{name:'Patient contact',exact:true})).toBeVisible();
+    await expect(page.getByText('fictional-patient@example.test',{exact:true})).toBeVisible();
     const handover = page.getByRole("region", {
       name: "External handover",
       exact: true,

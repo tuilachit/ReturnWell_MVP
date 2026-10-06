@@ -20,6 +20,8 @@ test("a doctor keeps explicit capabilities in a saved draft and cannot reuse an 
   await page
     .getByPlaceholder("Describe the need, goals and relevant context…")
     .fill("Fictional capability check.");
+  await page.getByLabel('Patient initials',{exact:true}).fill('FX');
+  await page.getByLabel('Patient phone',{exact:true}).fill('0412345678');
   await page.getByRole("button", { name: "Find practitioners" }).click();
   await selectFixturePractitioner(page, clinic);
   await page.getByRole("button", { name: "Back", exact: true }).last().click();
@@ -31,8 +33,8 @@ test("a doctor keeps explicit capabilities in a saved draft and cannot reuse an 
     .selectOption("adult");
   await page.getByRole("button", { name: "Find practitioners" }).click();
   await expect(
-    page.getByText("No eligible practitioners found", { exact: true }),
-  ).toBeVisible();
+    page.getByRole('radio',{name:new RegExp(clinic)}),
+  ).toHaveCount(0);
   await expect(
     page.getByRole("button", { name: "Review referral", exact: true }),
   ).toBeDisabled();

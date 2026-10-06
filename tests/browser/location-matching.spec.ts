@@ -39,6 +39,8 @@ test("rejected finalisation preserves the entire saved geography snapshot", asyn
     await page.getByPlaceholder("e.g. Practice record ID").fill("GEO-REJECT-FICTIONAL");
     await page.getByPlaceholder("e.g. 2000").fill("2000");
     await page.getByPlaceholder("Describe the need, goals and relevant context…").fill("Fictional rejected finalisation test.");
+    await page.getByLabel('Patient initials',{exact:true}).fill('FX');
+    await page.getByLabel('Patient phone',{exact:true}).fill('0412345678');
     await expect(page.getByLabel("Patient suburb (NSW)")).toBeEnabled();
     await page.getByLabel("Patient suburb (NSW)").selectOption("NSW:2000:origin test");
     await page.getByLabel("Approximate radius").selectOption("5");
@@ -47,7 +49,7 @@ test("rejected finalisation preserves the entire saved geography snapshot", asyn
     await page.getByRole("button", { name: "Review referral" }).click();
     await page.getByRole("checkbox", { name: "I confirm the patient has consented and the information is accurate." }).check();
     local.sql(`update public.practitioners set accepting_new_referrals=false where id='${practitionerId}';`);
-    await page.getByRole("button", { name: "Record referral", exact: true }).click();
+    await page.getByRole("button", { name: "Send referral", exact: true }).click();
     await expect(page.getByText("This practitioner no longer meets the referral requirements. Review your selection.")).toBeVisible();
     const saved = JSON.parse(local.sql(`select input from public.referral_drafts where created_by='${doctor.userId}';`));
     expect(saved.patientLocalityId).toBe("NSW:2000:origin test");
@@ -64,7 +66,7 @@ test("rejected finalisation preserves the entire saved geography snapshot", asyn
     await page.getByRole("radio", { name: new RegExp(clinic) }).check();
     await page.getByRole("button", { name: "Review referral" }).click();
     await page.getByRole("checkbox", { name: "I confirm the patient has consented and the information is accurate." }).check();
-    await page.getByRole("button", { name: "Record referral", exact: true }).click();
+    await page.getByRole("button", { name: "Send referral", exact: true }).click();
     await expect(page.getByRole("heading", { name: "Referral recorded", level: 1 })).toBeVisible();
     expect(local.sql(`select count(*) from public.referrals where created_by='${doctor.userId}'`)).toBe("1");
     const completed = JSON.parse(local.sql(`select input from public.referral_drafts where created_by='${doctor.userId}' and finalized_referral_id is not null;`));
@@ -83,6 +85,8 @@ test("doctor shortlist refresh clears a stale location and practitioner selectio
     await page.getByPlaceholder("e.g. Practice record ID").fill("GEO-RECOVERY-FICTIONAL");
     await page.getByPlaceholder("e.g. 2000").fill("2000");
     await page.getByPlaceholder("Describe the need, goals and relevant context…").fill("Fictional shortlist reference recovery.");
+    await page.getByLabel('Patient initials',{exact:true}).fill('FX');
+    await page.getByLabel('Patient phone',{exact:true}).fill('0412345678');
     await expect(page.getByLabel("Patient suburb (NSW)")).toBeEnabled();
     await page.getByLabel("Patient suburb (NSW)").selectOption("NSW:2000:origin test");
     await page.getByLabel("Approximate radius").selectOption("5");
@@ -171,6 +175,8 @@ test("doctor confirms postcode suburb, searches nearest secondary location and r
     await page.getByPlaceholder("e.g. Practice record ID").fill("GEO-FICTIONAL");
     await page.getByPlaceholder("e.g. 2000").fill("2000");
     await page.getByPlaceholder("Describe the need, goals and relevant context…").fill("Fictional locality test; no real patient.");
+    await page.getByLabel('Patient initials',{exact:true}).fill('FX');
+    await page.getByLabel('Patient phone',{exact:true}).fill('0412345678');
     await expect(page.getByLabel("Patient suburb (NSW)")).toBeEnabled();
     await page.getByLabel("Patient suburb (NSW)").selectOption("NSW:2000:origin test");
     await page.getByLabel("Approximate radius").selectOption("5");

@@ -243,7 +243,7 @@ export default function AuthGate({
         </span>
       )}
       {access.doctors.length > 0 && <a href="/invitations">Invitations</a>}
-      {access.operator && (
+      {access.operator && ['operator','practices','email','candidates'].includes(requested??'') && (
         <>
           <a href="/admin/practitioners">Application reviews</a>
           <a href="/admin/candidates">Candidate review</a>
@@ -259,8 +259,7 @@ export default function AuthGate({
     (!requested &&
       !access.doctors.length &&
       !access.practitioners.length &&
-      !access.applicationId &&
-      !access.operator)
+      !access.applicationId)
   )
     return (
       <>
@@ -287,7 +286,7 @@ export default function AuthGate({
     ...(access.applicationId
       ? [{ id: "onboarding", label: "My practitioner application" }]
       : []),
-    ...(access.operator
+    ...(access.operator && ['operator','practices','email','candidates'].includes(requested??'')
       ? [{ id: "operator", label: "ReturnWell administration" }]
       : []),
   ];

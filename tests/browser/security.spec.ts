@@ -36,9 +36,10 @@ test("operator enrolls a real authenticator; AAL1 cannot approve and AAL2 reache
   await expect(page.getByRole("status")).toContainText(
     "Verified for privileged actions",
   );
-  await page
-    .getByRole("link", { name: "Practice administration", exact: true })
-    .click();
+  await expect(page.getByRole("link", { name: "Practice administration", exact: true })).toHaveCount(0);
+  // Customer/security navigation does not expose administration. Staff use
+  // the explicit entry point, still checked against current backend authority.
+  await page.goto('/admin/practices');
   await expect(
     page.getByRole("heading", { name: "Practice administration", exact: true }),
   ).toBeVisible();
