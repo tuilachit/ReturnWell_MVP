@@ -12,8 +12,13 @@ profile claiming. Patient information becomes accessible only to the authorised
 recipient. Customer-facing workspace choices remain Doctor and Practitioner;
 administration stays behind a separate authorised staff entry point.
 
-The user approved this flow in conversation. This document makes the database,
-identity and shared-mailbox boundaries explicit before implementation.
+The user clarified the exact journey: existing referral form → Find practitioners
+→ algorithm returns a selectable list → choose a practitioner → one Send referral
+button → email notification → recipient signs up through the link → authorised
+recipient sees referral information, patient initials and contact details.
+There must be no separate invitation form, manual email entry or administrative
+screen in this journey. This document makes the data and identity boundaries
+explicit before implementation. The revised written design awaits user approval.
 
 ## Existing foundation and selected approach
 
@@ -24,7 +29,8 @@ mailbox proof, recipient onboarding, independent review, consent expiry,
 cancellation, retry recovery and eventual referral release.
 
 The missing connection is a doctor-facing directory projection and a
-server-validated selection that prepopulates this existing invitation flow.
+server-validated selection integrated into the existing referral form, results
+and send action. Reuse the invitation backend without exposing its separate form.
 Activating imported contacts as verified practitioners would incorrectly merge
 directory evidence with professional verification. Building an independent
 invitation/claim system would duplicate the current controls. Neither is selected.
@@ -50,14 +56,28 @@ invitation/claim system would duplicate the current controls. Neither is selecte
 - Filter known profession and practice location. Use supported locality
   coordinates for approximate distance; otherwise explicitly show distance
   unavailable. Never infer a coordinate from a nearby postcode or widen a radius
-  silently. Present directory contacts separately from verified matching results.
+  silently. Keep one results page, with clear grouping of confirmed requirement
+  matches and directory contacts whose additional capabilities need confirmation.
+  Do not hide all directory contacts solely because their capabilities are unknown,
+  and do not represent unknown requirements as satisfied. Doctor-selected referral
+  intent remains distinct from verified algorithm eligibility.
 
 ## Doctor selection and referral creation
 
-Selecting a directory contact opens the existing invitation panel with the name
-and applicable business mailbox prefilled. Shared inboxes are clearly labelled as
-practice contacts. Where a practitioner has multiple supported practice/mailbox
-choices, require one explicit choice; never notify every mailbox.
+Keep the existing referral form and Find practitioners action. Run deterministic
+matching on recorded profession and supported location, with existing capability
+checks where values are confirmed. Display contactable results for the doctor to
+choose. Each selectable result identifies one practitioner/practice/contact route;
+multiple supported locations/mailboxes are distinct explicit choices, not an
+automatic broadcast. Shared inboxes are labelled as practice contacts.
+
+The doctor confirms consent and the contact basis inline in the existing referral
+flow, then presses one Send referral button. The app resolves the chosen contact
+server-side and creates the private referral and notification without another
+invitation screen, email field, role chooser or operator approval action for the
+doctor. Prevent repeated clicks and retain the same request ID when retrying an
+uncertain result. The completion screen reports referral creation and sending
+status, not a guarantee that the recipient has read the message.
 
 Add a server-side directory selection command within the existing authenticated
 workflow. It accepts the contact ID, observation identity and selected contact
@@ -72,12 +92,39 @@ confirmation. One transaction finalises the private referral, invitation linkage
 and queued notification. Stable request IDs recover retries without duplication.
 Imports, directory browsing and signup never trigger bulk outreach.
 
+## Patient initials and contact details
+
+The current referral input contains a patient reference, not dedicated patient
+contact fields, and its notes instruct users not to include contact details.
+Add structured patient initials, preferred contact method and relevant phone/email
+fields to the existing form with validation and clear consent copy. Collect only
+the contact details needed for the chosen method; do not make a full patient name
+or extra demographic information a prerequisite for this workflow.
+
+Persist these fields as private referral data through the authenticated backend,
+with the same organisation/recipient authorization as the clinical summary. They
+must survive draft recovery and be bound into the consent/release snapshot.
+Initials are still sensitive in combination with referral and contact data: do not
+include them in emails, URLs, analytics, logs, directory queries or preview fixtures
+that could be mistaken for real patient data. The authorised practitioner referral
+page displays the details needed to contact the patient; other users cannot query
+them. Referrals predating the new fields show unavailable rather than invented
+contact information. Patient contact management is not a booking system.
+
 ## Notification, signup and profile claiming
 
 Reuse the branded invitation template and email queue. Include the verified
 referring practice identity, intended practitioner/practice, purpose, support
 contact and secure ReturnWell link. Exclude patient references, names, summaries,
 diagnoses, postcodes and attachments from notification content.
+
+The Send referral operation commits a durable notification before attempting
+immediate server-side dispatch of that specific job. Transport failure must not
+lose the referral or queue another copy; existing bounded retries/webhooks handle
+recovery. A background worker remains necessary for retry processing. Show queued,
+sending, sent-to-provider, delivered or failed from evidence, and show a clear
+configuration error if the sender is not operational. Never claim immediate
+mailbox delivery merely because a database job was created.
 
 An invitation link alone grants no clinical access. The recipient verifies the
 intended mailbox, signs in using Google or email, and confirms the professional
@@ -112,6 +159,11 @@ shared inboxes, multiple contact choices, stale selections, changed observations
 suppression, pagination and honest unknown capability/distance presentation.
 Test cross-practice access denial, browser-tampered recipient values, idempotent
 lost-response retries, cancelled/expired referrals and exactly one queued event.
+Test the existing form-to-results-to-one-click-send journey without a separate
+invitation form. Test patient contact validation, draft persistence, consent
+snapshot changes, authorised viewing and denial for other practices/recipients.
+Test immediate dispatch success/failure, recovery without duplicate notifications,
+and absence of patient initials/contact details from outbound payloads and logs.
 Test new/existing signup, forwarded links, wrong mailbox, same inbox/different
 practitioners, claim conflicts, failed verification and release after authorised
 review. Test that no email or unauthorised response contains patient information.
