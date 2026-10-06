@@ -34,13 +34,14 @@ tests use the real local Edge/Auth boundary where specified; OAuth-provider
 handoff and selected presentation/fault boundaries are explicitly simulated.
 No hosted fixture accounts or real outbound messages are created.
 
-Current verification (whole-browser run and independent review still pending):
+Current verification (independent review still pending):
 
 | Layer | Command / result |
 | --- | --- |
 | Build and Node | `npm test`: 185 total, 175 pass, 10 opt-in skips, 0 failures |
 | Static checks | `npm run lint` and `npm run typecheck`: passed |
 | Actual Postgres | `npm run test:database`: 107/107 passed, including unchanged geographic performance budget |
+| Browser journeys | `npm run test:browser`: 92/92 passed; mobile, keyboard/accessibility, scoped customer/staff routes and recovery |
 | Local Auth/HTTP/PostgREST | Fresh tracked-migration stack plus `npm run test:local-journey`: 26/26 passed |
 | SQL lint | Isolated local `supabase db lint --schema public,private --level error --fail-on error`: no errors |
 | Backend manifest | `npm run backend:prepare`: 14 functions, 45 migrations; `dbf669fd76c845c285139b30b284aadf5428b7a0186c35e6b786902a5c4626c0` |
