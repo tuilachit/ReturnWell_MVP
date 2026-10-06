@@ -10,7 +10,7 @@
 
 **Spec:** `docs/superpowers/specs/2026-10-06-email-backed-directory-referrals-design.md`
 
-**Status:** Native execution approved and tasks 1–5 implemented locally. Task 6 acceptance and independent review are in progress. No production release; see [acceptance record](../email-backed-referral-acceptance-2026-10-07.md).
+**Status:** Native execution complete locally for all six tasks. Independent review's five Important findings fixed through RED-to-GREEN regressions and a fresh green suite. Conditional production release is not executed; see [acceptance record](../email-backed-referral-acceptance-2026-10-07.md).
 
 ## Global Constraints
 
@@ -133,12 +133,12 @@
 
 **Files:** modify `docs/superpowers/launch-acceptance-matrix.md`, `docs/superpowers/real-data-release-record.md`; refresh existing backend manifest via repository scripts. No production sends in automated tests.
 
-- [ ] Run `npm test`, `npm run lint`, `npm run typecheck`, `npm run test:database`, `npm run test:local-stack`, `npm run test:local-journey` and `npm run test:browser`. Report failed and skipped checks individually; a mocked UI run is not hosted acceptance.
-- [ ] Self-check every spec requirement against tasks and test results. Review final changes for raw data/secrets, patient leakage, shared-mailbox release, omitted actor checks and misleading matching/delivery labels. Complete the independent review required by the chosen execution method and address confirmed defects.
-- [ ] Run `npm run backend:prepare`, `npm run check:backend` and `npm run build:vercel` with validated configuration. Confirm generated manifest includes the actual new migration IDs and function sources; commit generated artifacts and evidence.
-- [ ] Before publishing, verify target project `ivutegjvttkrmxctegub` and Vercel ReturnWell scope `fitment`, check sender/DNS/Auth SMTP and existing configuration evidence read-only, and name unresolved external prerequisites. Do not fabricate reviewers/sign-offs or silently weaken release controls.
+- [x] Run `npm test`, `npm run lint`, `npm run typecheck`, `npm run test:database`, `npm run test:local-stack`, `npm run test:local-journey` and `npm run test:browser`. Report failed and skipped checks individually; a mocked UI run is not hosted acceptance.
+- [x] Self-check every spec requirement against tasks and test results. Review final changes for raw data/secrets, patient leakage, shared-mailbox release, omitted actor checks and misleading matching/delivery labels. Complete the independent review required by the chosen execution method and address confirmed defects.
+- [x] Run `npm run backend:prepare`, `npm run check:backend` and `npm run build:vercel` with validated configuration. Confirm generated manifest includes the actual new migration IDs and function sources; commit generated artifacts and evidence. Hosted check is explicitly blocked by absent `BACKEND_RELEASE_CHECK_SECRET`; offline build passes, not hosted compatibility.
+- [x] Before publishing, verify target project `ivutegjvttkrmxctegub` and Vercel ReturnWell scope `fitment`, check sender/DNS/Auth SMTP and existing configuration evidence read-only, and name unresolved external prerequisites. Do not fabricate reviewers/sign-offs or silently weaken release controls.
 - [ ] With explicit release authority, apply reviewed migrations/functions before the matching frontend, verify manifest/history/served SHA, and run a controlled authorised mailbox journey with fictional patient details. Existing broad launch approval does not authorize sending messages to the whole candidate list.
-- [ ] Record local versus hosted versus real received-email evidence separately. If sender/reviewer/notice prerequisites are missing, hand off the implemented and tested code with the exact remaining dependencies; do not label the app clinical-launch ready.
+- [x] Record local versus hosted versus real received-email evidence separately. If sender/reviewer/notice prerequisites are missing, hand off the implemented and tested code with the exact remaining dependencies; do not label the app clinical-launch ready.
 
 ## Plan Self-review and Execution Handoff
 

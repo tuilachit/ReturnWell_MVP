@@ -1,7 +1,7 @@
 # Email-backed referral acceptance — 7 October 2026
 
-Status: local implementation; independent review complete, final fix-pass verification
-in progress. No release.
+Status: local implementation complete; independent review's five important findings
+fixed and final acceptance passed. No release or real received-email acceptance.
 
 ## Delivered scope
 
@@ -35,14 +35,14 @@ tests use the real local Edge/Auth boundary where specified; OAuth-provider
 handoff and selected presentation/fault boundaries are explicitly simulated.
 No hosted fixture accounts or real outbound messages are created.
 
-Current verification (final fix-pass whole-suite run in progress):
+Final fix-pass verification:
 
 | Layer | Command / result |
 | --- | --- |
 | Build and Node | `npm test`: 185 total, 175 pass, 10 opt-in skips, 0 failures |
 | Static checks | `npm run lint` and `npm run typecheck`: passed |
 | Actual Postgres | Fresh fix-pass `npm run test:database`: 111/111 passed; combined 5,000-member p95 199.267 ms, geographic p95 177.268 ms, both below 500 ms |
-| Browser journeys | Pre-review full suite: 92/92 passed; two new fix regressions passed; full rerun in progress |
+| Browser journeys | Fresh `npm run test:browser`: 94/94 passed, including both new review regressions |
 | Local Auth/HTTP/PostgREST | Fresh 46-migration stack plus `npm run test:local-journey`: 26/26 passed after fixes |
 | SQL lint | Isolated local `supabase db lint --schema public,private --level error --fail-on error`: no errors |
 | Backend manifest | `npm run backend:prepare`: 14 functions, 46 migrations; `60ff34a6dadc2c6e30f5ab7164e4562fa82d51e000aef2b9f9fc6327221a1f72` |
@@ -62,7 +62,7 @@ admin-link expectation without changing MFA or backend authorization rules.
 
 A fresh whole-branch reviewer examined `e616ec1..4a73b7d` read-only. No critical
 disclosure was confirmed. Five important findings entered one regression-led
-fix pass; only the final whole-browser run remains in progress:
+fix pass and all were addressed; the final full verification above is green:
 
 1. A request lost **before** commit followed by a source change could leave the
    doctor stuck retrying. The source-specific `recipient_changed` rejection now
