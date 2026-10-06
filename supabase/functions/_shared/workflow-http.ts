@@ -13,12 +13,15 @@ import {
 } from "./authorization.ts";
 import { verificationEmail } from "./email.ts";
 import { validateReleaseConfig } from "./release-mode.ts";
+import {dispatchJobs, type DispatchScope} from './dispatch.ts';
+import {sendProviderEmail} from './provider-transport.ts';
 export type Row = Record<string, unknown>;
 export type WorkflowRuntime = {
   backendMigrations?: () => Promise<string[]>;
   env: Record<string, string | undefined>;
   getUser: (token: string) => Promise<VerifiedIdentity | null>;
   rpc: (actor: string | null, action: string, input: Row) => Promise<unknown>;
+  sendEmail?: (payload: Row, key: string) => Promise<Response>;
   generateLink?: (
     email: string,
     type: "invite" | "magiclink",
@@ -548,9 +551,34 @@ export function workflowHandler(endpoint: string, runtime: WorkflowRuntime) {
         )
           throw Error("terms_changed");
       }
-      const data = await runtime.rpc(user.id, mapping.action, input);
+      let data = await runtime.rpc(user.id, mapping.action, input);
+      if (["growth.directoryInvite", "draft.finalize"].includes(mapping.action)) {
+        const committed = row(data);
+        const invitation = typeof committed.invitationId === 'string' ? committed.invitationId : null;
+        const referral = typeof committed.referralId === 'string' ? committed.referralId : typeof committed.id === 'string' ? committed.id : null;
+        const scope: DispatchScope | null = mapping.action === 'growth.directoryInvite' && invitation
+          ? {family:'invitation',relatedId:invitation}
+          : mapping.action === 'draft.finalize' && referral ? {family:'referral',relatedId:referral} : null;
+        if (scope) {
+          let timer: ReturnType<typeof setTimeout> | undefined;
+          try {
+            await Promise.race([
+              (async()=>{
+                try { await dispatchJobs(runtime,1,runtime.sendEmail ?? ((payload,key)=>sendProviderEmail(runtime.env,payload,key,{timeoutMs:5000})),scope); }
+                catch { /* The persisted queue retains failed attempts. */ }
+                if(mapping.action==='growth.directoryInvite' && referral){
+                  try { data=await runtime.rpc(user.id,'growth.status',{referralId:referral}); }
+                  catch { /* Keep the known durable commit. */ }
+                }
+              })(),
+              new Promise<void>(resolve=>{timer=setTimeout(resolve,15000);}),
+            ]);
+          } catch { /* Committed referral survives; the scheduled worker owns recovery. */ }
+          finally { clearTimeout(timer); }
+        }
+      }
       if (
-        ["invitation.claim", "review.decide", "growth.reconfirm"].includes(
+        ["invitation.claim", "review.decide", "growth.reconfirm", "candidate.linkApplication"].includes(
           mapping.action,
         )
       ) {

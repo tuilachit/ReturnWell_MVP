@@ -1,5 +1,6 @@
 import test from 'node:test';
-import {execFileSync} from 'node:child_process';
+import {execFileSync,execFile} from 'node:child_process';
+import {promisify} from 'node:util';
 import {readFileSync,readdirSync} from 'node:fs';
 import {directoryRecipientChecks} from './helpers/directory-recipient-db.mjs';
 import {patientContactChecks} from './helpers/patient-contact-db.mjs';
@@ -29,6 +30,6 @@ test('directory recipients on real Postgres',{skip:process.env.RW_DATABASE_TEST!
       insert into public.organisation_memberships(organisation_id,user_id,role) values('${id(1)}','${id(2)}','owner');`);
     await directoryRecipientChecks(t,{sql,rpc,id});
     if(process.env.RW_CONTACT_TEST==='1')await patientContactChecks(t,{sql,rpc,id});
-    if(process.env.RW_DIRECTORY_FLOW_TEST==='1')await directoryReferralChecks(t,{sql,rpc,id});
+    if(process.env.RW_DIRECTORY_FLOW_TEST==='1')await directoryReferralChecks(t,{sql,rpc,id,sqlAsync:async query=>(await promisify(execFile)('docker',['exec','-i',container,'psql','-U','postgres','-X','-q','-A','-t','-v','ON_ERROR_STOP=1','-c',query])).stdout.trim()});
   }finally{execFileSync('docker',['stop',container],{stdio:'pipe'});}
 });

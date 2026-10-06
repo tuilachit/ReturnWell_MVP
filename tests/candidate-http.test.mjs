@@ -9,7 +9,8 @@ test('candidate API uses verified actor, narrow mappings and uncached responses'
     const handle=workflowHandler('review-practitioner',{env:{},getUser:async()=>({id:'trusted',aal:'aal2'}),rpc:async(...args)=>{calls.push(args);return {ok:true};}});
     const response=await handle(request(operation,{actor:'forged',role:'operator',raw:{secret:'do not pass'},candidateId:'candidate',batchId:'batch'}));
     assert.equal(response.status,200,operation);assert.match(response.headers.get('cache-control'),/no-store/);
-    assert.equal(calls.length,1);assert.equal(calls[0][0],'trusted');assert.equal(calls[0][1],action);
+    assert.equal(calls.length,action==='candidate.linkApplication'?2:1);assert.equal(calls[0][0],'trusted');assert.equal(calls[0][1],action);
+    if(action==='candidate.linkApplication')assert.deepEqual(calls[1],[null,'growth.sweep',{}]);
     assert.equal('actor' in calls[0][2],false);assert.equal('raw' in calls[0][2],false);
     assert.equal((await handle(request(operation,{},false))).status,401);
   }

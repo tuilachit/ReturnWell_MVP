@@ -2865,7 +2865,7 @@ test(
       }});
       await directoryRecipientChecks(t,{sql,rpc,id});
       await patientContactChecks(t,{sql,rpc,id,organisationId:id(10)});
-      await directoryReferralChecks(t,{sql,rpc,id,organisationId:id(10)});
+      await directoryReferralChecks(t,{sql,rpc,id,organisationId:id(10),sqlAsync:async query=>(await promisify(execFile)('docker',['exec','-i',container,'psql','-U','postgres','-X','-q','-A','-t','-v','ON_ERROR_STOP=1','-c',query])).stdout.trim()});
     } finally {
       execFileSync("docker", ["stop", container], { stdio: "pipe" });
     }

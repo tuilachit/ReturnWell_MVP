@@ -16,10 +16,12 @@ import {
 } from "./workflow-security.ts";
 type Transport = (payload: Row, idempotencyKey: string) => Promise<Response>;
 type DispatchRuntime = Pick<WorkflowRuntime, "env" | "rpc">;
+export type DispatchScope = { family: "invitation" | "referral"; relatedId: string };
 export async function dispatchJobs(
   runtime: DispatchRuntime,
   limit: number,
   send: Transport,
+  scope?: DispatchScope,
 ) {
   const { env } = runtime;
   let config: TrustConfig | undefined;
@@ -37,9 +39,10 @@ export async function dispatchJobs(
       env.INVITATION_ENCRYPTION_KEY &&
       env.INVITATION_KEY_ID,
     );
-  const jobs = (await runtime.rpc(null, "email.claim", {
+  const jobs = (await runtime.rpc(null, scope ? "email.claimScoped" : "email.claim", {
     configured,
     limit,
+    ...(scope ? {scope} : {}),
   })) as Row[];
   if (!configured || !config) {
     return { processed: 0, configurationNeeded: true };
@@ -106,6 +109,8 @@ export async function dispatchJobs(
                 inviter_name: String(invite.inviter_name),
                 practice_name: String(invite.practice_name),
                 expires_at: String(invite.expires_at),
+                directory_referral: invite.directory_referral === true,
+                referral_practice_name: typeof invite.referral_practice_name === 'string' ? invite.referral_practice_name : undefined,
               },
               String(token),
               config!,

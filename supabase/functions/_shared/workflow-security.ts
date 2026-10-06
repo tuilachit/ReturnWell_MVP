@@ -77,6 +77,8 @@ export function invitationEmail(
     inviter_name: string;
     practice_name: string;
     expires_at?: string;
+    directory_referral?: boolean;
+    referral_practice_name?: string;
   },
   token: string,
   config: TrustConfig,
@@ -93,10 +95,13 @@ export function invitationEmail(
     : "The exact expiry will appear in the issued invitation.";
   const paragraphs = [
     `Hello ${invite.recipient_name},`,
-    `${invite.inviter_name} at ${invite.practice_name} has invited you to ${purpose}. ReturnWell helps practices coordinate allied health referrals.`,
+    invite.directory_referral
+      ? `${invite.inviter_name} at ${invite.practice_name} has prepared a referral for ${invite.recipient_name} at ${invite.referral_practice_name}. ReturnWell securely coordinates the referral; patient details are not included in this email.`
+      : `${invite.inviter_name} at ${invite.practice_name} has invited you to ${purpose}. ReturnWell helps practices coordinate allied health referrals.`,
     "You can review the invitation before deciding whether to join. If you proceed, you’ll be asked to sign in or create an account and confirm your professional details.",
   ];
   const supportingParagraphs = [
+    ...(invite.directory_referral ? ["This may be a shared clinic inbox. Only the independently verified intended practitioner can receive patient details after signup and review."] : []),
     `Not expecting this? You can confirm the request with ${invite.practice_name} using contact details you already trust or find independently.`,
     ...(invite.kind === "practitioner"
       ? ["After verifying your email, your professional details go through a separate identity and registration review. Signing up does not immediately publish your profile."]
@@ -107,13 +112,13 @@ export function invitationEmail(
     `Privacy: ${config.privacyUrl}\nTerms: ${config.termsUrl}`,
   ];
   return {
-    subject: `${invite.practice_name} has invited you to ${invite.kind === "doctor" ? "join their practice" : "connect"} on ReturnWell`.replaceAll(
+    subject: (invite.directory_referral ? `Referral from ${invite.practice_name} — review securely on ReturnWell` : `${invite.practice_name} has invited you to ${invite.kind === "doctor" ? "join their practice" : "connect"} on ReturnWell`).replaceAll(
       /[\r\n]/g,
       " ",
     ),
     ...renderTransactionalEmail({
-      heading: `${invite.kind === "doctor" ? "Join" : "Connect with"} ${invite.practice_name}`,
-      preheader: "Review your practice invitation before deciding whether to join ReturnWell.",
+      heading: invite.directory_referral ? "A referral for your practice" : `${invite.kind === "doctor" ? "Join" : "Connect with"} ${invite.practice_name}`,
+      preheader: invite.directory_referral ? "Review the sender and intended practitioner before securely signing in." : "Review your practice invitation before deciding whether to join ReturnWell.",
       bodyParagraphs: paragraphs,
       supportingParagraphs,
       action: { label: "Review invitation", url: url.toString() },

@@ -4,6 +4,11 @@ import test from "node:test";
 const security = await import(
   "../supabase/functions/_shared/workflow-security.ts"
 ).catch(() => ({}));
+test('directory referral copy identifies the intended person and clinic without patient data',()=>{
+  const message=security.invitationEmail({kind:'practitioner',recipient_name:'Fictional Intended',inviter_name:'Dr Fictional Reviewed',practice_name:'Fictional Referring Practice',referral_practice_name:'Fictional Receiving Clinic',directory_referral:true},'opaque',{appUrl:'https://returnwell.example.test',businessName:'Fictional ReturnWell',supportEmail:'support@example.test',privacyUrl:'https://returnwell.example.test/privacy',termsUrl:'https://returnwell.example.test/terms',websiteUrl:'https://returnwell.example.test',termsVersion:'v1',privacyVersion:'v1'});
+  assert.match(message.subject,/referral/i);assert.match(message.text,/Fictional Receiving Clinic/);assert.match(message.text,/shared.*inbox/i);
+  assert.doesNotMatch(JSON.stringify(message),/0412345678|patient@example.test|FX|confidential summary/);
+});
 
 test("invitation credentials have 256 bits of randomness and are never their own lookup hash", async () => {
   assert.equal(

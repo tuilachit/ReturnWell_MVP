@@ -3,6 +3,30 @@ import assert from "node:assert/strict";
 const worker = await import("../supabase/functions/_shared/dispatch.ts").catch(
   () => ({}),
 );
+test('a scoped dispatch claims only its server-derived family and identity',async()=>{
+  const calls=[];
+  const scope={family:'invitation',relatedId:'00000000-0000-4000-8000-000000000099'};
+  const result=await worker.dispatchJobs({env:{},rpc:async(_actor,action,input)=>{calls.push([action,input]);return [];}},1,async()=>{throw Error('must remain disabled');},scope);
+  assert.equal(result.configurationNeeded,true);
+  assert.deepEqual(calls,[['email.claimScoped',{configured:false,limit:1,scope}]]);
+});
+test('a scoped send with a lost provider response retries its frozen payload and key',async()=>{
+  const env={EMAIL_DELIVERY_ENABLED:'true',RESEND_API_KEY:'fake',RESEND_FROM:'ReturnWell <notifications@example.test>',INVITATION_KEY_ID:'test',INVITATION_ENCRYPTION_KEY:btoa('a'.repeat(32)),APP_URL:'https://returnwell.example.test',WEBSITE_URL:'https://returnwell.example.test',RETURNWELL_BUSINESS_NAME:'Fictional ReturnWell',SUPPORT_EMAIL:'support@example.test',PRIVACY_URL:'https://returnwell.example.test/privacy',TERMS_URL:'https://returnwell.example.test/terms',TERMS_VERSION:'v1',PRIVACY_VERSION:'v1'};
+  const scope={family:'referral',relatedId:'00000000-0000-4000-8000-000000000030'};
+  env.EMAIL_TEST_ALLOWLIST='receiver@example.test';
+  const job={id:'job-frozen',family:'referral',related_id:scope.relatedId,recipient_email:'receiver@example.test',lease_id:'lease-1',idempotency_key:'frozen-key',payload:{kind:'referral_created',referralId:scope.relatedId}};
+  const outcomes=[],sent=[];
+  const runtime={env,rpc:async(_actor,action,input)=>{
+    if(action==='email.claimScoped'){assert.deepEqual(input.scope,scope);return [job];}
+    if(action==='email.prepare')job.prepared_payload=input.envelope;
+    if(action==='email.finish')outcomes.push(input.outcome);
+    return {sendAllowed:true};
+  }};
+  await worker.dispatchJobs(runtime,1,async(payload,key)=>{sent.push([payload,key]);throw Error('provider response lost');},scope);
+  job.lease_id='lease-2';
+  await worker.dispatchJobs(runtime,1,async(payload,key)=>{sent.push([payload,key]);return new Response('{"id":"provider-receipt"}');},scope);
+  assert.deepEqual(outcomes,['transient','sent']);assert.deepEqual(sent[0],sent[1]);
+});
 test("delivery defaults to disabled and calls no email provider", async () => {
   assert.equal(
     typeof worker.dispatchJobs,

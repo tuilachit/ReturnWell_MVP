@@ -1,5 +1,22 @@
 # Invitation and referral workflow: release runbook
 
+## Source-bound referral dispatch (6 October local implementation)
+
+After committing a doctor-selected directory referral, the request attempts only
+that invitation's current notification. Member referrals likewise attempt only
+their own notification. The overall attempt is bounded to 15 seconds; failure
+does not undo the saved referral. An idempotent retry reads persisted status.
+Provider acceptance is not delivery: only the authenticated delivery webhook can
+record delivered. Unknown/ambiguous provider responses retain the frozen payload
+and idempotency key; do not manually resend with a new key.
+
+The scheduled `dispatch-email-jobs` worker remains required for due retries and
+notifications created after recipient approval. Check the scheduler, matching
+server-only `EMAIL_WORKER_SECRET`, sender domain, Resend key, signed webhook,
+application origin and delivery/recipient configuration before a controlled pilot
+send. Missing configuration pauses jobs rather than claiming success. This local
+implementation does not establish that those hosted settings are operational.
+
 Historical September deployment notes follow. For the current, separately isolated pilot implementation and its unfulfilled hosted launch gates, start with the [2 October release record](launch-release-record.md). Do not treat the older function count or deployed-state statements below as current verification.
 
 The backend was deployed on 7 September 2026 with public signup disabled and email delivery explicitly off. See the [deployment evidence and remaining configuration](2026-09-07-backend-deployment.md). The frontend is not publicly released, no accounts were provisioned, and the private practitioner dataset was not imported. The application keeps its existing clean first-use state.

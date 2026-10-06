@@ -3,7 +3,7 @@ import {prepareCandidateBatch} from '../../scripts/candidates/normalise.mjs';
 import {legacyCandidate} from '../fixtures/candidate-records.mjs';
 import {credentialFixtureSql} from './credential-fixture.mjs';
 const j=v=>`'${JSON.stringify(v).replaceAll("'","''")}'::jsonb`;
-export async function directoryReferralChecks(t,{sql,rpc,id,organisationId=id(1)}){
+export async function directoryReferralChecks(t,{sql,rpc,id,sqlAsync,organisationId=id(1)}){
   const doctor=id(2),reviewer=id(800001),owner=id(950003),wrong=id(950004),practitioner=id(950030);
   const records=[1,2].map(n=>legacyCandidate({candidate_id:`directory-flow-${n}`,display_name:`Directory test ${n}`,practice_names:['Fictional Practice'],business_emails:['shared@example.test'],funding_types_raw:['self_funded'],languages_raw:['English'],telehealth:false}));
   const prepared=prepareCandidateBatch([{label:'directory-flow',bytes:Buffer.from(JSON.stringify(records))}]);
@@ -44,9 +44,27 @@ export async function directoryReferralChecks(t,{sql,rpc,id,organisationId=id(1)
     assert.equal(Number(sql('select count(*) from private.email_jobs')),before+1);
     second=rpc(doctor,'growth.directoryInvite',two);assert.notEqual(second.invitationId,first.invitationId);
     assert.equal(Number(sql('select count(*) from private.email_jobs')),before+2);
+    const firstJob=sql(`select id from private.email_jobs where family='invitation' and related_id='${first.invitationId}'`);
+    const secondState=sql(`select state from private.email_jobs where family='invitation' and related_id='${second.invitationId}'`);
+    assert.deepEqual(rpc(null,'email.claimScoped',{configured:false,scope:{family:'invitation',relatedId:first.invitationId}}),[]);
+    assert.equal(sql(`select state from private.email_jobs where id='${firstJob}'`),'paused_configuration');
+    assert.equal(sql(`select state from private.email_jobs where family='invitation' and related_id='${second.invitationId}'`),secondState);
+    const leased=rpc(null,'email.claimScoped',{configured:true,scope:{family:'invitation',relatedId:first.invitationId}});
+    assert.equal(leased.length,1);assert.equal(leased[0].id,firstJob);
+    assert.equal(leased[0].payload.invitation.referral_practice_name,'Fictional Practice');
+    assert.deepEqual(rpc(null,'email.claimScoped',{configured:true,scope:{family:'invitation',relatedId:first.invitationId}}),[]);
+    sql(`update private.email_jobs set state='pending',lease_id=null,lease_expires_at=null where id='${firstJob}'`);
     assert.throws(()=>rpc(doctor,'growth.invite',{...make(options[1].selection),recipientEmail:'shared@example.test',recipientName:'Unbound legacy person'}),/directory_selection_required/);
     assert.throws(()=>rpc(doctor,'growth.directoryInvite',{...one,selection:two.selection}),/conflict/);
     assert.throws(()=>rpc(wrong,'growth.directoryInvite',make(one.selection)),/denied/);
+  });
+  await t.test('scheduled and scoped claims race on one durable lease',{skip:!sqlAsync},async()=>{
+    const scope={configured:true,limit:20,scope:{family:'invitation',relatedId:first.invitationId}};
+    const queries=['email.claimScoped','email.claim'].map(action=>`set role service_role;select public.rw_workflow(null,'${action}',${j(scope)})`);
+    const results=await Promise.all(queries.map(query=>sqlAsync(query)));
+    const jobs=results.flatMap(value=>JSON.parse(value));
+    assert.equal(jobs.filter(x=>x.related_id===first.invitationId && x.family==='invitation').length,1);
+    sql(`update private.email_jobs set state='pending',lease_id=null,lease_expires_at=null where state='processing' and attempts=0`);
   });
   await t.test('forwarded links and shared mailboxes do not bypass intended identity review',()=>{
     for(const result of [first,second]){

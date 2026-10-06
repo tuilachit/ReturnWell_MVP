@@ -14,6 +14,30 @@ const base = {
     throw Error("RPC should not be reached");
   },
 };
+test('committed directory sends attempt their own invitation and refresh durable status',async()=>{
+  const operations=[];
+  const invited='00000000-0000-4000-8000-000000000042',referral='00000000-0000-4000-8000-000000000043';
+  const handle=api.workflowHandler('manage-referral',{...base,env:{...base.env,INVITATION_ENCRYPTION_KEY:btoa('a'.repeat(32)),INVITATION_KEY_ID:'test'},getUser:async()=>({id:'doctor'}),rpc:async(actor,action,input)=>{
+    operations.push({actor,action,input});
+    if(action==='email.claimScoped')return [];
+    return {invitationId:invited,referralId:referral,invitationNotification:action==='growth.status'?'paused_configuration':'pending'};
+  }});
+  const response=await handle(new Request('https://api.example.test',{method:'POST',headers:{authorization:'Bearer verified'},body:JSON.stringify({operation:'draft.directoryInvite',id:referral,selection:{routeId:'selected'},scope:{family:'referral',relatedId:'forged'},recipientEmail:'forged@example.test'})}));
+  assert.equal(response.status,200);
+  assert.deepEqual(operations.map(x=>x.action),['growth.directoryInvite','email.claimScoped','growth.status']);
+  assert.deepEqual(operations[1].input.scope,{family:'invitation',relatedId:invited});
+  assert.equal(operations[1].actor,null);
+  assert.equal((await response.json()).invitationNotification,'paused_configuration');
+});
+test('member finalisation retains a committed referral if immediate dispatch fails',async()=>{
+  const calls=[],id='00000000-0000-4000-8000-000000000043';
+  const handle=api.workflowHandler('manage-referral',{...base,getUser:async()=>({id:'doctor'}),rpc:async(_actor,action,input)=>{
+    calls.push([action,input]);if(action==='email.claimScoped')throw Error('queue unavailable SECRET');return {id,status:'sent'};
+  }});
+  const response=await handle(new Request('https://api.example.test',{method:'POST',headers:{authorization:'Bearer verified'},body:JSON.stringify({operation:'draft.finalize',id,scope:{family:'invitation',relatedId:'forged'}})}));
+  assert.equal(response.status,200);assert.equal((await response.json()).id,id);
+  assert.deepEqual(calls[1][1].scope,{family:'referral',relatedId:id});
+});
 test('source and patient-contact errors are actionable pre-commit rejections',async()=>{
   for(const code of ['recipient_changed','invalid_patient_contact','directory_selection_required']){
     const handle=api.workflowHandler('manage-referral',{...base,getUser:async()=>({id:'trusted-user'}),rpc:async()=>{throw Error(code+' SECRET SQL');}});
