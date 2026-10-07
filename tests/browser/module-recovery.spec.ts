@@ -20,11 +20,10 @@ test("an interrupted module load can recover on deliberate reload without an aut
   expect(posts).toBe(0);
   await page.unroute("**/app/doctor-portal.tsx*");
   await page.reload();
-  await page
-    .getByRole("button", { name: "Preview empty workspace", exact: true })
-    .click();
   await expect(
-    page.getByRole("heading", { name: "Referrals", exact: true }),
+    page.getByRole("heading", { name: "Welcome to ReturnWell", exact: true }),
   ).toBeVisible();
+  await expect(page.getByLabel("Work email", { exact: true })).toBeEnabled();
+  await expect(page.getByRole("button", { name: /preview|explore|demo/i })).toHaveCount(0);
   expect(posts).toBe(0);
 });

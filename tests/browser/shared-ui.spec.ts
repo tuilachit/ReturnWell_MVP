@@ -1,10 +1,12 @@
 import { test, expect } from "@playwright/test";
 import AxeBuilder from "@axe-core/playwright";
+import { doctorBrowser } from "../helpers/browser-context.mjs";
 
 for (const width of [320, 375, 768, 1024, 1440]) {
   test(`entry and empty workspace are accessible at ${width}px`, async ({
     page,
   }) => {
+    test.skip(!process.env.RW_LOCAL_STACK_DIR, "Requires isolated local Auth.");
     await page.setViewportSize({ width, height: 900 });
     await page.emulateMedia({ reducedMotion: "reduce" });
     await page.route("**/*", (route) =>
@@ -15,15 +17,13 @@ for (const width of [320, 375, 768, 1024, 1440]) {
         : route.abort(),
     );
     await page.goto("/");
-    await expect(
-      page.getByRole("button", { name: "Preview empty workspace" }),
-    ).toBeEnabled();
-    for (const preview of [false, true]) {
-      if (preview)
-        await page
-          .getByRole("button", { name: "Preview empty workspace" })
-          .click();
-      if (preview)
+    await expect(page.getByLabel("Work email", { exact: true })).toBeEnabled();
+    for (const signedIn of [false, true]) {
+      if (signedIn) {
+        await doctorBrowser(page);
+        await page.reload();
+      }
+      if (signedIn)
         await expect(
           page.getByRole("heading", { name: "Referrals", exact: true }),
         ).toBeVisible();
@@ -49,8 +49,9 @@ for (const width of [320, 375, 768, 1024, 1440]) {
 test("leaving an unsaved referral requires a keyboard-operable confirmation", async ({
   page,
 }) => {
+  test.skip(!process.env.RW_LOCAL_STACK_DIR, "Requires isolated local Auth.");
+  await doctorBrowser(page);
   await page.goto("/");
-  await page.getByRole("button", { name: "Preview empty workspace" }).click();
   await page.getByRole("button", { name: "New referral", exact: true }).click();
   await page
     .getByPlaceholder("e.g. Practice record ID")
@@ -77,9 +78,10 @@ test("leaving an unsaved referral requires a keyboard-operable confirmation", as
 test("mobile navigation hands keyboard focus to the discard dialog", async ({
   page,
 }) => {
+  test.skip(!process.env.RW_LOCAL_STACK_DIR, "Requires isolated local Auth.");
+  await doctorBrowser(page);
   await page.setViewportSize({ width: 375, height: 900 });
   await page.goto("/");
-  await page.getByRole("button", { name: "Preview empty workspace" }).click();
   await page.getByRole("button", { name: "New referral", exact: true }).click();
   await page.getByPlaceholder("e.g. Practice record ID").fill("MOBILE-DIRTY");
   await page.getByRole("button", { name: "Open navigation" }).click();
@@ -98,14 +100,17 @@ test("mobile navigation hands keyboard focus to the discard dialog", async ({
 test("oversized referral input can be corrected without entering uncertain submission", async ({
   page,
 }) => {
+  test.skip(!process.env.RW_LOCAL_STACK_DIR, "Requires isolated local Auth.");
+  await doctorBrowser(page);
   await page.goto("/");
-  await page.getByRole("button", { name: "Preview empty workspace" }).click();
   await page.getByRole("button", { name: "New referral", exact: true }).click();
   await page.getByPlaceholder("e.g. Practice record ID").fill("X".repeat(121));
   await page.getByPlaceholder("e.g. 2000").fill("2000");
   await page
     .getByPlaceholder("Describe the need, goals and relevant context…")
     .fill("Fictional context");
+  await page.getByLabel("Patient initials", { exact: true }).fill("FX");
+  await page.getByLabel("Patient phone", { exact: true }).fill("0412345678");
   await page.getByRole("button", { name: "Find practitioners" }).click();
   await expect(page.getByRole("alert")).toContainText("patientReference");
   await page.getByPlaceholder("e.g. Practice record ID").fill("CORRECTED");

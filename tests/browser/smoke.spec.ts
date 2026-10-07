@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 
 for (const width of [375, 1440]) {
-  test(`signed-out entry and empty preview work at ${width}px`, async ({ page }) => {
+  test(`signed-out entry requires login at ${width}px`, async ({ page }) => {
     const errors: string[] = [];
     page.on('pageerror', error => errors.push(error.message));
     await page.setViewportSize({ width, height: 900 });
@@ -12,9 +12,8 @@ for (const width of [375, 1440]) {
     await page.goto('/');
     await expect(page.getByRole('heading', { name: 'Welcome to ReturnWell' })).toBeVisible();
     await expect(page.getByLabel('Work email')).toBeVisible();
-    await page.getByRole('button', { name: 'Preview empty workspace' }).click();
-    expect(errors).toEqual([]);
-    await expect(page.getByRole('heading', { name: 'Referrals', exact: true })).toBeVisible();
+    await expect(page.getByRole('button', { name: /preview|explore|demo/i })).toHaveCount(0);
+    await expect(page.getByRole('heading', { name: 'Referrals', exact: true })).toHaveCount(0);
     expect(errors).toEqual([]);
     await expect(page.getByText('BROWSER-FICTIONAL-PATIENT')).toHaveCount(0);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
