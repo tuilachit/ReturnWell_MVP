@@ -4,7 +4,7 @@ import { createServer } from "node:http";
 import { readFile, stat } from "node:fs/promises";
 import { resolve, extname } from "node:path";
 import { Readable } from "node:stream";
-import { chromium } from "@playwright/test";
+import { chromium, expect } from "@playwright/test";
 test(
   "built Vercel HTML uses nonces and hydrates under enforced production CSP",
   { skip: process.env.RW_PRODUCTION_BROWSER !== "1" },
@@ -79,12 +79,11 @@ test(
       if (process.env.NEXT_PUBLIC_GOOGLE_AUTH_ENABLED !== "true") {
         assert.equal(await page.getByRole("button", { name: "Continue with Google", exact: true }).isDisabled(), true);
       }
-      await page
-        .getByRole("button", { name: "Preview empty workspace", exact: true })
-        .click();
-      await page
-        .getByRole("button", { name: "New referral", exact: true })
-        .waitFor();
+      await expect(page.getByLabel("Work email", { exact: true })).toBeEnabled();
+      await page.getByLabel("Work email", { exact: true }).fill("fictional-entry@example.test");
+      await expect(page.getByLabel("Work email", { exact: true })).toHaveValue("fictional-entry@example.test");
+      assert.equal(await page.getByRole("button", { name: /preview|explore|demo/i }).count(), 0);
+      assert.equal(await page.getByRole("button", { name: "New referral", exact: true }).count(), 0);
       assert.equal(
         await page.evaluate(
           () =>

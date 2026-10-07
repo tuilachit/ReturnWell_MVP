@@ -216,7 +216,9 @@ test("decline edits survive a failed refresh but cannot silently adopt a newer v
   await page
     .getByRole("button", { name: "Refresh referrals", exact: true })
     .click();
-  await expect(page.getByRole("status")).toContainText("unavailable");
+  await expect(
+    page.getByRole("status").filter({ hasText: "Referrals are unavailable." }),
+  ).toBeVisible();
   await expect(
     page.getByLabel("Note to the referring practice (optional)"),
   ).toHaveValue("Keep this edit");

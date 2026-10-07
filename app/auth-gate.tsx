@@ -47,7 +47,6 @@ export default function AuthGate({
   const [email, setEmail] = useState("");
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
-  const [preview, setPreview] = useState(false);
   const [cooldownUntil, setCooldownUntil] = useState(0);
   const [clock, setClock] = useState(() => Date.now());
   const signingIn = useRef(false);
@@ -145,10 +144,6 @@ export default function AuthGate({
     if (result?.error)
       setMessage("Sign-out could not be completed. Please try again.");
   }
-  if (preview)
-    return (
-      <DoctorPortal mode="preview" onExitPreview={() => setPreview(false)} />
-    );
   if (loading && session)
     return (
       <WorkflowShell title="Opening your workspace">
@@ -176,7 +171,6 @@ export default function AuthGate({
             `/auth/google?start=1&next=${encodeURIComponent(destination)}`,
           );
         }}
-        onPreview={() => setPreview(true)}
         onSubmit={async (event) => {
           event.preventDefault();
           if (signingIn.current || Date.now() < cooldownUntil) return;

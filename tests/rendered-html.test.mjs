@@ -1,5 +1,4 @@
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 async function render(pathname = "/") {
@@ -32,8 +31,19 @@ test("server-renders a safe ReturnWell entry screen", async () => {
   assert.match(html, /<title>ReturnWell GP Referrals<\/title>/i);
   assert.match(html, /ReturnWell/);
   assert.match(html, /Sign in to your referral workspace/);
-  assert.match(html, /Preview empty workspace/);
+  assert.doesNotMatch(html, /Preview empty workspace|Explore the workspace|Load demo workspace/);
   assert.doesNotMatch(html, /codex-preview/);
+});
+
+test("all customer application entry routes require sign-in without a preview bypass", async () => {
+  for (const pathname of ["/", "/account/setup", "/practitioner", "/onboarding", "/invitations", "/referrals/3bbc9fd4-2da2-4a72-80e4-b920ad033692"]) {
+    const response = await render(pathname);
+    assert.equal(response.status, 200);
+    const html = await response.text();
+    assert.match(html, /Welcome to ReturnWell/, pathname);
+    assert.match(html, /Work email/, pathname);
+    assert.doesNotMatch(html, /Preview empty workspace|Explore the workspace|Load demo workspace/, pathname);
+  }
 });
 
 test("does not server-render fictional clinical or practice records", async () => {
@@ -48,24 +58,6 @@ test("does not server-render fictional clinical or practice records", async () =
   ]) {
     assert.doesNotMatch(html, new RegExp(fictionalValue, "i"));
   }
-});
-
-test("keeps the authenticated workspace empty by default with explicit demo opt-in", async () => {
-  const source = await readFile(
-    new URL("../app/doctor-portal.tsx", import.meta.url),
-    "utf8",
-  );
-  const overview = await readFile(
-    new URL("../app/referral-overview.tsx", import.meta.url),
-    "utf8",
-  );
-  assert.match(overview, /No referrals yet/i);
-  assert.match(overview, /Create your first referral/i);
-  assert.match(overview, /Load demo workspace/i);
-  assert.match(source, /useState<Referral\[]>\(\[\]\)/);
-  assert.match(source, /useState\(""\)/);
-  assert.doesNotMatch(source, /const initialReferrals/);
-  assert.doesNotMatch(source, /Green Square Medical/);
 });
 
 test("publishes matching social metadata for the GP referral portal", async () => {

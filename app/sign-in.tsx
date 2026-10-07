@@ -1,7 +1,7 @@
 "use client";
 /* Full navigation keeps public notices separate from workspace state. */
 
-import { ArrowRight, ChevronRight, Mail } from "./ui-icons";
+import { ArrowRight, Mail } from "./ui-icons";
 import { useSyncExternalStore, type FormEvent } from "react";
 import { Brand, BrandMark } from "./brand";
 import AccountFooter from "./account-footer";
@@ -17,7 +17,6 @@ type Props = {
   onGoogle: () => void;
   retryAfterSeconds?: number;
   onSubmit: (event: FormEvent) => void | Promise<void>;
-  onPreview: () => void;
 };
 const subscribe = () => () => {};
 const clientReady = () => true;
@@ -33,7 +32,6 @@ export default function SignIn({
   onGoogle,
   retryAfterSeconds = 0,
   onSubmit,
-  onPreview,
 }: Props) {
   // Server-rendered controls must not accept clicks before React attaches them.
   const hydrated = useSyncExternalStore(subscribe, clientReady, serverReady);
@@ -98,16 +96,6 @@ export default function SignIn({
           <br />
           Already invited? Use the email address on your invitation.
         </p>
-        <div className="preview-entry">
-          <button
-            onClick={onPreview}
-            disabled={!hydrated}
-            aria-label="Preview empty workspace"
-          >
-            Explore the workspace <ChevronRight size={16} aria-hidden="true" />
-          </button>
-          <p>Preview only. Nothing is saved or sent.</p>
-        </div>
       </section>
       <AccountFooter />
     </main>
