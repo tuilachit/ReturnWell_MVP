@@ -174,7 +174,7 @@ test("lost practitioner response retries the original command after focus withou
   ).toBeVisible();
   await page.evaluate(() => window.dispatchEvent(new Event("focus")));
   await page.getByRole("button", { name: "Check and retry response" }).click();
-  await expect(page.getByRole("status")).toContainText("Response saved");
+  await expect(page.getByRole("status").filter({ hasText: "Response saved" })).toBeVisible();
   expect(
     f.local.sql(
       `select count(*) from public.referral_events where referral_id='${ref.id}' and event_type='declined'`,

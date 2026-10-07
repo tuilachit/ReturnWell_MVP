@@ -56,9 +56,19 @@ test('directory option uses one inline send and recovers its committed invitatio
   await expect(page.getByRole('heading',{name:'Patient contact',exact:true})).toBeVisible();
   await expect(page.getByText('0412345678',{exact:true})).toBeVisible();
   await expect(page.getByText('Waiting for recipient signup',{exact:true})).toBeVisible();
+  await expect(page.locator('.timeline')).toContainText('Invitation delivery is shown under Referral onboarding.');
+  await expect(page.locator('.timeline').getByText('Email needs delivery configuration.',{exact:true})).toHaveCount(0);
+  await expect(page.locator('.timeline').getByRole('button',{name:'Check delivery',exact:true})).toHaveCount(0);
   const results=await new AxeBuilder({page}).analyze();
   expect(results.violations.filter(v=>['critical','serious'].includes(v.impact??''))).toEqual([]);
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth)).toBe(true);
+  await page.getByRole('button',{name:'Cancel referral',exact:true}).click();
+  await page.getByRole('combobox',{name:'Reason',exact:true}).selectOption('no_longer_required');
+  await page.getByRole('button',{name:'Review cancellation',exact:true}).click();
+  await page.getByRole('dialog').getByRole('button',{name:'Cancel referral',exact:true}).click();
+  await expect(page.getByText('Cancelled',{exact:true}).first()).toBeVisible();
+  await expect(page.locator('.timeline')).toContainText('Invitation delivery is shown under Referral onboarding.');
+  await expect(page.locator('.timeline').getByText('Email needs delivery configuration.',{exact:true})).toHaveCount(0);
 });
 
 test('editing contact details requires a new recipient selection and consent',async({page})=>{
