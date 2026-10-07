@@ -21,10 +21,12 @@ export default function ReferralActivity({
   client,
   referralId,
   refresh = 0,
+  invitationOnly = false,
 }: {
   client: SupabaseClient;
   referralId: string;
   refresh?: number;
+  invitationOnly?: boolean;
 }) {
   const [events, setEvents] = useState<Activity[]>([]);
   const [error, setError] = useState("");
@@ -37,7 +39,9 @@ export default function ReferralActivity({
     let run = 0;
     async function load() {
       const version = ++run;
-      const delivery = invoke<ReferralNotifications>(
+      // Invitations have their own delivery record. Before a practitioner is
+      // assigned, the referral-notification outbox is intentionally empty.
+      const delivery = invitationOnly ? Promise.resolve() : invoke<ReferralNotifications>(
         client,
         "send-referral-notification",
         { referralId },
@@ -80,7 +84,7 @@ export default function ReferralActivity({
       window.clearInterval(timer);
       window.removeEventListener("focus", refreshVisible);
     };
-  }, [client, referralId, refresh, deliveryRefresh]);
+  }, [client, referralId, refresh, deliveryRefresh, invitationOnly]);
   return (
     <aside className="timeline">
       <h2>Activity</h2>
@@ -115,13 +119,20 @@ export default function ReferralActivity({
         </ol>
       )}
       <h2>Email notifications</h2>
-      <button
-        className="button secondary"
-        onClick={() => setDeliveryRefresh((value) => value + 1)}
-      >
-        Check delivery
-      </button>
-      {notificationError ? (
+      {!invitationOnly && (
+        <button
+          className="button secondary"
+          onClick={() => setDeliveryRefresh((value) => value + 1)}
+        >
+          Check delivery
+        </button>
+      )}
+      {invitationOnly ? (
+        <p>
+          Invitation delivery is shown under Referral onboarding. No practitioner
+          is assigned to receive this referral yet.
+        </p>
+      ) : notificationError ? (
         <p role="status">{notificationError}</p>
       ) : !notifications ? (
         <p>Checking email status…</p>

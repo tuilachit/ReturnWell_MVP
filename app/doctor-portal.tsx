@@ -1821,6 +1821,10 @@ export default function DoctorPortal({
                     client={client}
                     referralId={detailReferral.id}
                     refresh={refresh}
+                    invitationOnly={
+                      detailReferral.selectionMode === "doctor" &&
+                      !detailReferral.selectedPractitionerId
+                    }
                   />
                 ) : (
                   <aside className="timeline">
