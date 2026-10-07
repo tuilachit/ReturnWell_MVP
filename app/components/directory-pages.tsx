@@ -23,9 +23,9 @@ export default function DirectoryPages({
   const total=recipientPage?page.counts.confirmed+page.counts.needsConfirmation:page.totalEligible;
   const count=(value:DistanceGroup)=>recipientPage?(group===value?` (${total})`:''):` (${page.groupCounts[value]})`;
   return (
-    <div>
+    <div className="directory-pages">
       <div
-        className="form-actions"
+        className="form-actions directory-groups"
         role="group"
         aria-label="Appointment options"
       >
@@ -55,7 +55,7 @@ export default function DirectoryPages({
           {telehealthOnly ? "Telehealth" : "Telehealth-only options"}{count('remote')}
         </button>
       </div>
-      <p>
+      <p className="directory-page-summary">
         {busy
           ? "Loading this page…"
           : `${page.items.length} shown · ${total} ${recipientPage?'contactable options':'eligible'} in this group`}
@@ -68,7 +68,7 @@ export default function DirectoryPages({
       {page.geography?.origin?.hasCoordinates && page.geography.source && !telehealthOnly && (
         <p className="location-note">Reference: <a href={page.geography.source.url} target="_blank" rel="noreferrer">{page.geography.source.attribution}</a> · {page.geography.source.version} · {page.geography.source.license}</p>
       )}
-      {!busy && group === "local" && total === 0 && <p>No {recipientPage?'contactable':'eligible'} practices within this search. Widen the radius, or check distance-unavailable and telehealth options. The radius has not been widened automatically.</p>}
+      {!busy && group === "local" && total === 0 && <p className="directory-page-summary">No {recipientPage?'contactable':'eligible'} practices within this search. Widen the radius, or check distance-unavailable and telehealth options. The radius has not been widened automatically.</p>}
       <div className="form-actions">
         <button
           type="button"
