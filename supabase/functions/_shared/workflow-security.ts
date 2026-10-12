@@ -92,7 +92,7 @@ export function invitationEmail(
       ? "join their practice on ReturnWell as a referrer"
       : "connect with their practice through ReturnWell";
   const expiry = invite.expires_at
-    ? `This invitation expires at ${new Date(invite.expires_at).toISOString()} (UTC). Replacing the link does not extend this deadline.`
+    ? `This invitation expires at ${sydneyTime(invite.expires_at)}. Replacing the link does not extend this deadline.`
     : "The exact expiry will appear in the issued invitation.";
   const paragraphs = [
     `Hello ${invite.recipient_name},`,
