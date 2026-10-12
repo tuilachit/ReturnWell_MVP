@@ -309,7 +309,7 @@ export default function QuickReferral({
               onClick={() => void sendCode()}
             >
               {waiting
-                ? `Send a new code in ${Math.ceil((retryAt - now) / 1000)}s`
+                ? `Send a new code in ${Math.min(60, Math.ceil((retryAt - now) / 1000))}s`
                 : "Send a new code"}
             </button>
           </div>
