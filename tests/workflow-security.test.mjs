@@ -9,6 +9,19 @@ test('directory referral copy identifies the intended person and clinic without 
   assert.match(message.subject,/referral/i);assert.match(message.text,/Fictional Receiving Clinic/);assert.match(message.text,/shared.*inbox/i);
   assert.doesNotMatch(JSON.stringify(message),/0412345678|patient@example.test|FX|confidential summary/);
 });
+test('directory referral email names sender, recipient and link destination, and sets expectations',()=>{
+  const config={appUrl:'https://returnwell.example.test',businessName:'Fictional ReturnWell',supportEmail:'support@example.test',privacyUrl:'https://returnwell.example.test/privacy',termsUrl:'https://returnwell.example.test/terms',websiteUrl:'https://returnwell.example.test',termsVersion:'v1',privacyVersion:'v1'};
+  const message=security.invitationEmail({kind:'practitioner',recipient_name:'Fictional Intended',inviter_name:'Dr Fictional Reviewed',practice_name:'Fictional Referring Practice',referral_practice_name:'Fictional Receiving Clinic',directory_referral:true,expires_at:'2026-10-17T11:33:44Z'},'opaque',config);
+  assert.equal(message.subject,'Referral for Fictional Intended from Fictional Referring Practice');
+  assert.match(message.text,/Dr Fictional Reviewed at Fictional Referring Practice has referred a patient to you at Fictional Receiving Clinic/);
+  assert.match(message.text,/6-digit code to this same address/);
+  assert.match(message.text,/no password and no account/i);
+  assert.match(message.text,/opens ReturnWell’s referral page at returnwell\.example\.test/);
+  assert.match(message.text,/never asks for passwords, bank, card or Medicare/);
+  assert.match(message.text,/works until Sat 17 Oct 2026, 10:33 pm \(Sydney time\)/);
+  assert.match(message.html,/>Open the referral<\/a>/);
+  assert.equal((message.html.match(/<a href="https:\/\/returnwell\.example\.test\/join/g)||[]).length,1);
+});
 
 test("invitation credentials have 256 bits of randomness and are never their own lookup hash", async () => {
   assert.equal(

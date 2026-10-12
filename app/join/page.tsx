@@ -3,6 +3,7 @@
 /* eslint-disable @next/next/no-html-link-for-pages */
 import { useEffect, useRef, useState } from "react";
 import WorkflowShell from "../workflow-shell";
+import QuickReferral from "./quick-referral";
 import {
   ArrowRight,
   AttentionIcon,
@@ -106,6 +107,15 @@ export default function JoinPage() {
       if (alive.current) setBusy(false);
     }
   }
+  const quick = info?.intendedIdentity;
+  if (info && quick?.quickAccess && quick.referralId)
+    return (
+      <QuickReferral
+        info={info}
+        identity={{ ...quick, quickAccess: true, referralId: quick.referralId }}
+        token={token}
+      />
+    );
   return (
     <WorkflowShell
       title={

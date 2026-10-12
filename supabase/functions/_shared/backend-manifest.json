@@ -1,6 +1,6 @@
 {
   "protocol": 1,
-  "sourceHash": "60ff34a6dadc2c6e30f5ab7164e4562fa82d51e000aef2b9f9fc6327221a1f72",
+  "sourceHash": "51ef23f555528afb2db18597f2cc36b397087306d27048896bae3972c449e2d6",
   "endpoints": [
     "claim-invitation",
     "dispatch-email-jobs",
@@ -63,6 +63,7 @@
     "20261006122556",
     "20261006125011",
     "20261006130301",
-    "20261006132305"
+    "20261006132305",
+    "20261012100000"
   ]
 }

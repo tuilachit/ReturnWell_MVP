@@ -20,12 +20,30 @@ export type Access = {
     organisationId: string;
     organisationName: string;
   }[];
+  // Single referrals opened by verifying a reviewed directory mailbox.
+  directoryReferrals?: {
+    referralId: string;
+    invitationId: string;
+    practiceName: string;
+    status: string;
+    createdAt: string;
+  }[];
 };
 export type IntendedIdentity = {
   displayName: string;
   practiceName: string;
   professionId: string;
   reviewRequired: true;
+  // Present when this referral opens after an emailed code, without review.
+  quickAccess?: true;
+  referralId?: string;
+};
+export type CodeVerification = {
+  email: string;
+  type: "invite" | "magiclink";
+  invitationId: string;
+  attemptId: string;
+  expiresAt: string;
 };
 export type Application = {
   intendedIdentity?: IntendedIdentity;

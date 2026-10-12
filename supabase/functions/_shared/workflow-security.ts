@@ -1,4 +1,4 @@
-import { renderTransactionalEmail, escapeEmailHtml } from "./email-layout.ts";
+import { renderTransactionalEmail, escapeEmailHtml, sydneyTime } from "./email-layout.ts";
 export type TrustConfig = {
   appUrl: string;
   websiteUrl: string;
@@ -86,6 +86,7 @@ export function invitationEmail(
   validateTrustConfig(config);
   const url = new URL("/join", config.appUrl);
   url.hash = `invite=${encodeURIComponent(token)}`;
+  if (invite.directory_referral) return directoryReferralEmail(invite, url, config);
   const purpose =
     invite.kind === "doctor"
       ? "join their practice on ReturnWell as a referrer"
@@ -122,6 +123,46 @@ export function invitationEmail(
       bodyParagraphs: paragraphs,
       supportingParagraphs,
       action: { label: "Review invitation", url: url.toString() },
+      supportEmail: config.supportEmail,
+      websiteUrl: config.websiteUrl,
+    }),
+  };
+}
+
+// One doctor-selected referral to a public directory contact. Written to be
+// recognisable and specific: who sent it, who it is for, where the button
+// goes and what happens next. No patient details.
+function directoryReferralEmail(
+  invite: {
+    recipient_name: string;
+    inviter_name: string;
+    practice_name: string;
+    expires_at?: string;
+    referral_practice_name?: string;
+  },
+  url: URL,
+  config: TrustConfig,
+) {
+  const clinic = invite.referral_practice_name || "your practice";
+  return {
+    subject: `Referral for ${invite.recipient_name} from ${invite.practice_name}`.replaceAll(/[\r\n]/g, " "),
+    ...renderTransactionalEmail({
+      heading: `A patient referral from ${invite.practice_name}`,
+      preheader: `${invite.inviter_name} sent this referral through ReturnWell. Patient details stay on the secure page.`,
+      bodyParagraphs: [
+        `Hello ${invite.recipient_name},`,
+        `${invite.inviter_name} at ${invite.practice_name} has referred a patient to you at ${clinic}. They found your practice’s public listing and sent this one referral through ReturnWell, the referral service they use. This is not marketing.`,
+        "To view it, open the referral. We’ll email a 6-digit code to this same address; type it on the page to see the patient details and accept or decline. There’s no password and no account to set up.",
+        `The button opens ReturnWell’s referral page at ${url.host}.`,
+      ],
+      supportingParagraphs: [
+        "ReturnWell never asks for passwords, bank, card or Medicare details by email.",
+        `If this is a shared clinic inbox, please pass it to ${invite.recipient_name}. Not the right person, or not expecting this? You can decline on the referral page without signing in, or check with ${invite.practice_name} using contact details you already trust.`,
+        ...(invite.expires_at ? [`This referral link works until ${sydneyTime(invite.expires_at)}.`] : []),
+        `Sent by ReturnWell on behalf of ${invite.practice_name}.\n${config.businessName}`,
+        `Privacy: ${config.privacyUrl}\nTerms: ${config.termsUrl}`,
+      ],
+      action: { label: "Open the referral", url: url.toString() },
       supportEmail: config.supportEmail,
       websiteUrl: config.websiteUrl,
     }),

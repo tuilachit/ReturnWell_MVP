@@ -13,6 +13,7 @@ import {
   errorText,
   invoke,
   requestId,
+  type Access,
 } from "../../lib/workflow";
 
 export default function ConfirmPage() {
@@ -188,7 +189,20 @@ export default function ConfirmPage() {
         },
       );
       if (!live.current) return;
-      window.location.assign(result.applicationId ? "/onboarding" : "/");
+      let destination = result.applicationId ? "/onboarding" : "/";
+      // A reviewed directory referral opens directly once this mailbox is
+      // verified; no profile form is needed for it.
+      try {
+        const access = await invoke<Access>(client, "workspace-access");
+        const opened = access.directoryReferrals?.find(
+          (item) => item.invitationId === command.invitationId,
+        );
+        if (opened) destination = `/referrals/${opened.referralId}`;
+      } catch {
+        /* The usual destination still lists this referral. */
+      }
+      if (!live.current) return;
+      window.location.assign(destination);
     } catch (e) {
       if (live.current) {
         setUncertain(Boolean(pending.current));
