@@ -29,6 +29,8 @@ export type WorkflowRuntime = {
     userId: string;
     hashedToken: string;
     type: "invite" | "magiclink";
+    // The same one-time credential as a short code the recipient can type.
+    emailOtp?: string;
   }>;
 };
 export const row = (value: unknown): Row => {
@@ -166,6 +168,7 @@ const mappings: Record<
       fields: ["id", "expectedVersion", "requestId", "selection", "consentConfirmed", "contactConsentConfirmed", "contactBasis"],
     },
     "contact.read": { action: "referral.contact.read", fields: ["referralId"] },
+    "recipient.detail": { action: "referral.recipient.detail", fields: ["referralId"] },
     "inbox.list": {
       action: "referral.inbox",
       fields: ["practitionerId", "status", "cursor", "limit"],
@@ -443,7 +446,7 @@ export function workflowHandler(endpoint: string, runtime: WorkflowRuntime) {
             ]),
           }),
         );
-        if (attempt.alreadyRequested) return json({ ok: true });
+        if (attempt.alreadyRequested) return json({ ok: true, alreadyRequested: true });
         const link = await runtime.generateLink(
           String(attempt.email),
           attempt.existingUserId ? "magiclink" : "invite",
@@ -455,8 +458,12 @@ export function workflowHandler(endpoint: string, runtime: WorkflowRuntime) {
           invitationId: String(attempt.invitationId),
           attemptId: String(attempt.attemptId),
         }).toString();
+        const code =
+          typeof link.emailOtp === "string" && /^[0-9]{6,10}$/.test(link.emailOtp)
+            ? link.emailOtp
+            : null;
         const envelope = await seal(
-          verificationEmail(config, url.toString(), String(attempt.expiresAt)),
+          verificationEmail(config, url.toString(), String(attempt.expiresAt), code),
           runtime.env.INVITATION_ENCRYPTION_KEY,
           runtime.env.INVITATION_KEY_ID,
           String(attempt.attemptId),
@@ -468,7 +475,40 @@ export function workflowHandler(endpoint: string, runtime: WorkflowRuntime) {
           tokenType: link.type,
           envelope,
         });
-        return json({ ok: true });
+        // Send this attempt's own code now rather than on the next scheduled
+        // run. A failure here is retried by the worker from the stored job.
+        let timer: ReturnType<typeof setTimeout> | undefined;
+        try {
+          await Promise.race([
+            dispatchJobs(
+              runtime,
+              1,
+              runtime.sendEmail ??
+                ((payload, key) =>
+                  sendProviderEmail(runtime.env, payload, key, { timeoutMs: 5000 })),
+              { family: "auth_verification", relatedId: String(attempt.invitationId) },
+            ).catch(() => undefined),
+            new Promise<void>((resolve) => {
+              timer = setTimeout(resolve, 8000);
+            }),
+          ]);
+        } finally {
+          clearTimeout(timer);
+        }
+        // The invite link already reached this mailbox; returning its address
+        // lets the same page verify the emailed code. No session is created.
+        return json({
+          ok: true,
+          verification: code
+            ? {
+                email: String(attempt.email),
+                type: link.type,
+                invitationId: String(attempt.invitationId),
+                attemptId: String(attempt.attemptId),
+                expiresAt: String(attempt.expiresAt),
+              }
+            : null,
+        });
       }
       const authorization = request.headers.get("authorization");
       const user = authorization?.startsWith("Bearer ")

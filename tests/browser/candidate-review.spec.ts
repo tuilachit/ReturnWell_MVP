@@ -179,6 +179,7 @@ test("uncertain candidate action retains its payload after rejected retries", as
       bodies.push(request.postDataJSON());
   });
   await page.getByRole("button", { name: "Save review", exact: true }).click();
+  await expect(page.getByRole("alert")).toContainText("could not be confirmed");
   const identity = f.runtime.getUser;
   f.runtime.getUser = async (token) => {
     const user = await identity(token);

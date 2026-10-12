@@ -28,6 +28,81 @@ async function geographyBrowser(page) {
   };
 }
 
+test("shortlist location controls and search metadata stay inset inside the rounded panel", async ({ page }) => {
+  test.skip(!process.env.RW_LOCAL_STACK_DIR, "Requires isolated local Supabase.");
+  test.setTimeout(120000);
+  const fixture = await geographyBrowser(page);
+  try {
+    await page.setViewportSize({ width: 1920, height: 1000 });
+    await page.goto("/");
+    await page.getByRole("button", { name: "New referral", exact: true }).click();
+    await page.getByPlaceholder("e.g. Practice record ID").fill("LAYOUT-FICTIONAL");
+    await page.getByPlaceholder("e.g. 2000").fill("2000");
+    await page.getByPlaceholder("Describe the need, goals and relevant context…").fill("Fictional layout check only.");
+    await page.getByLabel("Patient initials", { exact: true }).fill("FX");
+    await page.getByLabel("Patient phone", { exact: true }).fill("0412345678");
+    await expect(page.getByLabel("Patient suburb (NSW)")).toBeEnabled();
+    await page.getByLabel("Patient suburb (NSW)").selectOption("NSW:2000:origin test");
+    await page.getByLabel("Approximate radius").selectOption("25");
+    await page.getByRole("button", { name: "Find practitioners" }).click();
+    await expect(page.getByRole("radio", { name: new RegExp(fixture.clinic) })).toBeVisible();
+
+    for (const width of [1920, 1440, 1024, 768, 375]) {
+      await page.setViewportSize({ width, height: 1000 });
+      const navigation = page.getByRole("dialog", { name: "Workspace navigation" });
+      if (await navigation.isVisible()) {
+        await navigation.getByRole("button", { name: "Close navigation" }).click();
+        await expect(navigation).not.toBeVisible();
+      }
+      const panel = page.locator(".shortlist-main");
+      const edge = await panel.boundingBox();
+      const suburb = await page.getByLabel("Patient suburb (NSW)").boundingBox();
+      const radius = await page.getByLabel("Approximate radius").boundingBox();
+      expect(suburb.x - edge.x, `suburb left inset at ${width}px`).toBeGreaterThanOrEqual(16);
+      expect(suburb.y - edge.y, `suburb top inset at ${width}px`).toBeGreaterThanOrEqual(16);
+      expect(edge.x + edge.width - radius.x - radius.width, `radius right inset at ${width}px`).toBeGreaterThanOrEqual(16);
+      expect(suburb.height, `suburb control height at ${width}px`).toBeGreaterThanOrEqual(44);
+      expect(radius.height, `radius control height at ${width}px`).toBeGreaterThanOrEqual(44);
+      const paragraphs = panel.locator("p").filter({ hasText: /shown ·|Reference:/ });
+      await expect(paragraphs).toHaveCount(2);
+      for (const paragraph of await paragraphs.all()) {
+        const box = await paragraph.evaluate(node => {
+          const range = document.createRange();
+          range.selectNodeContents(node);
+          const bounds = range.getBoundingClientRect();
+          return { x: bounds.x, width: bounds.width };
+        });
+        expect(box.x - edge.x, `metadata left inset at ${width}px`).toBeGreaterThanOrEqual(16);
+        expect(edge.x + edge.width - box.x - box.width, `metadata right inset at ${width}px`).toBeGreaterThanOrEqual(16);
+        expect(await paragraph.evaluate(node => node.scrollWidth <= node.clientWidth + 1)).toBe(true);
+      }
+      const heading = panel.getByRole("heading", { name: "Confirmed members", exact: true });
+      const headingText = await heading.evaluate(node => {
+        const range = document.createRange();
+        range.selectNodeContents(node);
+        return range.getBoundingClientRect().x;
+      });
+      expect(headingText - edge.x, `recipient heading inset at ${width}px`).toBeGreaterThanOrEqual(16);
+      for (const button of await panel.getByRole("group", { name: "Appointment options" }).getByRole("button").all()) {
+        const box = await button.boundingBox();
+        expect(box.x - edge.x, `option left inset at ${width}px`).toBeGreaterThanOrEqual(16);
+        expect(edge.x + edge.width - box.x - box.width, `option right inset at ${width}px`).toBeGreaterThanOrEqual(16);
+      }
+      for (const button of await panel.locator(".directory-pages button, .location-controls button, .location-note button").all()) {
+        expect((await button.boundingBox()).height, `shortlist button height at ${width}px`).toBeGreaterThanOrEqual(44);
+      }
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+    }
+    await page.getByLabel("Approximate radius").selectOption("50");
+    await expect(page.getByRole("radio", { name: new RegExp(fixture.clinic) })).toBeVisible();
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    await page.screenshot({ path: "/tmp/returnwell-shortlist-layout-desktop.png", fullPage: true });
+    await page.setViewportSize({ width: 375, height: 1000 });
+    await expect(page.locator(".gp-sidebar")).toBeHidden();
+    await page.screenshot({ path: "/tmp/returnwell-shortlist-layout-mobile.png", fullPage: true });
+  } finally { fixture.cleanup(); }
+});
+
 test("rejected finalisation preserves the entire saved geography snapshot", async ({ page }) => {
   test.skip(!process.env.RW_LOCAL_STACK_DIR, "Requires isolated local Supabase.");
   test.setTimeout(120000);

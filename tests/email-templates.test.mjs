@@ -26,10 +26,25 @@ test("verification is purpose-limited and uses the server attempt deadline in bo
     "2026-10-02T02:03:00Z",
   );
   for (const body of [message.text, message.html]) {
-    assert.match(body, /2026-10-02T02:03:00.000Z/);
+    // 02:03 UTC on 2 Oct is 12:03 pm in Sydney (AEST, before daylight saving).
+    assert.match(body, /Fri 2 Oct 2026, 12:03 pm \(Sydney time\)/);
     assert.doesNotMatch(body, /patient|clinical|discount|payment/);
   }
   assert.match(message.html, />Review email verification<\/a>/);
+});
+test("code verification shows the typed code prominently, with no extra button and no health data", () => {
+  const link = trust.appUrl + "/auth/confirm#token_hash=fictional";
+  const message = verificationEmail(trust, link, "2026-10-17T11:33:44Z", "482913");
+  assert.equal(message.subject, "482913 is your ReturnWell code");
+  assert.match(message.text, /^Your code: 482913$/m);
+  assert.match(message.html, /aria-label="Your code">482913</);
+  // After daylight saving starts (4 Oct 2026), Sydney is UTC+11.
+  assert.match(message.text, /Sat 17 Oct 2026, 10:33 pm \(Sydney time\)/);
+  assert.match(message.text, /never asks for passwords, bank, card or Medicare/);
+  assert.match(message.text, new RegExp(`^${link.replaceAll(".", "\\.")}$`, "m"));
+  assert.doesNotMatch(message.html, /<a href="https:\/\/returnwell\.example\.test\/auth/);
+  assert.doesNotMatch(message.text + message.html, /patient details|clinical|diagnosis/);
+  assert.throws(() => verificationEmail(trust, link, "2026-10-17T11:33:44Z", "12ab56"));
 });
 test("shared layout escapes all text and includes equivalent action, canonical website and support", () => {
   assert.equal(typeof layout.renderTransactionalEmail, "function");

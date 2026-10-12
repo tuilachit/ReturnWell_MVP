@@ -16,7 +16,7 @@ import {
 } from "./workflow-security.ts";
 type Transport = (payload: Row, idempotencyKey: string) => Promise<Response>;
 type DispatchRuntime = Pick<WorkflowRuntime, "env" | "rpc">;
-export type DispatchScope = { family: "invitation" | "referral"; relatedId: string };
+export type DispatchScope = { family: "invitation" | "referral" | "auth_verification"; relatedId: string };
 export async function dispatchJobs(
   runtime: DispatchRuntime,
   limit: number,

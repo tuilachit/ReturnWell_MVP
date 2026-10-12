@@ -21,6 +21,9 @@ export type ReferralRow = {
   patient_age_group_id?: string | null;
   selection_mode: Referral["selectionMode"];
   selected_practitioner_id: string | null;
+  directory_recipient_user_id?: string | null;
+  // The paginated list returns only this flag, never the account id.
+  directory_recipient?: boolean | null;
   status: Referral["status"];
   created_at: string;
   updated_at: string;
@@ -49,7 +52,9 @@ export const rowToReferral = (row: ReferralRow): Referral => ({
     row.practitioners?.practice_name ??
     (row.selected_practitioner_id
       ? "Assigned practitioner — profile unavailable"
-      : row.selection_mode === "patient"
+      : row.directory_recipient_user_id || row.directory_recipient
+        ? "Directory practitioner (verified by email code)"
+        : row.selection_mode === "patient"
         ? "Patient choosing"
         : "Not assigned"),
   status: row.status,

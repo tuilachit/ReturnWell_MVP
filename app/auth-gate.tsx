@@ -15,6 +15,7 @@ import SecurityPanel from "./security-panel";
 import EmailOperations from "./email-operations-panel";
 import CandidateReviewPanel from "./candidate-review-panel";
 import AccountSetupPanel from "./account-setup-panel";
+import DirectoryReferralView from "./directory-referral-view";
 import { getSupabaseBrowserClient } from "./lib/supabase";
 import { googleSignInEnabled } from "./lib/google-auth";
 import {
@@ -255,7 +256,8 @@ export default function AuthGate({
     (!requested &&
       !access.doctors.length &&
       !access.practitioners.length &&
-      !access.applicationId)
+      !access.applicationId &&
+      !access.directoryReferrals?.length)
   )
     return (
       <>
@@ -279,6 +281,10 @@ export default function AuthGate({
       id: `practitioner:${item.practitionerId}`,
       label: `Practitioner — ${item.displayName}`,
     })),
+    ...(access.directoryReferrals ?? []).map((item) => ({
+      id: `directory:${item.referralId}`,
+      label: `Referral from ${item.practiceName}`,
+    })),
     ...(access.applicationId
       ? [{ id: "onboarding", label: "My practitioner application" }]
       : []),
@@ -289,11 +295,16 @@ export default function AuthGate({
   const referralDestination =
     typeof window !== "undefined" &&
     /^\/referrals\//.test(window.location.pathname);
+  const destinationReferral =
+    typeof window !== "undefined"
+      ? window.location.pathname.match(/^\/referrals\/([0-9a-f-]{36})$/i)?.[1]
+      : undefined;
   const eligible = choices.filter(
     (item) =>
       (!referralDestination ||
         item.id.startsWith("doctor:") ||
-        item.id.startsWith("practitioner:")) &&
+        item.id.startsWith("practitioner:") ||
+        item.id === `directory:${destinationReferral}`) &&
       (!requested ||
         (requested === "invitations"
           ? item.id.startsWith("doctor:")
@@ -339,6 +350,15 @@ export default function AuthGate({
           Sign out
         </button>
       </WorkflowShell>
+    );
+  if (selected.startsWith("directory:"))
+    return (
+      <DirectoryReferralView
+        key={selected}
+        client={client}
+        referralId={selected.slice("directory:".length)}
+        onSignOut={() => void signOut()}
+      />
     );
   if (doctor && requested !== "invitations")
     return (

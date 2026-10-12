@@ -101,6 +101,7 @@ export function localRuntime(directory = process.env.RW_LOCAL_STACK_DIR) {
         userId: data.user.id,
         hashedToken: data.properties.hashed_token,
         type,
+        emailOtp: data.properties.email_otp || undefined,
       };
     },
   };
@@ -205,6 +206,14 @@ export function localRuntime(directory = process.env.RW_LOCAL_STACK_DIR) {
       );
     return { client, userId: data.user.id };
   }
+  // The typed-code path a recipient uses on /join: address + emailed code.
+  async function verifyCode(email, token, type) {
+    const client = freshClient();
+    const { data, error } = await client.auth.verifyOtp({ email, token, type });
+    if (error || !data.user || !data.session)
+      throw new Error(`Local code exchange failed: ${error?.code || "no_session"}`);
+    return { client, userId: data.user.id };
+  }
   async function verifiedFixtureUser(email) {
     const { data, error } = await admin.auth.admin.createUser({
       email,
@@ -242,6 +251,7 @@ export function localRuntime(directory = process.env.RW_LOCAL_STACK_DIR) {
     invitationToken,
     verificationMessage,
     verify,
+    verifyCode,
     verifiedFixtureUser,
     generatedTypes,
     requestId: randomUUID,

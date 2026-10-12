@@ -29,6 +29,32 @@
   padding: 0 40px 24px;
   font-size: 16px;
 }
+/* Quick referral access: one large, phone-friendly code field. */
+.recipient-page .quick-code label {
+  display: grid;
+  gap: 8px;
+  font-weight: 600;
+}
+.recipient-page .code-input {
+  width: 100%;
+  max-width: 280px;
+  min-height: 56px;
+  padding: 10px 16px;
+  font: 600 28px/1.2 ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  letter-spacing: 0.35em;
+  color: var(--ink);
+  background: var(--field);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+.recipient-page .code-input:focus-visible {
+  outline: 3px solid var(--brand-soft);
+  border-color: var(--brand);
+}
+.recipient-page .quick-code-hint {
+  font-size: 14px;
+  color: var(--muted);
+}
 .recipient-page > header {
   max-width: 1152px;
   min-height: 100px;

@@ -55,6 +55,7 @@ export const growthLabels = {
   cancelled: "Referral cancelled",
 };
 export const growthReasons: Record<string, string> = {
+  directory_mailbox: "Opened after the practitioner verified the invited practice email with a one-time code. This is a reviewed directory contact, not a ReturnWell-verified member.",
   directory_identity_review: "ReturnWell must independently confirm the intended practitioner and practice before patient details are released.",
   directory_source_changed: "The directory source changed. Review the intended practitioner before confirming again.",
   consent_expired:

@@ -1,4 +1,4 @@
-import { renderTransactionalEmail } from "./email-layout.ts";
+import { renderTransactionalEmail, sydneyTime } from "./email-layout.ts";
 import type { TrustConfig } from "./workflow-security.ts";
 export type NotificationKind =
   | "referral_action_required"
@@ -127,14 +127,38 @@ export function verificationEmail(
   config: TrustConfig,
   url: string,
   expiresAt: string,
+  code: string | null = null,
 ) {
+  const deadline = sydneyTime(expiresAt);
+  if (code)
+    return {
+      subject: `${code} is your ReturnWell code`,
+      ...renderTransactionalEmail({
+        heading: "Your ReturnWell code",
+        preheader: "Type this code on the ReturnWell page you just opened.",
+        bodyParagraphs: [
+          "Type this code on the ReturnWell page you just opened:",
+        ],
+        code,
+        supportingParagraphs: [
+          `It works once and expires at ${deadline}.`,
+          "Didn’t ask for a code? Ignore this email. Nothing is shared without it.",
+          "ReturnWell never asks for passwords, bank, card or Medicare details by email.",
+          `If the page is no longer open, you can verify with this link instead:\n${url}`,
+          config.businessName,
+        ],
+        action: null,
+        supportEmail: config.supportEmail,
+        websiteUrl: config.websiteUrl,
+      }),
+    };
   return {
     subject: "Verify your email for ReturnWell",
     ...renderTransactionalEmail({
       heading: "Verify your email",
       bodyParagraphs: [
         "You requested access to ReturnWell. Open the link, then choose Verify and continue.",
-        `This verification expires at ${new Date(expiresAt).toISOString()} (UTC).`,
+        `This verification expires at ${deadline}.`,
         "If you did not request this, ignore this email. No workspace access is granted just by opening the link.",
         config.businessName,
       ],

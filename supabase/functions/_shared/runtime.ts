@@ -34,6 +34,7 @@ export function runtime(): WorkflowRuntime {
         userId: data.user.id,
         hashedToken: data.properties.hashed_token,
         type,
+        emailOtp: data.properties.email_otp || undefined,
       };
     },
   };
