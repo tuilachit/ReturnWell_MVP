@@ -167,7 +167,8 @@ test("invitation expiry is the original exact deadline, never a renewed seven-da
     "fictional",
     trust,
   );
-  assert.match(email.text, /2026-10-04T01:30:00.000Z/);
+  // 01:30 UTC on 4 Oct 2026 is just after Sydney daylight saving starts (UTC+11).
+  assert.match(email.text, /expires at Sun 4 Oct 2026, 12:30 pm \(Sydney time\)/);
   assert.doesNotMatch(email.text, /expires in seven days/);
   assert.match(email.html, /lang="en"/);
   assert.match(email.html, /Review invitation<\/a>/);

@@ -3,6 +3,7 @@
 /* eslint-disable @next/next/no-html-link-for-pages */
 
 import type { SupabaseClient } from "@supabase/supabase-js";
+import ThemeToggle from "./components/theme-toggle";
 import {
   ArrowLeft,
   ArrowRight,
@@ -25,6 +26,7 @@ import {
 import { useEffect, useMemo, useRef, useState } from "react";
 import ReferralActivity from "./referral-activity";
 import ReferralOverview from "./referral-overview";
+import ReferralDashboard from "./referral-dashboard";
 import PractitionerDirectory from "./practitioner-directory";
 import ReferralGuide from "./referral-guide";
 import { Brand } from "./brand";
@@ -781,6 +783,16 @@ export default function DoctorPortal({
     setLoading(true);
     setRefresh((value) => value + 1);
   };
+  // Opens a referral from a dashboard card that only knows its id.
+  const openReferralById = (id: string) => {
+    if (!client || !workspace) return;
+    getReferral(client, workspace.organisationId, id)
+      .then((referral) => {
+        setDetailReferral(referral);
+        setView("detail");
+      })
+      .catch(() => setError("That referral is not available in this workspace."));
+  };
   const navigate = (next: View) => {
     requestLeave(() => {
       setView(next);
@@ -997,6 +1009,7 @@ export default function DoctorPortal({
                 {demoMode ? "Fictional demo" : "Preview mode"}
               </span>
             )}
+            <ThemeToggle />
             <span className="header-avatar">
               {mode === "preview" ? "GP" : userName.slice(0, 1)}
             </span>
@@ -1056,6 +1069,28 @@ export default function DoctorPortal({
                 }}
                 onDemo={loadDemoWorkspace}
                 onGuide={() => navigate("guide")}
+                dashboard={
+                  mode === "authenticated" ? (
+                    <ReferralDashboard
+                      client={client ?? null}
+                      organisationId={workspace?.organisationId ?? null}
+                      counts={referralCounts}
+                      loading={loading}
+                      refreshKey={refresh}
+                      onStatus={(value) => {
+                        setStatusFilter(value);
+                        setReferralCursor(null);
+                        setLoading(true);
+                        document.getElementById("referral-table")?.scrollIntoView({ behavior: "smooth", block: "start" });
+                      }}
+                      onOpen={(referral) => {
+                        setDetailReferral(referral);
+                        setView("detail");
+                      }}
+                      onOpenId={openReferralById}
+                    />
+                  ) : undefined
+                }
               />
               {mode === "authenticated" && (
                 <div className="form-actions" aria-label="Referral pages">

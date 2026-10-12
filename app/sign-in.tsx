@@ -5,6 +5,7 @@ import { ArrowRight, Mail } from "./ui-icons";
 import { useSyncExternalStore, type FormEvent } from "react";
 import { Brand, BrandMark } from "./brand";
 import AccountFooter from "./account-footer";
+import ThemeToggle from "./components/theme-toggle";
 import Field from "./components/field";
 
 type Props = {
@@ -39,7 +40,10 @@ export default function SignIn({
     <main className="sign-in-page">
       <header className="sign-in-header">
         <Brand />
-        <span className="pilot-tag">Private test</span>
+        <div className="workflow-header-actions">
+          <ThemeToggle />
+          <span className="pilot-tag">Private test</span>
+        </div>
       </header>
       <section className="sign-in-panel" aria-labelledby="sign-in-heading">
         <BrandMark className="sign-in-app-icon" />

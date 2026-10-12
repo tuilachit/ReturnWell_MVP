@@ -45,7 +45,7 @@
   color: var(--ink);
   background: var(--field);
   border: 1px solid var(--line);
-  border-radius: 12px;
+  border-radius: 16px;
 }
 .recipient-page .code-input:focus-visible {
   outline: 3px solid var(--brand-soft);
@@ -165,7 +165,7 @@
   min-width: 0;
   margin: 0;
   padding: 40px;
-  border-radius: 20px;
+  border-radius: 28px;
   background: var(--surface);
   border: 1px solid var(--panel-border);
   box-shadow:
@@ -206,7 +206,7 @@
   padding: 18px 20px;
   background: #f7f9f8;
   border-color: #e7ece9;
-  border-radius: 12px;
+  border-radius: 18px;
   gap: 12px;
   margin: 0 0 30px;
 }
@@ -246,7 +246,7 @@
 .recipient-page .button {
   min-height: 48px;
   padding: 12px 20px;
-  border-radius: 10px;
+  border-radius: 999px;
   font-size: 14px;
   white-space: normal;
   line-height: 1.4;
@@ -400,7 +400,7 @@
 }
 .recipient-page .account-state,
 .recipient-page .account-state[role] {
-  border-radius: 12px;
+  border-radius: 18px;
   padding: 24px;
   margin-top: 24px;
   background: var(--soft);
@@ -423,7 +423,7 @@
 .recipient-page .workflow-content textarea {
   font-size: 16px;
   min-height: 48px;
-  border-radius: 9px;
+  border-radius: 14px;
 }
 .recipient-page :focus-visible {
   outline: 3px solid #8d252b;
@@ -443,7 +443,7 @@
   gap: 6px;
   padding: 6px 12px;
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: 12px;
   font-size: 13px;
   margin: 0 0 28px;
 }
@@ -466,7 +466,7 @@
 }
 .recipient-page .onboarding-form .workflow-card {
   padding: 24px;
-  border-radius: 14px;
+  border-radius: 20px;
   background: #fafbfb;
   border-color: var(--soft-line);
 }
@@ -601,7 +601,7 @@
   }
   .recipient-page .workflow-content {
     padding: 26px 22px;
-    border-radius: 16px;
+    border-radius: 22px;
   }
   .recipient-page .workflow-content h1 {
     font-size: 28px;
@@ -666,4 +666,9 @@
     scroll-behavior: auto;
     transition: none;
   }
+}
+.recipient-page .recipient-reassurance h3 {
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }

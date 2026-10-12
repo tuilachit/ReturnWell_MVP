@@ -14,6 +14,7 @@ import {
   CalendarIcon as CalendarCheck2,
   ComposeIcon as FilePlus2,
 } from "./ui-icons";
+import type { ReactNode } from "react";
 import type { Referral } from "./types";
 import { professionLabel } from "./lib/professions";
 import { referralStatusLabel } from "./lib/referral-status";
@@ -34,6 +35,8 @@ type Props = {
   onOpen: (referral: Referral) => void;
   onDemo: () => void;
   onGuide: () => void;
+  // Dashboard cards shown instead of the compact summary tiles.
+  dashboard?: ReactNode;
 };
 
 export default function ReferralOverview({
@@ -51,6 +54,7 @@ export default function ReferralOverview({
   onOpen,
   onDemo,
   onGuide,
+  dashboard,
 }: Props) {
   const open = counts
     ? (counts.all ?? 0) -
@@ -115,8 +119,8 @@ export default function ReferralOverview({
     <>
       <div className="page-heading">
         <div>
+          <p className="page-eyebrow">Manage and track your referrals</p>
           <h1>Referrals</h1>
-          <p>Manage referrals and follow practitioner responses.</p>
         </div>
         <button className="button primary" onClick={onNew}>
           <FilePlus2 size={17} />
@@ -124,6 +128,7 @@ export default function ReferralOverview({
         </button>
       </div>
 
+      {dashboard ?? (
       <section className="summary-strip" aria-label="Referral summary">
         {[
           {
@@ -173,8 +178,9 @@ export default function ReferralOverview({
           </button>
         ))}
       </section>
+      )}
 
-      <section className="activity-section">
+      <section className="activity-section" id="referral-table">
         <div className="activity-title">
           <h2>
             All referrals <span>{counts?.all ?? referrals.length}</span>
