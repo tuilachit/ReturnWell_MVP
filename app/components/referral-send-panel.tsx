@@ -7,7 +7,7 @@ export default function ReferralSendPanel({selected,contactBasis,contactConsentC
   const directory=selected?.kind==='directory';
   return <aside className="send-card">
     <h2>{preview?'Record referral':'Send referral'}</h2>
-    <p>{preview?'This preview does not save or send anything.':directory?'We will save the referral and attempt a private notification to this practice email. Patient details are released only after the intended recipient passes professional and ownership review.':'We will save the referral and attempt an email notification. Delivery status is recorded separately from saving the referral.'}</p>
+    <p>{preview?'This preview does not save or send anything.':directory?'We will save the referral and attempt a private notification to this practice email. Patient details open only after the practitioner verifies that email with a one-time code; a shared or unreviewed inbox needs ReturnWell review first.':'We will save the referral and attempt an email notification. Delivery status is recorded separately from saving the referral.'}</p>
     {directory&&<fieldset disabled={busy||uncertain} style={{border:0,padding:0}}>
       <legend className="sr-only">Receiving practice permission</legend>
       <p>Funding, availability and other unconfirmed requirements need checking. A publicly listed email is not permission to contact.</p>
