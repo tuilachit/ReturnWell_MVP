@@ -27,6 +27,8 @@ import Location01 from "@hugeicons/core-free-icons/Location01Icon";
 import Video01 from "@hugeicons/core-free-icons/Video01Icon";
 import Sent02 from "@hugeicons/core-free-icons/Sent02Icon";
 import LinkSquare02 from "@hugeicons/core-free-icons/LinkSquare02Icon";
+import Sun03 from "@hugeicons/core-free-icons/Sun03Icon";
+import Moon02 from "@hugeicons/core-free-icons/Moon02Icon";
 
 type IconProps = Omit<HugeiconsIconProps, "icon">;
 
@@ -82,3 +84,5 @@ export const MapPin = createIcon(Location01);
 export const Video = createIcon(Video01);
 export const Send = createIcon(Sent02);
 export const ExternalLink = createIcon(LinkSquare02);
+export const SunIcon = createIcon(Sun03);
+export const MoonIcon = createIcon(Moon02);

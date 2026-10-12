@@ -5,6 +5,7 @@ import { useEffect, useRef, type ReactNode } from "react";
 import { Brand } from "./brand";
 import { ArrowLeft } from "./ui-icons";
 import AccountFooter from "./account-footer";
+import ThemeToggle from "./components/theme-toggle";
 export default function WorkflowShell({
   title,
   children,
@@ -84,7 +85,10 @@ export default function WorkflowShell({
         <a className="auth-brand" href="/">
           <Brand />
         </a>
-        <span className="pilot-tag">Private test</span>
+        <div className="workflow-header-actions">
+          <ThemeToggle />
+          <span className="pilot-tag">Private test</span>
+        </div>
       </header>
       <section
         className={`workflow-content${compact ? " workflow-content-compact" : ""}`}

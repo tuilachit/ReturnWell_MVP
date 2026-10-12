@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import "./recipient.css";
 import AppErrorBoundary from "./components/app-error-boundary";
+import { ThemeSync } from "./components/theme-toggle";
 
 export const metadata: Metadata = {
   metadataBase: new URL(
@@ -33,6 +34,7 @@ export default function RootLayout({
   return (
     <html lang="en-AU">
       <body>
+        <ThemeSync />
         <AppErrorBoundary>{children}</AppErrorBoundary>
       </body>
     </html>
